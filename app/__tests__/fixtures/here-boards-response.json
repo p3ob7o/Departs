@@ -1,0 +1,46 @@
+{
+  "boards": [
+    {
+      "departures": [
+        {
+          "time": "2024-01-15T10:05:00+01:00",
+          "transport": {
+            "mode": "subway",
+            "name": "U2",
+            "headsign": "Pankow"
+          },
+          "agency": { "name": "BVG" }
+        },
+        {
+          "time": "2024-01-15T10:12:00+01:00",
+          "rtTime": "2024-01-15T10:14:00+01:00",
+          "transport": {
+            "mode": "subway",
+            "name": "U2",
+            "headsign": "Pankow"
+          },
+          "agency": { "name": "BVG" }
+        },
+        {
+          "time": "2024-01-15T10:20:00+01:00",
+          "transport": {
+            "mode": "subway",
+            "name": "U2",
+            "headsign": "Pankow"
+          },
+          "agency": { "name": "BVG" }
+        },
+        {
+          "time": "2024-01-15T10:30:00+01:00",
+          "rtTime": "2024-01-15T10:30:00+01:00",
+          "transport": {
+            "mode": "subway",
+            "name": "U2",
+            "headsign": "Pankow"
+          },
+          "agency": { "name": "BVG" }
+        }
+      ]
+    }
+  ]
+}

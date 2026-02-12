@@ -1,2 +1,2 @@
 # Departs
-A small app to find nearby public transport 
+A small app to find nearby public transport

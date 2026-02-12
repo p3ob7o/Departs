@@ -1,0 +1,61 @@
+{
+  "stations": [
+    {
+      "place": {
+        "type": "station",
+        "id": "stop-1",
+        "name": "Central Station",
+        "location": { "lat": 52.5200, "lng": 13.4050 }
+      },
+      "distance": 120,
+      "transports": [
+        {
+          "mode": "subway",
+          "name": "U2",
+          "headsign": "Pankow",
+          "id": "line-u2"
+        },
+        {
+          "mode": "bus",
+          "name": "Bus 100",
+          "headsign": "Alexanderplatz",
+          "id": "line-bus100"
+        }
+      ]
+    },
+    {
+      "place": {
+        "type": "station",
+        "id": "stop-2",
+        "name": "Market Square",
+        "location": { "lat": 52.5210, "lng": 13.4060 }
+      },
+      "distance": 85,
+      "transports": [
+        {
+          "mode": "lightRail",
+          "name": "Tram M1",
+          "headsign": "Rosenthal",
+          "id": "line-m1"
+        }
+      ]
+    },
+    {
+      "place": {
+        "type": "station",
+        "id": "stop-3",
+        "name": "Park Avenue",
+        "location": { "lat": 52.5190, "lng": 13.4040 }
+      },
+      "distance": 200,
+      "transports": [
+        {
+          "mode": "intercityTrain",
+          "name": "RE1",
+          "headsign": "Frankfurt (Oder)",
+          "id": "line-re1"
+        }
+      ]
+    }
+  ]
+}
