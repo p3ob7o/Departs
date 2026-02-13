@@ -13,9 +13,11 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "mapbox-gl": "^3.18.1",
     "next": "16.1.6",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "react-map-gl": "^8.1.0"
   },
   "devDependencies": {
     "@playwright/test": "^1.58.2",

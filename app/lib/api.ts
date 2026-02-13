@@ -1,20 +1,35 @@
-// TODO: Implement client-side API fetch helpers
 import type { NearbyStop, Departure, WalkingRoute } from "@/app/types";
+import { transformStations, transformDepartures } from "./transitProvider";
 
 export async function fetchNearbyStops(
-  _lat: number,
-  _lon: number
+  lat: number,
+  lon: number
 ): Promise<NearbyStop[]> {
-  throw new Error("Not implemented");
+  if (isNaN(lat) || isNaN(lon)) throw new Error("Invalid coordinates");
+  const res = await fetch(`/api/stops/nearby?lat=${lat}&lon=${lon}`);
+  if (!res.ok) throw new Error(`Failed to fetch nearby stops: ${res.status}`);
+  return transformStations(await res.json());
 }
 
-export async function fetchDepartures(_stopId: string): Promise<Departure[]> {
-  throw new Error("Not implemented");
+export async function fetchDepartures(stopId: string): Promise<Departure[]> {
+  const res = await fetch(`/api/departures?stopId=${stopId}`);
+  if (!res.ok) throw new Error(`Failed to fetch departures: ${res.status}`);
+  return transformDepartures(await res.json());
 }
 
 export async function fetchDirections(
-  _from: { lat: number; lon: number },
-  _to: { lat: number; lon: number }
+  from: { lat: number; lon: number },
+  to: { lat: number; lon: number }
 ): Promise<WalkingRoute> {
-  throw new Error("Not implemented");
+  const res = await fetch(
+    `/api/directions?from=${from.lat},${from.lon}&to=${to.lat},${to.lon}`
+  );
+  if (!res.ok) throw new Error(`Failed to fetch directions: ${res.status}`);
+  const data = await res.json();
+  const route = data.routes[0];
+  return {
+    geometry: route.geometry,
+    duration: route.duration,
+    distance: route.distance,
+  };
 }
