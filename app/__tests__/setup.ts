@@ -1,4 +1,5 @@
 import "@testing-library/jest-dom/vitest";
+import { cleanup } from "@testing-library/react";
 import { setupServer } from "msw/node";
 import { handlers } from "./mocks/handlers";
 import { beforeAll, afterAll, afterEach, vi } from "vitest";
@@ -7,7 +8,11 @@ import { beforeAll, afterAll, afterEach, vi } from "vitest";
 export const server = setupServer(...handlers);
 
 beforeAll(() => server.listen({ onUnhandledRequest: "warn" }));
-afterEach(() => server.resetHandlers());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+  server.resetHandlers();
+});
 afterAll(() => server.close());
 
 // Mock react-map-gl
