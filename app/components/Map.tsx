@@ -1,4 +1,4 @@
-import { Map, Marker, Source, Layer } from "react-map-gl";
+import { Map, Marker, Source, Layer } from "react-map-gl/mapbox";
 import type { NearbyStop, WalkingRoute } from "@/app/types";
 
 export function MapView({

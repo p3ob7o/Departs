@@ -1,15 +1,9 @@
-import path from "path";
 import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
 
 export default defineConfig({
   plugins: [react(), tsconfigPaths()],
-  resolve: {
-    alias: {
-      "react-map-gl": path.resolve(__dirname, "app/__tests__/mocks/react-map-gl.ts"),
-    },
-  },
   test: {
     environment: "jsdom",
     environmentMatchGlobs: [["app/api/**/*.test.ts", "node"]],

@@ -16,7 +16,7 @@ afterEach(() => {
 afterAll(() => server.close());
 
 // Mock react-map-gl
-vi.mock("react-map-gl", () => import("./mocks/react-map-gl"));
+vi.mock("react-map-gl/mapbox", () => import("./mocks/react-map-gl"));
 
 // Mock mapbox-gl (no WebGL in jsdom)
 vi.mock("mapbox-gl", () => import("./mocks/mapbox-gl"));
