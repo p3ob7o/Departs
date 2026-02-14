@@ -25,20 +25,6 @@ export default function Home() {
     selectedStop?.location ?? { lat: 0, lon: 0 }
   );
 
-  if (geo.loading || stopsHook.loading) {
-    return <LoadingState />;
-  }
-
-  if (geo.error === "permission_denied") {
-    return <ErrorState type="permission" onRetry={geo.retry} />;
-  }
-
-  if (stopsHook.error === "network") {
-    return <ErrorState type="network" onRetry={geo.retry} />;
-  }
-
-  const userCoords = geo.coords!;
-
   const handleBoundsReady = useCallback(
     (bounds: { north: number; south: number; east: number; west: number }) => {
       setMapBounds(bounds);
@@ -56,6 +42,20 @@ export default function Home() {
         s.location.lon <= mapBounds.east
     );
   }, [stopsHook.stops, mapBounds]);
+
+  if (geo.loading || stopsHook.loading) {
+    return <LoadingState />;
+  }
+
+  if (geo.error === "permission_denied") {
+    return <ErrorState type="permission" onRetry={geo.retry} />;
+  }
+
+  if (stopsHook.error === "network") {
+    return <ErrorState type="network" onRetry={geo.retry} />;
+  }
+
+  const userCoords = geo.coords!;
 
   return (
     <div className="app-layout">
