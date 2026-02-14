@@ -42,7 +42,7 @@ export function transformStations(data: any): NearbyStop[] {
       location: { lat: place.location.lat, lon: place.location.lng },
       distance,
     };
-  }).filter((stop: NearbyStop) => stop.lines.length > 0);
+  }).filter((stop: NearbyStop) => stop.lines.length > 0) as NearbyStop[];
 
   // Deduplicate: for each line+direction combo, keep only the nearest stop
   const seen = new Set<string>();
