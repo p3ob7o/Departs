@@ -60,6 +60,80 @@ describe("transitProvider", () => {
 
       expect(result).toEqual([]);
     });
+
+    it("deduplicates stops with same line+direction, keeping nearest", () => {
+      const data = {
+        stations: [
+          {
+            place: { id: "s1", name: "Stop A", location: { lat: 1, lng: 2 } },
+            distance: 50,
+            transports: [
+              { mode: "lightRail", name: "49", headsign: "Hütteldorf", id: "t1" },
+              { mode: "bus", name: "13A", headsign: "Hauptbahnhof", id: "t2" },
+            ],
+          },
+          {
+            place: { id: "s2", name: "Stop B", location: { lat: 1.1, lng: 2.1 } },
+            distance: 80,
+            transports: [
+              { mode: "lightRail", name: "49", headsign: "Hütteldorf", id: "t3" },
+            ],
+          },
+          {
+            place: { id: "s3", name: "Stop C", location: { lat: 1.2, lng: 2.2 } },
+            distance: 100,
+            transports: [
+              { mode: "lightRail", name: "49", headsign: "Ring/Volkstheater", id: "t4" },
+              { mode: "bus", name: "13A", headsign: "Skodagasse", id: "t5" },
+            ],
+          },
+        ],
+      };
+
+      const result = transformStations(data);
+
+      // Stop A kept: 49→Hütteldorf and 13A→Hauptbahnhof (both new)
+      // Stop B dropped: 49→Hütteldorf already seen
+      // Stop C kept: 49→Ring/Volkstheater (new direction) and 13A→Skodagasse (new direction)
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe("s1");
+      expect(result[0].lines).toHaveLength(2);
+      expect(result[1].id).toBe("s3");
+      expect(result[1].lines).toHaveLength(2);
+    });
+
+    it("prunes duplicate lines from a stop while keeping new ones", () => {
+      const data = {
+        stations: [
+          {
+            place: { id: "s1", name: "Stop A", location: { lat: 1, lng: 2 } },
+            distance: 50,
+            transports: [
+              { mode: "bus", name: "13A", headsign: "Hauptbahnhof", id: "t1" },
+            ],
+          },
+          {
+            place: { id: "s2", name: "Stop B", location: { lat: 1.1, lng: 2.1 } },
+            distance: 80,
+            transports: [
+              { mode: "bus", name: "13A", headsign: "Hauptbahnhof", id: "t2" },
+              { mode: "bus", name: "14A", headsign: "Reumannplatz", id: "t3" },
+            ],
+          },
+        ],
+      };
+
+      const result = transformStations(data);
+
+      // Stop A kept: 13A→Hauptbahnhof (new)
+      // Stop B kept but 13A→Hauptbahnhof pruned, only 14A→Reumannplatz remains
+      expect(result).toHaveLength(2);
+      expect(result[0].id).toBe("s1");
+      expect(result[0].lines).toHaveLength(1);
+      expect(result[1].id).toBe("s2");
+      expect(result[1].lines).toHaveLength(1);
+      expect(result[1].lines[0].name).toBe("14A");
+    });
   });
 
   describe("transformDepartures", () => {
