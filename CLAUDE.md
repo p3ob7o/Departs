@@ -57,6 +57,10 @@ HERE_API_KEY=*                   # Server-side transit data
 - Multiple Chromium browsers are installed. Only **Google Chrome** (profile **"Claude"**) has the Claude extension
 - If `tabs_context_mcp` returns a connection error, call `switch_browser` to connect to Chrome
 
+## Workflow
+
+- After implementing a change, always commit, push, and verify in Chrome on production (the app is not launched publicly)
+
 ## Deployment
 
 - Vercel (auto-deploys from `main`)
