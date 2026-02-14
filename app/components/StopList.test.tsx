@@ -35,6 +35,6 @@ describe("StopList", () => {
     render(<StopList stops={[]} onSelectStop={onSelectStop} />);
 
     expect(screen.getByText(/no public transit stops nearby/i)).toBeInTheDocument();
-    expect(screen.getByText(/250m/)).toBeInTheDocument();
+    expect(screen.getByText(/find any stops nearby/)).toBeInTheDocument();
   });
 });

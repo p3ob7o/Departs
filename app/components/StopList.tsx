@@ -21,7 +21,7 @@ export function StopList({
           No public transit stops nearby
         </p>
         <p style={{ fontSize: "15px" }}>
-          We couldn&apos;t find any stops within 250m of your location. Try moving to a different area.
+          We couldn&apos;t find any stops nearby. Try moving to a different area.
         </p>
       </div>
     );

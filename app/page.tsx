@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import type { NearbyStop } from "@/app/types";
 import { useGeolocation } from "@/app/hooks/useGeolocation";
 import { useNearbyStops } from "@/app/hooks/useNearbyStops";
@@ -14,6 +14,9 @@ import { BottomSheet } from "@/app/components/BottomSheet";
 
 export default function Home() {
   const [selectedStop, setSelectedStop] = useState<NearbyStop | null>(null);
+  const [mapBounds, setMapBounds] = useState<{
+    north: number; south: number; east: number; west: number;
+  } | null>(null);
   const geo = useGeolocation();
   const stopsHook = useNearbyStops(geo.coords);
   const depsHook = useDepartures(
@@ -36,13 +39,32 @@ export default function Home() {
 
   const userCoords = geo.coords!;
 
+  const handleBoundsReady = useCallback(
+    (bounds: { north: number; south: number; east: number; west: number }) => {
+      setMapBounds(bounds);
+    },
+    []
+  );
+
+  const visibleStops = useMemo(() => {
+    if (!mapBounds) return stopsHook.stops;
+    return stopsHook.stops.filter(
+      (s) =>
+        s.location.lat >= mapBounds.south &&
+        s.location.lat <= mapBounds.north &&
+        s.location.lon >= mapBounds.west &&
+        s.location.lon <= mapBounds.east
+    );
+  }, [stopsHook.stops, mapBounds]);
+
   return (
     <div className="app-layout">
       <div className="map-container">
         <MapView
           userCoords={userCoords}
-          stops={selectedStop ? [selectedStop] : stopsHook.stops}
+          stops={selectedStop ? [selectedStop] : visibleStops}
           walkingRoute={depsHook.walkingRoute ?? undefined}
+          onBoundsReady={handleBoundsReady}
         />
       </div>
       <BottomSheet>
@@ -54,7 +76,7 @@ export default function Home() {
             onBack={() => setSelectedStop(null)}
           />
         ) : (
-          <StopList stops={stopsHook.stops} onSelectStop={setSelectedStop} />
+          <StopList stops={visibleStops} onSelectStop={setSelectedStop} />
         )}
       </BottomSheet>
     </div>

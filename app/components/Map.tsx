@@ -23,10 +23,12 @@ export function MapView({
   userCoords,
   stops,
   walkingRoute,
+  onBoundsReady,
 }: {
   userCoords: { lat: number; lon: number };
   stops: NearbyStop[];
   walkingRoute?: WalkingRoute;
+  onBoundsReady?: (bounds: { north: number; south: number; east: number; west: number }) => void;
 }) {
   const mapRef = useRef<MapRef>(null);
   const darkMode = useDarkMode();
@@ -86,6 +88,22 @@ export function MapView({
       }}
       mapStyle={mapStyle}
       mapboxAccessToken={process.env.NEXT_PUBLIC_MAPBOX_TOKEN}
+      scrollZoom={false}
+      dragPan={false}
+      dragRotate={false}
+      touchZoomRotate={false}
+      doubleClickZoom={false}
+      onLoad={() => {
+        const b = onBoundsReady && mapRef.current?.getBounds();
+        if (b) {
+          onBoundsReady({
+            north: b.getNorth(),
+            south: b.getSouth(),
+            east: b.getEast(),
+            west: b.getWest(),
+          });
+        }
+      }}
     >
       {/* User location: blue dot + halo */}
       <Marker latitude={userCoords.lat} longitude={userCoords.lon} anchor="center">
