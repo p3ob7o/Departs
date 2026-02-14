@@ -1,11 +1,18 @@
 import type { NearbyStop, Departure, TransportType } from "@/app/types";
 
 const modeMap: Record<string, TransportType> = {
+  bus: "bus",
+  privateBus: "bus",
+  busRapid: "bus",
   subway: "subway",
   metro: "subway",
   lightRail: "tram",
+  monorail: "tram",
   intercityTrain: "rail",
-  bus: "bus",
+  interRegionalTrain: "rail",
+  regionalTrain: "rail",
+  cityTrain: "rail",
+  highSpeedTrain: "rail",
 };
 
 function mapMode(mode: string): TransportType {
