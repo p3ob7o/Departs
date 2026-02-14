@@ -15,6 +15,21 @@ afterEach(() => {
 });
 afterAll(() => server.close());
 
+// Mock matchMedia (not available in jsdom)
+Object.defineProperty(window, "matchMedia", {
+  writable: true,
+  value: vi.fn().mockImplementation((query: string) => ({
+    matches: false,
+    media: query,
+    onchange: null,
+    addListener: vi.fn(),
+    removeListener: vi.fn(),
+    addEventListener: vi.fn(),
+    removeEventListener: vi.fn(),
+    dispatchEvent: vi.fn(),
+  })),
+});
+
 // Mock react-map-gl
 vi.mock("react-map-gl/mapbox", () => import("./mocks/react-map-gl"));
 

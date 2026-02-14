@@ -10,7 +10,7 @@ describe("DepartureDetail", () => {
   const stop = nearbyStops[0];
   const onBack = vi.fn();
 
-  it("renders the stop name as header", () => {
+  it("renders the departures heading", () => {
     render(
       <DepartureDetail
         stop={stop}
@@ -20,7 +20,7 @@ describe("DepartureDetail", () => {
       />
     );
 
-    expect(screen.getByText("Central Station")).toBeInTheDocument();
+    expect(screen.getByText("Departures:")).toBeInTheDocument();
   });
 
   it("renders departure rows", () => {

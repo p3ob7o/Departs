@@ -9,7 +9,22 @@ export function StopList({
   onSelectStop: (stop: NearbyStop) => void;
 }) {
   if (stops.length === 0) {
-    return <p>No stops nearby</p>;
+    return (
+      <div
+        className="flex flex-col items-center text-center"
+        style={{ padding: "32px 16px", color: "var(--color-text-secondary)" }}
+      >
+        <p
+          className="font-semibold"
+          style={{ fontSize: "17px", color: "var(--color-text-primary)", marginBottom: "8px" }}
+        >
+          No public transit stops nearby
+        </p>
+        <p style={{ fontSize: "15px" }}>
+          We couldn&apos;t find any stops within 250m of your location. Try moving to a different area.
+        </p>
+      </div>
+    );
   }
 
   return (

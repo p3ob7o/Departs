@@ -14,10 +14,10 @@ describe("StopRow", () => {
     expect(screen.getByTestId("transport-icon-subway")).toBeInTheDocument();
   });
 
-  it("displays the stop name", () => {
+  it("displays the transport type name", () => {
     render(<StopRow stop={stop} onTap={onTap} />);
 
-    expect(screen.getByText("Central Station")).toBeInTheDocument();
+    expect(screen.getByText("Subway")).toBeInTheDocument();
   });
 
   it("displays the first line with direction", () => {
@@ -42,16 +42,18 @@ describe("StopRow", () => {
     expect(onTap).toHaveBeenCalledWith(stop);
   });
 
-  it("has minimum 44px touch target", () => {
+  it("has 64px row height", () => {
     render(<StopRow stop={stop} onTap={onTap} />);
 
     const button = screen.getByRole("button");
-    expect(button).toHaveClass("min-h-[44px]");
+    expect(button).toHaveStyle({ height: "64px" });
   });
 
-  it("shows distance in meters", () => {
+  it("has bottom border divider", () => {
     render(<StopRow stop={stop} onTap={onTap} />);
 
-    expect(screen.getByText(/120\s*m/)).toBeInTheDocument();
+    const button = screen.getByRole("button");
+    const style = button.getAttribute("style") || "";
+    expect(style).toContain("border-bottom");
   });
 });

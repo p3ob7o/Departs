@@ -77,8 +77,8 @@ describe("Home page", () => {
   it("transitions to nearby stops view after geolocation + fetch", async () => {
     await setupHooks();
     render(<Home />);
-    expect(screen.getByText("Central Station")).toBeInTheDocument();
-    expect(screen.getByText("Market Square")).toBeInTheDocument();
+    expect(screen.getByText("Subway")).toBeInTheDocument();
+    expect(screen.getByText("Tram")).toBeInTheDocument();
   });
 
   it("transitions to departure detail when a stop is selected", async () => {
@@ -140,7 +140,7 @@ describe("Home page", () => {
   });
 
   it("renders stop markers on the map for all nearby stops", async () => {
-    await setupHooks();
+    await setupHooks({ deps: { walkingRoute: null } });
     render(<Home />);
     // user marker + one per stop
     const markers = screen.getAllByTestId("marker");

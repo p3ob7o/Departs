@@ -1,5 +1,5 @@
 import type { NearbyStop } from "@/app/types";
-import { TransportIcon } from "./TransportIcon";
+import { TransportIcon, getTransportName } from "./TransportIcon";
 
 export function StopRow({
   stop,
@@ -12,20 +12,40 @@ export function StopRow({
 
   return (
     <button
-      className="min-h-[44px] w-full flex items-center gap-3 px-2 py-2 text-left"
+      className="w-full flex items-center gap-3 px-3 text-left"
+      style={{
+        height: "64px",
+        borderBottom: "1px solid var(--color-bg-tertiary)",
+        marginLeft: "0px",
+        paddingLeft: "0px",
+      }}
       onClick={() => onTap(stop)}
     >
       <TransportIcon type={stop.type} />
-      <div className="flex-1 min-w-0">
-        <div className="font-medium">{stop.name}</div>
+      <div
+        className="flex-1 min-w-0"
+        style={{
+          borderBottom: "none",
+        }}
+      >
+        <div
+          className="font-semibold"
+          style={{ fontSize: "17px", lineHeight: "22px", color: "var(--color-text-primary)" }}
+        >
+          {getTransportName(stop.type)}
+        </div>
         {firstLine && (
-          <div className="text-sm text-zinc-500">
-            {firstLine.name} → {firstLine.direction}
+          <div
+            style={{ fontSize: "15px", lineHeight: "20px", color: "var(--color-text-secondary)" }}
+          >
+            {firstLine.name} to {firstLine.direction}
           </div>
         )}
       </div>
-      <span className="text-sm text-zinc-400">{stop.distance} m</span>
-      <span aria-label="View departures" className="text-zinc-400">
+      <span
+        style={{ fontSize: "16px", color: "var(--color-text-tertiary)" }}
+        aria-label="View departures"
+      >
         ›
       </span>
     </button>

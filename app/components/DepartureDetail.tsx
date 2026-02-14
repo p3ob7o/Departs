@@ -1,5 +1,6 @@
 import type { NearbyStop, Departure, WalkingRoute } from "@/app/types";
 import { DepartureRow } from "./DepartureRow";
+import { getTransportName } from "./TransportIcon";
 
 export function DepartureDetail({
   stop,
@@ -16,21 +17,49 @@ export function DepartureDetail({
 
   return (
     <div>
-      <button aria-label="Back" onClick={onBack} className="mb-2">
-        ← Back
+      <button
+        aria-label="Back"
+        onClick={onBack}
+        className="mb-4"
+        style={{ fontSize: "24px", color: "var(--color-text-primary)" }}
+      >
+        ←
       </button>
-      <h2 className="text-lg font-semibold">{stop.name}</h2>
+      <h2
+        className="font-bold"
+        style={{
+          fontSize: "22px",
+          lineHeight: "28px",
+          color: "var(--color-text-primary)",
+        }}
+      >
+        Departures:
+      </h2>
       {firstLine && (
-        <p className="text-sm text-zinc-500">
-          {firstLine.name} → {firstLine.direction}
+        <p
+          style={{
+            fontSize: "15px",
+            lineHeight: "20px",
+            color: "var(--color-text-secondary)",
+            marginTop: "8px",
+          }}
+        >
+          {getTransportName(stop.type)} {firstLine.name} to {firstLine.direction}
         </p>
       )}
       {walkingRoute && (
-        <p className="text-sm text-zinc-500">
+        <p
+          style={{
+            fontSize: "15px",
+            lineHeight: "20px",
+            color: "var(--color-text-secondary)",
+            marginTop: "4px",
+          }}
+        >
           {Math.round(walkingRoute.duration / 60)} min walk
         </p>
       )}
-      <div className="mt-3">
+      <div style={{ marginTop: "20px" }}>
         {departures.map((dep, i) => (
           <DepartureRow key={i} departure={dep} />
         ))}

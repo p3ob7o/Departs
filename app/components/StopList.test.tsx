@@ -10,9 +10,9 @@ describe("StopList", () => {
   it("renders a row for each stop", () => {
     render(<StopList stops={nearbyStops} onSelectStop={onSelectStop} />);
 
-    expect(screen.getByText("Central Station")).toBeInTheDocument();
-    expect(screen.getByText("Market Square")).toBeInTheDocument();
-    expect(screen.getByText("Park Avenue")).toBeInTheDocument();
+    expect(screen.getByText("Subway")).toBeInTheDocument();
+    expect(screen.getByText("Tram")).toBeInTheDocument();
+    expect(screen.getByText("Rail")).toBeInTheDocument();
   });
 
   it("renders stops sorted by distance", () => {
@@ -26,7 +26,7 @@ describe("StopList", () => {
     const user = userEvent.setup();
     render(<StopList stops={nearbyStops} onSelectStop={onSelectStop} />);
 
-    await user.click(screen.getByText("Central Station"));
+    await user.click(screen.getByText("Subway"));
 
     expect(onSelectStop).toHaveBeenCalledWith(nearbyStops[0]);
   });
@@ -34,6 +34,7 @@ describe("StopList", () => {
   it("renders empty state when no stops provided", () => {
     render(<StopList stops={[]} onSelectStop={onSelectStop} />);
 
-    expect(screen.getByText(/no stops/i)).toBeInTheDocument();
+    expect(screen.getByText(/no public transit stops nearby/i)).toBeInTheDocument();
+    expect(screen.getByText(/250m/)).toBeInTheDocument();
   });
 });

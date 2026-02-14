@@ -26,10 +26,9 @@ export async function fetchDirections(
   );
   if (!res.ok) throw new Error(`Failed to fetch directions: ${res.status}`);
   const data = await res.json();
-  const route = data.routes[0];
   return {
-    geometry: route.geometry,
-    duration: route.duration,
-    distance: route.distance,
+    geometry: data.geometry,
+    duration: data.duration,
+    distance: data.distance,
   };
 }

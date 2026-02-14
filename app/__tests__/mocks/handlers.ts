@@ -36,6 +36,7 @@ export const handlers = [
   }),
 
   // Mapbox Walking Directions — proxied through Next.js
+  // The API route already unwraps routes[0], so the client receives flat data
   http.get("/api/directions", ({ request }) => {
     const url = new URL(request.url);
     const from = url.searchParams.get("from");
@@ -48,7 +49,12 @@ export const handlers = [
       );
     }
 
-    return HttpResponse.json(mapboxDirectionsResponse);
+    const route = mapboxDirectionsResponse.routes[0];
+    return HttpResponse.json({
+      geometry: route.geometry,
+      duration: route.duration,
+      distance: route.distance,
+    });
   }),
 
   // Direct HERE API (for API route tests in node env)
