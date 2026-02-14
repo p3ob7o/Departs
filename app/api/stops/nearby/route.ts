@@ -24,7 +24,7 @@ export async function GET(request: Request): Promise<Response> {
 
   try {
     const res = await fetch(
-      `https://transit.hereapi.com/v8/stations?in=${lat},${lon};r=500&maxPlaces=50&return=transport&apiKey=${process.env.HERE_API_KEY}`
+      `https://transit.hereapi.com/v8/stations?in=${lat},${lon};r=250&maxPlaces=50&return=transport&apiKey=${process.env.HERE_API_KEY}`
     );
 
     if (!res.ok) throw new Error(`HERE API error: ${res.status}`);
