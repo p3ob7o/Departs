@@ -52,6 +52,11 @@ HERE_API_KEY=*                   # Server-side transit data
 - **Mapbox Directions**: Walking profile. API route unwraps `routes[0]` before returning to client.
 - **Mapbox GL JS**: `light-v11` / `dark-v11` styles via `react-map-gl`
 
+## Browser Automation
+
+- Multiple Chromium browsers are installed. Only **Google Chrome** (profile **"Claude"**) has the Claude extension
+- If `tabs_context_mcp` returns a connection error, call `switch_browser` to connect to Chrome
+
 ## Deployment
 
 - Vercel (auto-deploys from `main`)
