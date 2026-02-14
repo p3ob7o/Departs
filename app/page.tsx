@@ -9,6 +9,8 @@ import { LoadingState } from "@/app/components/LoadingState";
 import { ErrorState } from "@/app/components/ErrorState";
 import { StopList } from "@/app/components/StopList";
 import { DepartureDetail } from "@/app/components/DepartureDetail";
+import { MapView } from "@/app/components/Map";
+import { BottomSheet } from "@/app/components/BottomSheet";
 
 export default function Home() {
   const [selectedStop, setSelectedStop] = useState<NearbyStop | null>(null);
@@ -32,16 +34,29 @@ export default function Home() {
     return <ErrorState type="network" onRetry={geo.retry} />;
   }
 
-  if (selectedStop) {
-    return (
-      <DepartureDetail
-        stop={selectedStop}
-        departures={depsHook.departures}
-        walkingRoute={depsHook.walkingRoute}
-        onBack={() => setSelectedStop(null)}
-      />
-    );
-  }
+  const userCoords = geo.coords!;
 
-  return <StopList stops={stopsHook.stops} onSelectStop={setSelectedStop} />;
+  return (
+    <div className="app-layout">
+      <div className="map-container">
+        <MapView
+          userCoords={userCoords}
+          stops={selectedStop ? [selectedStop] : stopsHook.stops}
+          walkingRoute={depsHook.walkingRoute ?? undefined}
+        />
+      </div>
+      <BottomSheet>
+        {selectedStop ? (
+          <DepartureDetail
+            stop={selectedStop}
+            departures={depsHook.departures}
+            walkingRoute={depsHook.walkingRoute}
+            onBack={() => setSelectedStop(null)}
+          />
+        ) : (
+          <StopList stops={stopsHook.stops} onSelectStop={setSelectedStop} />
+        )}
+      </BottomSheet>
+    </div>
+  );
 }

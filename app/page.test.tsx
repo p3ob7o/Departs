@@ -23,6 +23,39 @@ vi.mock("@/app/hooks/useDepartures", () => ({
   useDepartures: vi.fn(),
 }));
 
+/** Helper: set up all three hooks with the given overrides */
+async function setupHooks(overrides: {
+  geo?: Partial<ReturnType<typeof import("@/app/hooks/useGeolocation").useGeolocation>>;
+  stops?: Partial<ReturnType<typeof import("@/app/hooks/useNearbyStops").useNearbyStops>>;
+  deps?: Partial<ReturnType<typeof import("@/app/hooks/useDepartures").useDepartures>>;
+} = {}) {
+  const { useGeolocation } = await import("@/app/hooks/useGeolocation");
+  vi.mocked(useGeolocation).mockReturnValue({
+    loading: false,
+    coords: { lat: 52.52, lon: 13.405 },
+    error: null,
+    retry: vi.fn(),
+    ...overrides.geo,
+  });
+
+  const { useNearbyStops } = await import("@/app/hooks/useNearbyStops");
+  vi.mocked(useNearbyStops).mockReturnValue({
+    loading: false,
+    stops: nearbyStops,
+    error: null,
+    ...overrides.stops,
+  });
+
+  const { useDepartures } = await import("@/app/hooks/useDepartures");
+  vi.mocked(useDepartures).mockReturnValue({
+    loading: false,
+    departures: departures,
+    walkingRoute: walkingRoute,
+    error: null,
+    ...overrides.deps,
+  });
+}
+
 describe("Home page", () => {
   let mockGeo: ReturnType<typeof createMockGeolocation>;
 
@@ -36,90 +69,21 @@ describe("Home page", () => {
   });
 
   it("shows loading state initially", async () => {
-    const { useGeolocation } = await import("@/app/hooks/useGeolocation");
-    vi.mocked(useGeolocation).mockReturnValue({
-      loading: true,
-      coords: null,
-      error: null,
-      retry: vi.fn(),
-    });
-
-    const { useNearbyStops } = await import("@/app/hooks/useNearbyStops");
-    vi.mocked(useNearbyStops).mockReturnValue({
-      loading: false,
-      stops: [],
-      error: null,
-    });
-
-    const { useDepartures } = await import("@/app/hooks/useDepartures");
-    vi.mocked(useDepartures).mockReturnValue({
-      loading: false,
-      departures: [],
-      walkingRoute: null,
-      error: null,
-    });
-
+    await setupHooks({ geo: { loading: true, coords: null } });
     render(<Home />);
-
     expect(screen.getByRole("status")).toBeInTheDocument();
   });
 
   it("transitions to nearby stops view after geolocation + fetch", async () => {
-    const { useGeolocation } = await import("@/app/hooks/useGeolocation");
-    vi.mocked(useGeolocation).mockReturnValue({
-      loading: false,
-      coords: { lat: 52.52, lon: 13.405 },
-      error: null,
-      retry: vi.fn(),
-    });
-
-    const { useNearbyStops } = await import("@/app/hooks/useNearbyStops");
-    vi.mocked(useNearbyStops).mockReturnValue({
-      loading: false,
-      stops: nearbyStops,
-      error: null,
-    });
-
-    const { useDepartures } = await import("@/app/hooks/useDepartures");
-    vi.mocked(useDepartures).mockReturnValue({
-      loading: false,
-      departures: [],
-      walkingRoute: null,
-      error: null,
-    });
-
+    await setupHooks();
     render(<Home />);
-
     expect(screen.getByText("Central Station")).toBeInTheDocument();
     expect(screen.getByText("Market Square")).toBeInTheDocument();
   });
 
   it("transitions to departure detail when a stop is selected", async () => {
     const user = userEvent.setup();
-
-    const { useGeolocation } = await import("@/app/hooks/useGeolocation");
-    vi.mocked(useGeolocation).mockReturnValue({
-      loading: false,
-      coords: { lat: 52.52, lon: 13.405 },
-      error: null,
-      retry: vi.fn(),
-    });
-
-    const { useNearbyStops } = await import("@/app/hooks/useNearbyStops");
-    vi.mocked(useNearbyStops).mockReturnValue({
-      loading: false,
-      stops: nearbyStops,
-      error: null,
-    });
-
-    const { useDepartures } = await import("@/app/hooks/useDepartures");
-    vi.mocked(useDepartures).mockReturnValue({
-      loading: false,
-      departures: departures,
-      walkingRoute: walkingRoute,
-      error: null,
-    });
-
+    await setupHooks();
     render(<Home />);
 
     // Tap on a stop
@@ -132,94 +96,106 @@ describe("Home page", () => {
   });
 
   it("shows error state when geolocation is denied", async () => {
-    const { useGeolocation } = await import("@/app/hooks/useGeolocation");
-    vi.mocked(useGeolocation).mockReturnValue({
-      loading: false,
-      coords: null,
-      error: "permission_denied",
-      retry: vi.fn(),
+    await setupHooks({
+      geo: { loading: false, coords: null, error: "permission_denied" },
+      stops: { stops: [] },
     });
-
-    const { useNearbyStops } = await import("@/app/hooks/useNearbyStops");
-    vi.mocked(useNearbyStops).mockReturnValue({
-      loading: false,
-      stops: [],
-      error: null,
-    });
-
-    const { useDepartures } = await import("@/app/hooks/useDepartures");
-    vi.mocked(useDepartures).mockReturnValue({
-      loading: false,
-      departures: [],
-      walkingRoute: null,
-      error: null,
-    });
-
     render(<Home />);
-
     expect(screen.getByText(/location permission/i)).toBeInTheDocument();
   });
 
   it("shows error state when API fetch fails", async () => {
-    const { useGeolocation } = await import("@/app/hooks/useGeolocation");
-    vi.mocked(useGeolocation).mockReturnValue({
-      loading: false,
-      coords: { lat: 52.52, lon: 13.405 },
-      error: null,
-      retry: vi.fn(),
+    await setupHooks({
+      stops: { stops: [], error: "network" },
     });
-
-    const { useNearbyStops } = await import("@/app/hooks/useNearbyStops");
-    vi.mocked(useNearbyStops).mockReturnValue({
-      loading: false,
-      stops: [],
-      error: "network",
-    });
-
-    const { useDepartures } = await import("@/app/hooks/useDepartures");
-    vi.mocked(useDepartures).mockReturnValue({
-      loading: false,
-      departures: [],
-      walkingRoute: null,
-      error: null,
-    });
-
     render(<Home />);
-
     expect(screen.getByText(/couldn't load/i)).toBeInTheDocument();
   });
 
   it("allows retry from error state", async () => {
     const retryFn = vi.fn();
     const user = userEvent.setup();
-
-    const { useGeolocation } = await import("@/app/hooks/useGeolocation");
-    vi.mocked(useGeolocation).mockReturnValue({
-      loading: false,
-      coords: null,
-      error: "permission_denied",
-      retry: retryFn,
+    await setupHooks({
+      geo: { loading: false, coords: null, error: "permission_denied", retry: retryFn },
+      stops: { stops: [] },
     });
+    render(<Home />);
+    await user.click(screen.getByRole("button", { name: /retry/i }));
+    expect(retryFn).toHaveBeenCalledTimes(1);
+  });
 
-    const { useNearbyStops } = await import("@/app/hooks/useNearbyStops");
-    vi.mocked(useNearbyStops).mockReturnValue({
-      loading: false,
-      stops: [],
-      error: null,
-    });
+  // --- Integration tests: MapView and BottomSheet are rendered ---
 
-    const { useDepartures } = await import("@/app/hooks/useDepartures");
-    vi.mocked(useDepartures).mockReturnValue({
-      loading: false,
-      departures: [],
-      walkingRoute: null,
-      error: null,
-    });
+  it("renders the map in the stops view", async () => {
+    await setupHooks();
+    render(<Home />);
+    expect(screen.getByTestId("map")).toBeInTheDocument();
+  });
 
+  it("renders the bottom sheet in the stops view", async () => {
+    await setupHooks();
+    render(<Home />);
+    expect(screen.getByTestId("bottom-sheet")).toBeInTheDocument();
+    expect(screen.getByTestId("drag-handle")).toBeInTheDocument();
+  });
+
+  it("renders stop markers on the map for all nearby stops", async () => {
+    await setupHooks();
+    render(<Home />);
+    // user marker + one per stop
+    const markers = screen.getAllByTestId("marker");
+    expect(markers.length).toBeGreaterThanOrEqual(nearbyStops.length);
+  });
+
+  it("renders the map in departure detail view", async () => {
+    const user = userEvent.setup();
+    await setupHooks();
     render(<Home />);
 
-    await user.click(screen.getByRole("button", { name: /retry/i }));
+    // Select a stop to switch to departure detail
+    await user.click(screen.getAllByRole("button")[0]);
+    await waitFor(() => {
+      expect(screen.getByTestId("map")).toBeInTheDocument();
+    });
+  });
 
-    expect(retryFn).toHaveBeenCalledTimes(1);
+  it("renders the bottom sheet in departure detail view", async () => {
+    const user = userEvent.setup();
+    await setupHooks();
+    render(<Home />);
+
+    await user.click(screen.getAllByRole("button")[0]);
+    await waitFor(() => {
+      expect(screen.getByTestId("bottom-sheet")).toBeInTheDocument();
+    });
+  });
+
+  it("renders walking route on the map when available", async () => {
+    const user = userEvent.setup();
+    await setupHooks();
+    render(<Home />);
+
+    await user.click(screen.getAllByRole("button")[0]);
+    await waitFor(() => {
+      expect(screen.getByTestId("source")).toBeInTheDocument();
+      expect(screen.getByTestId("layer")).toBeInTheDocument();
+    });
+  });
+
+  it("does not render map or bottom sheet during loading", async () => {
+    await setupHooks({ geo: { loading: true, coords: null } });
+    render(<Home />);
+    expect(screen.queryByTestId("map")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("bottom-sheet")).not.toBeInTheDocument();
+  });
+
+  it("does not render map or bottom sheet during error", async () => {
+    await setupHooks({
+      geo: { loading: false, coords: null, error: "permission_denied" },
+      stops: { stops: [] },
+    });
+    render(<Home />);
+    expect(screen.queryByTestId("map")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("bottom-sheet")).not.toBeInTheDocument();
   });
 });
