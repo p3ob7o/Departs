@@ -4,6 +4,8 @@ export function BottomSheet({ children }: { children: React.ReactNode }) {
       data-testid="bottom-sheet"
       className="rounded-t-2xl px-4 overflow-y-auto"
       style={{
+        flex: "1 1 0%",
+        minHeight: 0,
         paddingBottom: "env(safe-area-inset-bottom)",
         backgroundColor: "var(--color-bg-primary)",
       }}
