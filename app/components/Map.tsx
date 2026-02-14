@@ -3,6 +3,7 @@
 import { useRef, useEffect, useState, useMemo, useCallback } from "react";
 import { Map, Marker, Source, Layer } from "react-map-gl/mapbox";
 import type { MapRef } from "react-map-gl/mapbox";
+import "mapbox-gl/dist/mapbox-gl.css";
 import type { NearbyStop, WalkingRoute } from "@/app/types";
 import { getTransportName } from "./TransportIcon";
 
@@ -203,7 +204,7 @@ export function MapView({
               }}
             >
               {selectedStop.type === "subway"
-                ? "M"
+                ? "U"
                 : selectedStop.type === "tram"
                   ? "T"
                   : selectedStop.type === "bus"
@@ -229,7 +230,7 @@ export function MapView({
         </Marker>
       )}
 
-      {/* Screen 1: show all stop markers (small dots, no custom pin) */}
+      {/* Screen 1: stop markers with transport letter */}
       {!isScreen2 &&
         stops.map((stop) => (
           <Marker
@@ -240,14 +241,28 @@ export function MapView({
           >
             <div
               style={{
-                width: "10px",
-                height: "10px",
+                width: "28px",
+                height: "28px",
                 borderRadius: "50%",
                 backgroundColor: stopPinColor,
                 border: "2px solid white",
                 boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                color: "white",
+                fontSize: "13px",
+                fontWeight: "bold",
               }}
-            />
+            >
+              {stop.type === "subway"
+                ? "U"
+                : stop.type === "tram"
+                  ? "T"
+                  : stop.type === "bus"
+                    ? "B"
+                    : "R"}
+            </div>
           </Marker>
         ))}
 
