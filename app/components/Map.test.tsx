@@ -62,20 +62,8 @@ describe("MapView", () => {
   it("does not render walking route source when no walking route", () => {
     render(<MapView userCoords={userCoords} stops={nearbyStops} />);
 
-    // The 250m radius circle source should be present, but no walking-route source
-    const sources = screen.getAllByTestId("source");
-    const hasWalkingRoute = sources.some(
-      (s) => s.getAttribute("id") === "walking-route"
-    );
-    expect(hasWalkingRoute).toBe(false);
-  });
-
-  it("renders 250m circle on Screen 1", () => {
-    render(<MapView userCoords={userCoords} stops={nearbyStops} />);
-
-    // Should have source elements for the radius circle
-    const sources = screen.getAllByTestId("source");
-    expect(sources.length).toBeGreaterThanOrEqual(1);
+    // No source elements should be present on Screen 1
+    expect(screen.queryByTestId("source")).not.toBeInTheDocument();
   });
 
   it("renders green stop pin on Screen 2", () => {

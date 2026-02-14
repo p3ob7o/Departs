@@ -1,42 +1,11 @@
 "use client";
 
-import { useRef, useEffect, useState, useMemo, useCallback } from "react";
+import { useRef, useEffect, useState, useCallback } from "react";
 import { Map, Marker, Source, Layer } from "react-map-gl/mapbox";
 import type { MapRef } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { NearbyStop, WalkingRoute } from "@/app/types";
 import { getTransportName } from "./TransportIcon";
-
-function createCircleGeoJSON(
-  center: { lat: number; lon: number },
-  radiusMeters: number,
-  points = 64
-): GeoJSON.Feature<GeoJSON.Polygon> {
-  const coords: [number, number][] = [];
-  const lat = (center.lat * Math.PI) / 180;
-  const lon = (center.lon * Math.PI) / 180;
-  const d = radiusMeters / 6371000;
-
-  for (let i = 0; i <= points; i++) {
-    const bearing = (2 * Math.PI * i) / points;
-    const pLat = Math.asin(
-      Math.sin(lat) * Math.cos(d) + Math.cos(lat) * Math.sin(d) * Math.cos(bearing)
-    );
-    const pLon =
-      lon +
-      Math.atan2(
-        Math.sin(bearing) * Math.sin(d) * Math.cos(lat),
-        Math.cos(d) - Math.sin(lat) * Math.sin(pLat)
-      );
-    coords.push([(pLon * 180) / Math.PI, (pLat * 180) / Math.PI]);
-  }
-
-  return {
-    type: "Feature",
-    properties: {},
-    geometry: { type: "Polygon", coordinates: [coords] },
-  };
-}
 
 function useDarkMode(): boolean {
   const [dark, setDark] = useState(false);
@@ -68,12 +37,7 @@ export function MapView({
     ? "mapbox://styles/mapbox/dark-v11"
     : "mapbox://styles/mapbox/light-v11";
 
-  const circleGeoJSON = useMemo(
-    () => createCircleGeoJSON(userCoords, 250),
-    [userCoords.lat, userCoords.lon]
-  );
-
-  const accentColor = darkMode ? "#0A84FF" : "#007AFF";
+  const userDotColor = darkMode ? "#0A84FF" : "#007AFF";
   const routeColor = darkMode ? "#FFFFFF" : "#007AFF";
   const stopPinColor = darkMode ? "#30D158" : "#34C759";
 
@@ -136,7 +100,7 @@ export function MapView({
               width: "24px",
               height: "24px",
               borderRadius: "50%",
-              backgroundColor: accentColor,
+              backgroundColor: userDotColor,
               opacity: 0.2,
               animation: "pulse-halo 2s ease-in-out infinite",
             }}
@@ -150,35 +114,13 @@ export function MapView({
               width: "12px",
               height: "12px",
               borderRadius: "50%",
-              backgroundColor: accentColor,
+              backgroundColor: userDotColor,
               border: "2px solid white",
               boxShadow: "0 0 4px rgba(0,0,0,0.3)",
             }}
           />
         </div>
       </Marker>
-
-      {/* Screen 1: 250m radius circle */}
-      {!isScreen2 && (
-        <Source id="radius-circle" type="geojson" data={circleGeoJSON}>
-          <Layer
-            id="radius-fill"
-            type="fill"
-            paint={{
-              "fill-color": accentColor,
-              "fill-opacity": 0.08,
-            }}
-          />
-          <Layer
-            id="radius-stroke"
-            type="line"
-            paint={{
-              "line-color": accentColor,
-              "line-width": 2,
-            }}
-          />
-        </Source>
-      )}
 
       {/* Screen 2: Green stop pin */}
       {selectedStop && (

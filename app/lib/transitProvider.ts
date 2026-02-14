@@ -42,7 +42,7 @@ export function transformStations(data: any): NearbyStop[] {
       location: { lat: place.location.lat, lon: place.location.lng },
       distance,
     };
-  });
+  }).filter((stop: NearbyStop) => stop.lines.length > 0);
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
