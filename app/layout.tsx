@@ -15,6 +15,11 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Departs",
   description: "Find nearby transit stops and real-time departures",
+  appleWebApp: {
+    capable: true,
+    title: "Departs",
+    statusBarStyle: "black-translucent",
+  },
 };
 
 export const viewport: Viewport = {
