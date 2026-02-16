@@ -73,6 +73,8 @@ export default function Home() {
             stop={selectedStop}
             departures={depsHook.departures}
             walkingRoute={depsHook.walkingRoute}
+            loading={depsHook.loading}
+            error={depsHook.error}
             onBack={() => setSelectedStop(null)}
           />
         ) : (
