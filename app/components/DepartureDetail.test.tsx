@@ -16,6 +16,8 @@ describe("DepartureDetail", () => {
         stop={stop}
         departures={departures}
         walkingRoute={walkingRoute}
+        loading={false}
+        error={null}
         onBack={onBack}
       />
     );
@@ -29,6 +31,8 @@ describe("DepartureDetail", () => {
         stop={stop}
         departures={departures}
         walkingRoute={walkingRoute}
+        loading={false}
+        error={null}
         onBack={onBack}
       />
     );
@@ -43,6 +47,8 @@ describe("DepartureDetail", () => {
         stop={stop}
         departures={departures}
         walkingRoute={walkingRoute}
+        loading={false}
+        error={null}
         onBack={onBack}
       />
     );
@@ -57,6 +63,8 @@ describe("DepartureDetail", () => {
         stop={stop}
         departures={departures}
         walkingRoute={walkingRoute}
+        loading={false}
+        error={null}
         onBack={onBack}
       />
     );
@@ -72,6 +80,8 @@ describe("DepartureDetail", () => {
         stop={stop}
         departures={departures}
         walkingRoute={walkingRoute}
+        loading={false}
+        error={null}
         onBack={onBack}
       />
     );
@@ -86,6 +96,8 @@ describe("DepartureDetail", () => {
         stop={stop}
         departures={departures}
         walkingRoute={null}
+        loading={false}
+        error={null}
         onBack={onBack}
       />
     );
@@ -104,11 +116,62 @@ describe("DepartureDetail", () => {
         stop={stop}
         departures={departures}
         walkingRoute={walkingRoute}
+        loading={false}
+        error={null}
         onBack={onBack}
       />
     );
 
     expect(screen.getByText(/U2/)).toBeInTheDocument();
     expect(screen.getByText(/Pankow/)).toBeInTheDocument();
+  });
+
+  it("shows loading state while departures are being fetched", () => {
+    render(
+      <DepartureDetail
+        stop={stop}
+        departures={[]}
+        walkingRoute={null}
+        loading={true}
+        error={null}
+        onBack={onBack}
+      />
+    );
+
+    expect(screen.getByRole("status", { name: /loading departures/i })).toBeInTheDocument();
+    expect(screen.getByText(/loading departures/i)).toBeInTheDocument();
+    expect(screen.queryAllByRole("time")).toHaveLength(0);
+  });
+
+  it("shows error message when departures fail to load", () => {
+    render(
+      <DepartureDetail
+        stop={stop}
+        departures={[]}
+        walkingRoute={walkingRoute}
+        loading={false}
+        error="network"
+        onBack={onBack}
+      />
+    );
+
+    expect(screen.getByText(/couldn't load departure times/i)).toBeInTheDocument();
+    expect(screen.queryAllByRole("time")).toHaveLength(0);
+  });
+
+  it("shows empty state when no departures are available", () => {
+    render(
+      <DepartureDetail
+        stop={stop}
+        departures={[]}
+        walkingRoute={walkingRoute}
+        loading={false}
+        error={null}
+        onBack={onBack}
+      />
+    );
+
+    expect(screen.getByText(/no upcoming departures/i)).toBeInTheDocument();
+    expect(screen.queryAllByRole("time")).toHaveLength(0);
   });
 });
