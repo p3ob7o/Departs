@@ -5,9 +5,17 @@ struct NearbyStopsView: View {
     let stops: [NearbyStop]
     let stopColors: [String: Color]
     let onSelectStop: (NearbyStop) -> Void
+    var onRefresh: (() async -> Void)?
 
     var body: some View {
         VStack(spacing: 0) {
+            // App title
+            Text("Departs")
+                .font(.system(size: 22, weight: .bold))
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 12)
+
             // Square map
             StopsMapView(
                 userCoordinate: userCoordinate.clLocationCoordinate2D,
@@ -49,6 +57,9 @@ struct NearbyStopsView: View {
                         }
                     }
                     .padding(.horizontal, 16)
+                }
+                .refreshable {
+                    await onRefresh?()
                 }
             }
         }

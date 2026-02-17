@@ -47,6 +47,17 @@ struct ContentView: View {
                             withAnimation(.easeInOut(duration: 0.3)) {
                                 selectedStop = stop
                             }
+                        },
+                        onRefresh: {
+                            locationService.requestLocation()
+                            // Wait for updated location
+                            for _ in 0..<100 {
+                                try? await Task.sleep(for: .milliseconds(100))
+                                if case .located = locationService.state { break }
+                            }
+                            if case .located(let coord) = locationService.state {
+                                await stopsViewModel.loadStops(near: coord)
+                            }
                         }
                     )
                     .transition(.move(edge: .leading))
