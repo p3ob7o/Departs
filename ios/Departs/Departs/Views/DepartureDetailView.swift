@@ -100,6 +100,7 @@ struct DepartureDetailView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     DepartureDetailView(
         stop: PreviewData.stops[0],
@@ -108,3 +109,4 @@ struct DepartureDetailView: View {
         onBack: { }
     )
 }
+#endif

@@ -66,6 +66,7 @@ struct NearbyStopsView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     NearbyStopsView(
         userCoordinate: PreviewData.userCoordinate,
@@ -76,3 +77,4 @@ struct NearbyStopsView: View {
         onSelectStop: { _ in }
     )
 }
+#endif

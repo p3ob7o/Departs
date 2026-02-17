@@ -32,6 +32,7 @@ struct StopRowView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     List {
         ForEach(Array(PreviewData.stops.enumerated()), id: \.element.id) { index, stop in
@@ -40,3 +41,4 @@ struct StopRowView: View {
     }
     .listStyle(.plain)
 }
+#endif

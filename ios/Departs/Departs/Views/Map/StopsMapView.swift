@@ -184,6 +184,7 @@ struct StopsMapView: UIViewRepresentable {
     }
 }
 
+#if DEBUG
 #Preview {
     StopsMapView(
         userCoordinate: PreviewData.userCoordinate.clLocationCoordinate2D,
@@ -194,3 +195,4 @@ struct StopsMapView: UIViewRepresentable {
     )
     .frame(height: 400)
 }
+#endif

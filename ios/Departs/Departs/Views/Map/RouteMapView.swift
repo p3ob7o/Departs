@@ -175,6 +175,7 @@ struct RouteMapView: UIViewRepresentable {
     }
 }
 
+#if DEBUG
 #Preview {
     RouteMapView(
         userCoordinate: PreviewData.userCoordinate.clLocationCoordinate2D,
@@ -184,3 +185,4 @@ struct RouteMapView: UIViewRepresentable {
     )
     .frame(height: 400)
 }
+#endif

@@ -38,6 +38,7 @@ struct DepartureRowView: View {
     }
 }
 
+#if DEBUG
 #Preview {
     VStack(spacing: 0) {
         ForEach(PreviewData.departures) { dep in
@@ -47,3 +48,4 @@ struct DepartureRowView: View {
     }
     .padding(.horizontal)
 }
+#endif
