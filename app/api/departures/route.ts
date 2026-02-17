@@ -13,7 +13,7 @@ export async function GET(request: Request): Promise<Response> {
 
   try {
     const res = await fetch(
-      `https://transit.hereapi.com/v8/boards?ids=${encodeURIComponent(stopId)}&maxPerBoard=4&apiKey=${process.env.HERE_API_KEY}`
+      `https://transit.hereapi.com/v8/departures?ids=${encodeURIComponent(stopId)}&maxPerBoard=4&apiKey=${process.env.HERE_API_KEY}`
     );
 
     if (!res.ok) throw new Error(`HERE API error: ${res.status}`);

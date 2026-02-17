@@ -36,7 +36,7 @@ describe("GET /api/departures", () => {
     const { http, HttpResponse } = await import("msw");
 
     server.use(
-      http.get("https://transit.hereapi.com/v8/boards", () => {
+      http.get("https://transit.hereapi.com/v8/departures", () => {
         return HttpResponse.json({ error: "Service unavailable" }, { status: 503 });
       })
     );

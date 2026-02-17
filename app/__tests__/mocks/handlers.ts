@@ -62,7 +62,7 @@ export const handlers = [
     return HttpResponse.json(hereStationsResponse);
   }),
 
-  http.get("https://transit.hereapi.com/v8/boards", () => {
+  http.get("https://transit.hereapi.com/v8/departures", () => {
     return HttpResponse.json(hereBoardsResponse);
   }),
 
