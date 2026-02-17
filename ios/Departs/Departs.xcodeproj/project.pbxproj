@@ -1,0 +1,598 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 56;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		F1000001 /* DepartsApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000001 /* DepartsApp.swift */; };
+		F1000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000002 /* ContentView.swift */; };
+		F1000003 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E1000003 /* Assets.xcassets */; };
+		F1000004 /* TransportType.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000004 /* TransportType.swift */; };
+		F1000005 /* LineInfo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000005 /* LineInfo.swift */; };
+		F1000006 /* NearbyStop.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000006 /* NearbyStop.swift */; };
+		F1000007 /* Departure.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000007 /* Departure.swift */; };
+		F1000008 /* WalkingRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000008 /* WalkingRoute.swift */; };
+		F1000009 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000009 /* APIService.swift */; };
+		F100000A /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000A /* LocationService.swift */; };
+		F100000B /* NearbyStopsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000B /* NearbyStopsViewModel.swift */; };
+		F100000C /* DepartureDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000C /* DepartureDetailViewModel.swift */; };
+		F100000D /* NearbyStopsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000D /* NearbyStopsView.swift */; };
+		F100000E /* DepartureDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000E /* DepartureDetailView.swift */; };
+		F100000F /* StopRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000F /* StopRowView.swift */; };
+		F1000010 /* DepartureRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000010 /* DepartureRowView.swift */; };
+		F1000011 /* TransportIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000011 /* TransportIconView.swift */; };
+		F1000012 /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000012 /* LoadingView.swift */; };
+		F1000013 /* ErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000013 /* ErrorView.swift */; };
+		F1000014 /* StopsMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000014 /* StopsMapView.swift */; };
+		F1000015 /* RouteMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000015 /* RouteMapView.swift */; };
+		F1000016 /* StopPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000016 /* StopPalette.swift */; };
+		F1000017 /* TimeFormatter.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000017 /* TimeFormatter.swift */; };
+		F1000018 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000018 /* Color+Hex.swift */; };
+		F1000019 /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000019 /* PreviewData.swift */; };
+		F100001A /* DepartsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100001A /* DepartsTests.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		C1000001 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = A1000001 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D1000001;
+			remoteInfo = Departs;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		E1000001 /* DepartsApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepartsApp.swift; sourceTree = "<group>"; };
+		E1000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		E1000003 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		E1000004 /* TransportType.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportType.swift; sourceTree = "<group>"; };
+		E1000005 /* LineInfo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LineInfo.swift; sourceTree = "<group>"; };
+		E1000006 /* NearbyStop.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearbyStop.swift; sourceTree = "<group>"; };
+		E1000007 /* Departure.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Departure.swift; sourceTree = "<group>"; };
+		E1000008 /* WalkingRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalkingRoute.swift; sourceTree = "<group>"; };
+		E1000009 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
+		E100000A /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
+		E100000B /* NearbyStopsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearbyStopsViewModel.swift; sourceTree = "<group>"; };
+		E100000C /* DepartureDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepartureDetailViewModel.swift; sourceTree = "<group>"; };
+		E100000D /* NearbyStopsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearbyStopsView.swift; sourceTree = "<group>"; };
+		E100000E /* DepartureDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepartureDetailView.swift; sourceTree = "<group>"; };
+		E100000F /* StopRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopRowView.swift; sourceTree = "<group>"; };
+		E1000010 /* DepartureRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepartureRowView.swift; sourceTree = "<group>"; };
+		E1000011 /* TransportIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportIconView.swift; sourceTree = "<group>"; };
+		E1000012 /* LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingView.swift; sourceTree = "<group>"; };
+		E1000013 /* ErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorView.swift; sourceTree = "<group>"; };
+		E1000014 /* StopsMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopsMapView.swift; sourceTree = "<group>"; };
+		E1000015 /* RouteMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteMapView.swift; sourceTree = "<group>"; };
+		E1000016 /* StopPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopPalette.swift; sourceTree = "<group>"; };
+		E1000017 /* TimeFormatter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimeFormatter.swift; sourceTree = "<group>"; };
+		E1000018 /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = "Color+Hex.swift"; path = "Color+Hex.swift"; sourceTree = "<group>"; };
+		E1000019 /* PreviewData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewData.swift; sourceTree = "<group>"; };
+		E100001A /* DepartsTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepartsTests.swift; sourceTree = "<group>"; };
+		E100001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		E100001C /* Departs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Departs.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		E100001D /* DepartsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DepartsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		B2000001 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B2000002 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		G1000001 = {
+			isa = PBXGroup;
+			children = (
+				G1000002 /* Departs */,
+				G100000B /* DepartsTests */,
+				G100000C /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		G1000002 /* Departs */ = {
+			isa = PBXGroup;
+			children = (
+				E1000001 /* DepartsApp.swift */,
+				E100001B /* Info.plist */,
+				E1000003 /* Assets.xcassets */,
+				G1000003 /* Models */,
+				G1000004 /* Services */,
+				G1000005 /* ViewModels */,
+				G1000006 /* Views */,
+				G1000008 /* Utilities */,
+				G1000009 /* Preview Content */,
+			);
+			path = Departs;
+			sourceTree = "<group>";
+		};
+		G1000003 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				E1000004 /* TransportType.swift */,
+				E1000005 /* LineInfo.swift */,
+				E1000006 /* NearbyStop.swift */,
+				E1000007 /* Departure.swift */,
+				E1000008 /* WalkingRoute.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		G1000004 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				E1000009 /* APIService.swift */,
+				E100000A /* LocationService.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		G1000005 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				E100000B /* NearbyStopsViewModel.swift */,
+				E100000C /* DepartureDetailViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		G1000006 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				E1000002 /* ContentView.swift */,
+				E100000D /* NearbyStopsView.swift */,
+				E100000E /* DepartureDetailView.swift */,
+				E100000F /* StopRowView.swift */,
+				E1000010 /* DepartureRowView.swift */,
+				E1000011 /* TransportIconView.swift */,
+				E1000012 /* LoadingView.swift */,
+				E1000013 /* ErrorView.swift */,
+				G1000007 /* Map */,
+			);
+			path = Views;
+			sourceTree = "<group>";
+		};
+		G1000007 /* Map */ = {
+			isa = PBXGroup;
+			children = (
+				E1000014 /* StopsMapView.swift */,
+				E1000015 /* RouteMapView.swift */,
+			);
+			path = Map;
+			sourceTree = "<group>";
+		};
+		G1000008 /* Utilities */ = {
+			isa = PBXGroup;
+			children = (
+				E1000016 /* StopPalette.swift */,
+				E1000017 /* TimeFormatter.swift */,
+				E1000018 /* Color+Hex.swift */,
+			);
+			path = Utilities;
+			sourceTree = "<group>";
+		};
+		G1000009 /* Preview Content */ = {
+			isa = PBXGroup;
+			children = (
+				E1000019 /* PreviewData.swift */,
+			);
+			path = "Preview Content";
+			sourceTree = "<group>";
+		};
+		G100000B /* DepartsTests */ = {
+			isa = PBXGroup;
+			children = (
+				E100001A /* DepartsTests.swift */,
+			);
+			path = DepartsTests;
+			sourceTree = "<group>";
+		};
+		G100000C /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				E100001C /* Departs.app */,
+				E100001D /* DepartsTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		D1000001 /* Departs */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = X1000003 /* Build configuration list for PBXNativeTarget "Departs" */;
+			buildPhases = (
+				S1000001 /* Sources */,
+				B2000001 /* Frameworks */,
+				R1000001 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = Departs;
+			productName = Departs;
+			productReference = E100001C /* Departs.app */;
+			productType = "com.apple.product-type.application";
+		};
+		D1000002 /* DepartsTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = X1000006 /* Build configuration list for PBXNativeTarget "DepartsTests" */;
+			buildPhases = (
+				S1000002 /* Sources */,
+				B2000002 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				DEP00001 /* PBXTargetDependency */,
+			);
+			name = DepartsTests;
+			productName = DepartsTests;
+			productReference = E100001D /* DepartsTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		A1000001 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastSwiftUpdateCheck = 1600;
+				LastUpgradeCheck = 1600;
+				TargetAttributes = {
+					D1000001 = {
+						CreatedOnToolsVersion = 16.0;
+					};
+					D1000002 = {
+						CreatedOnToolsVersion = 16.0;
+						TestTargetID = D1000001;
+					};
+				};
+			};
+			buildConfigurationList = X1000001 /* Build configuration list for PBXProject "Departs" */;
+			compatibilityVersion = "Xcode 14.0";
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = G1000001;
+			productRefGroup = G100000C /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				D1000001 /* Departs */,
+				D1000002 /* DepartsTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		R1000001 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F1000003 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		S1000001 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F1000001 /* DepartsApp.swift in Sources */,
+				F1000002 /* ContentView.swift in Sources */,
+				F1000004 /* TransportType.swift in Sources */,
+				F1000005 /* LineInfo.swift in Sources */,
+				F1000006 /* NearbyStop.swift in Sources */,
+				F1000007 /* Departure.swift in Sources */,
+				F1000008 /* WalkingRoute.swift in Sources */,
+				F1000009 /* APIService.swift in Sources */,
+				F100000A /* LocationService.swift in Sources */,
+				F100000B /* NearbyStopsViewModel.swift in Sources */,
+				F100000C /* DepartureDetailViewModel.swift in Sources */,
+				F100000D /* NearbyStopsView.swift in Sources */,
+				F100000E /* DepartureDetailView.swift in Sources */,
+				F100000F /* StopRowView.swift in Sources */,
+				F1000010 /* DepartureRowView.swift in Sources */,
+				F1000011 /* TransportIconView.swift in Sources */,
+				F1000012 /* LoadingView.swift in Sources */,
+				F1000013 /* ErrorView.swift in Sources */,
+				F1000014 /* StopsMapView.swift in Sources */,
+				F1000015 /* RouteMapView.swift in Sources */,
+				F1000016 /* StopPalette.swift in Sources */,
+				F1000017 /* TimeFormatter.swift in Sources */,
+				F1000018 /* Color+Hex.swift in Sources */,
+				F1000019 /* PreviewData.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		S1000002 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				F100001A /* DepartsTests.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		DEP00001 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D1000001 /* Departs */;
+			targetProxy = C1000001 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		X2000001 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+			};
+			name = Debug;
+		};
+		X2000002 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				SDKROOT = iphoneos;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				VALIDATE_PRODUCT = YES;
+			};
+			name = Release;
+		};
+		X2000003 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Departs/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Departs/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Departs;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.departs.Departs;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		X2000004 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"Departs/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Departs/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Departs;
+				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
+				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
+				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.departs.Departs;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		X2000005 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.departs.DepartsTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Departs.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Departs";
+			};
+			name = Debug;
+		};
+		X2000006 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.departs.DepartsTests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Departs.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/Departs";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		X1000001 /* Build configuration list for PBXProject "Departs" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				X2000001 /* Debug */,
+				X2000002 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		X1000003 /* Build configuration list for PBXNativeTarget "Departs" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				X2000003 /* Debug */,
+				X2000004 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		X1000006 /* Build configuration list for PBXNativeTarget "DepartsTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				X2000005 /* Debug */,
+				X2000006 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = A1000001 /* Project object */;
+}
