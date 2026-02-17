@@ -26,7 +26,7 @@ app/
 │   ├── directions/route.ts      # Proxy → Mapbox Directions
 │   └── stops/nearby/route.ts    # Proxy → HERE /v8/stations
 ├── components/
-│   ├── BottomSheet.tsx           # Fixed bottom sheet with drag handle
+│   ├── BottomSheet.tsx           # Fixed bottom sheet (flush, no drag handle)
 │   ├── DepartureDetail.tsx       # Screen 2: departure list + header
 │   ├── DepartureRow.tsx          # Individual departure (12h time + clock icon)
 │   ├── ErrorState.tsx            # Error/permission/offline states
@@ -34,7 +34,7 @@ app/
 │   ├── Map.tsx                   # Mapbox GL map with custom markers
 │   ├── StopList.tsx              # Screen 1: nearby stops list
 │   ├── StopRow.tsx               # Stop row (transport type + line info)
-│   └── TransportIcon.tsx         # 40px circle with transport letter
+│   └── TransportIcon.tsx         # 40px circle with transport letter + per-stop color palette
 ├── hooks/
 │   ├── useDepartures.ts          # Fetches departures + walking route
 │   ├── useGeolocation.ts         # Browser geolocation with retry
@@ -59,11 +59,11 @@ e2e/                              # Playwright e2e tests
 
 ### Screen 1: Nearby Stops
 - Map shows user location (blue dot with pulsing halo) + 250m radius circle
-- Green markers for each stop with transport letter (B/T/U/R)
+- Each stop gets a unique muted pastel color (from a 10-color palette) on both the map marker and list icon
 - Bottom sheet lists stops: transport type heading, line + direction subtitle
 
 ### Screen 2: Departure Detail
-- Map zooms to fit walking route (dashed line) + green stop pin
+- Map zooms to fit walking route (dashed line) + stop pin (same pastel color as in list)
 - Bottom sheet shows "Departures:" heading, line info, walking time
 - Up to 4 departure times in 12-hour format with clock icons
 
@@ -91,7 +91,7 @@ Browser Geolocation → useGeolocation hook
 - Core functionality working: geolocation, nearby stops, departure fetching, walking directions
 - Design system fully implemented with light/dark mode
 - Custom map markers rendering (blue dot, stop pins with letters, walking route)
-- 126 unit tests passing, production build succeeds
+- 129 unit tests passing, production build succeeds
 - Deployed to Vercel at https://departs.vercel.app
 
 ## Known Considerations
@@ -99,4 +99,5 @@ Browser Geolocation → useGeolocation hook
 - HERE API free tier: 5,000 transactions/month
 - Mapbox free tier: 50,000 map loads/month, 100,000 direction requests/month
 - Departures endpoint may return 500 for some stop ID formats — IDs are now URL-encoded
+- `useDepartures` resets state (departures, walkingRoute, error) when navigating back (stopId → null)
 - E2e tests exist in `e2e/` but require browser setup via Playwright
