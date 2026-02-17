@@ -13,7 +13,13 @@ export function useDepartures(
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!stopId) return;
+    if (!stopId) {
+      setDepartures([]);
+      setWalkingRoute(null);
+      setError(null);
+      setLoading(false);
+      return;
+    }
 
     let cancelled = false;
     setLoading(true);

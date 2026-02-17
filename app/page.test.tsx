@@ -136,7 +136,6 @@ describe("Home page", () => {
     await setupHooks();
     render(<Home />);
     expect(screen.getByTestId("bottom-sheet")).toBeInTheDocument();
-    expect(screen.getByTestId("drag-handle")).toBeInTheDocument();
   });
 
   it("renders stop markers on the map for all nearby stops", async () => {

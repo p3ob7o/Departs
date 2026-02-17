@@ -14,6 +14,17 @@ const typeNames: Record<TransportType, string> = {
   rail: "Rail",
 };
 
+const transportColorVars: Record<TransportType, string> = {
+  subway: "var(--color-transport-subway)",
+  tram: "var(--color-transport-tram)",
+  bus: "var(--color-transport-bus)",
+  rail: "var(--color-transport-rail)",
+};
+
+export function getTransportColor(type: TransportType): string {
+  return transportColorVars[type];
+}
+
 export function getTransportName(type: TransportType): string {
   return typeNames[type];
 }
@@ -24,7 +35,7 @@ export function TransportIcon({ type }: { type: TransportType }) {
       data-testid={`transport-icon-${type}`}
       className="w-10 h-10 flex items-center justify-center rounded-full text-sm font-bold"
       style={{
-        backgroundColor: "#3A3A3C",
+        backgroundColor: getTransportColor(type),
         color: "#FFFFFF",
       }}
       aria-label={type}

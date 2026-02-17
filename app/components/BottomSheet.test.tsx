@@ -13,17 +13,12 @@ describe("BottomSheet", () => {
     expect(screen.getByTestId("child")).toBeInTheDocument();
   });
 
-  it("renders a drag handle", () => {
-    render(<BottomSheet><div /></BottomSheet>);
-
-    expect(screen.getByTestId("drag-handle")).toBeInTheDocument();
-  });
-
-  it("has rounded top corners", () => {
+  it("sits flush against the map (no rounded corners or drag handle)", () => {
     render(<BottomSheet><div /></BottomSheet>);
 
     const sheet = screen.getByTestId("bottom-sheet");
-    expect(sheet).toHaveClass("rounded-t-2xl");
+    expect(sheet).not.toHaveClass("rounded-t-2xl");
+    expect(screen.queryByTestId("drag-handle")).not.toBeInTheDocument();
   });
 
   it("has horizontal padding", () => {
