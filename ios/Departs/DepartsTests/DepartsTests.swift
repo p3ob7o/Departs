@@ -11,9 +11,8 @@ final class DepartsTests: XCTestCase {
             "id": "stop-1",
             "name": "Alexanderplatz",
             "type": "subway",
-            "lines": [{"id": "u2", "name": "U2", "direction": "Ruhleben", "type": "subway"}],
-            "location": {"lat": 52.5219, "lon": 13.4132},
-            "distance": 150
+            "lines": [{"name": "U2", "direction": "Ruhleben", "type": "subway"}],
+            "location": {"lat": 52.5219, "lon": 13.4132}
         }
         """.data(using: .utf8)!
 
@@ -22,7 +21,7 @@ final class DepartsTests: XCTestCase {
         XCTAssertEqual(stop.name, "Alexanderplatz")
         XCTAssertEqual(stop.type, .subway)
         XCTAssertEqual(stop.lines.count, 1)
-        XCTAssertEqual(stop.distance, 150)
+        XCTAssertNil(stop.distance)
     }
 
     func testDepartureDecoding() throws {

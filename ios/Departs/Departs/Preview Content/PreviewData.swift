@@ -10,8 +10,8 @@ enum PreviewData {
             name: "Alexanderplatz",
             type: .subway,
             lines: [
-                LineInfo(id: "line-u2", name: "U2", direction: "Ruhleben", type: .subway),
-                LineInfo(id: "line-u5", name: "U5", direction: "Hauptbahnhof", type: .subway),
+                LineInfo(name: "U2", direction: "Ruhleben", type: .subway),
+                LineInfo(name: "U5", direction: "Hauptbahnhof", type: .subway),
             ],
             location: Coordinate(lat: 52.5219, lon: 13.4132),
             distance: 150
@@ -21,7 +21,7 @@ enum PreviewData {
             name: "Hackescher Markt",
             type: .rail,
             lines: [
-                LineInfo(id: "line-s5", name: "S5", direction: "Westkreuz", type: .rail),
+                LineInfo(name: "S5", direction: "Westkreuz", type: .rail),
             ],
             location: Coordinate(lat: 52.5225, lon: 13.4024),
             distance: 200
@@ -31,7 +31,7 @@ enum PreviewData {
             name: "Mollstraße",
             type: .tram,
             lines: [
-                LineInfo(id: "line-m2", name: "M2", direction: "Heinersdorf", type: .tram),
+                LineInfo(name: "M2", direction: "Heinersdorf", type: .tram),
             ],
             location: Coordinate(lat: 52.5245, lon: 13.4220),
             distance: 320
@@ -41,7 +41,7 @@ enum PreviewData {
             name: "Memhardstraße",
             type: .bus,
             lines: [
-                LineInfo(id: "line-100", name: "100", direction: "Zoologischer Garten", type: .bus),
+                LineInfo(name: "100", direction: "Zoologischer Garten", type: .bus),
             ],
             location: Coordinate(lat: 52.5230, lon: 13.4100),
             distance: 80

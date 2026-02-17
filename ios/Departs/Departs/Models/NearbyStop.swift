@@ -16,5 +16,5 @@ struct NearbyStop: Codable, Identifiable, Hashable {
     let type: TransportType
     let lines: [LineInfo]
     let location: Coordinate
-    let distance: Int
+    let distance: Int?
 }
