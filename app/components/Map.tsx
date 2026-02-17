@@ -5,7 +5,7 @@ import { Map, Marker, Source, Layer } from "react-map-gl/mapbox";
 import type { MapRef } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { NearbyStop, WalkingRoute } from "@/app/types";
-import { getTransportName, getTransportColor } from "./TransportIcon";
+import { getTransportName } from "./TransportIcon";
 
 function useDarkMode(): boolean {
   const [dark, setDark] = useState(false);
@@ -22,11 +22,13 @@ function useDarkMode(): boolean {
 export function MapView({
   userCoords,
   stops,
+  stopColors,
   walkingRoute,
   onBoundsReady,
 }: {
   userCoords: { lat: number; lon: number };
   stops: NearbyStop[];
+  stopColors?: Map<string, string>;
   walkingRoute?: WalkingRoute;
   onBoundsReady?: (bounds: { north: number; south: number; east: number; west: number }) => void;
 }) {
@@ -152,7 +154,7 @@ export function MapView({
                 width: "32px",
                 height: "32px",
                 borderRadius: "50%",
-                backgroundColor: getTransportColor(selectedStop.type),
+                backgroundColor: stopColors?.get(selectedStop.id) ?? "#8E8E93",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
@@ -203,7 +205,7 @@ export function MapView({
                 width: "28px",
                 height: "28px",
                 borderRadius: "50%",
-                backgroundColor: getTransportColor(stop.type),
+                backgroundColor: stopColors?.get(stop.id) ?? "#8E8E93",
                 border: "2px solid white",
                 boxShadow: "0 1px 3px rgba(0,0,0,0.3)",
                 display: "flex",

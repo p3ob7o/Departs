@@ -3,9 +3,11 @@ import { TransportIcon, getTransportName } from "./TransportIcon";
 
 export function StopRow({
   stop,
+  color,
   onTap,
 }: {
   stop: NearbyStop;
+  color?: string;
   onTap: (stop: NearbyStop) => void;
 }) {
   const firstLine = stop.lines[0];
@@ -21,7 +23,7 @@ export function StopRow({
       }}
       onClick={() => onTap(stop)}
     >
-      <TransportIcon type={stop.type} />
+      <TransportIcon type={stop.type} color={color} />
       <div
         className="flex-1 min-w-0"
         style={{

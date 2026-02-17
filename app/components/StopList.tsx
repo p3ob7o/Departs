@@ -3,9 +3,11 @@ import { StopRow } from "./StopRow";
 
 export function StopList({
   stops,
+  stopColors,
   onSelectStop,
 }: {
   stops: NearbyStop[];
+  stopColors?: Map<string, string>;
   onSelectStop: (stop: NearbyStop) => void;
 }) {
   if (stops.length === 0) {
@@ -30,7 +32,7 @@ export function StopList({
   return (
     <div>
       {stops.map((stop) => (
-        <StopRow key={stop.id} stop={stop} onTap={onSelectStop} />
+        <StopRow key={stop.id} stop={stop} color={stopColors?.get(stop.id)} onTap={onSelectStop} />
       ))}
     </div>
   );

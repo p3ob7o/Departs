@@ -16,12 +16,6 @@
   --color-stop-pin: #34C759;
   --color-user-dot: #007AFF;
   --color-route: #007AFF;
-
-  /* Transport type colors */
-  --color-transport-subway: #5856D6;
-  --color-transport-tram: #FF2D55;
-  --color-transport-bus: #FF9500;
-  --color-transport-rail: #34C759;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -38,12 +32,6 @@
     --color-stop-pin: #30D158;
     --color-user-dot: #0A84FF;
     --color-route: #FFFFFF;
-
-    /* Transport type colors (brighter for dark mode) */
-    --color-transport-subway: #7B7AFF;
-    --color-transport-tram: #FF6482;
-    --color-transport-bus: #FFB340;
-    --color-transport-rail: #30D158;
   }
 }
 

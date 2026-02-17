@@ -11,6 +11,7 @@ import { StopList } from "@/app/components/StopList";
 import { DepartureDetail } from "@/app/components/DepartureDetail";
 import { MapView } from "@/app/components/Map";
 import { BottomSheet } from "@/app/components/BottomSheet";
+import { getStopColor } from "@/app/components/TransportIcon";
 
 export default function Home() {
   const [selectedStop, setSelectedStop] = useState<NearbyStop | null>(null);
@@ -30,6 +31,11 @@ export default function Home() {
       setMapBounds(bounds);
     },
     []
+  );
+
+  const stopColors = useMemo(
+    () => new Map(stopsHook.stops.map((s, i) => [s.id, getStopColor(i)])),
+    [stopsHook.stops]
   );
 
   const visibleStops = useMemo(() => {
@@ -63,6 +69,7 @@ export default function Home() {
         <MapView
           userCoords={userCoords}
           stops={selectedStop ? [selectedStop] : visibleStops}
+          stopColors={stopColors}
           walkingRoute={depsHook.walkingRoute ?? undefined}
           onBoundsReady={handleBoundsReady}
         />
@@ -78,7 +85,7 @@ export default function Home() {
             onBack={() => setSelectedStop(null)}
           />
         ) : (
-          <StopList stops={visibleStops} onSelectStop={setSelectedStop} />
+          <StopList stops={visibleStops} stopColors={stopColors} onSelectStop={setSelectedStop} />
         )}
       </BottomSheet>
     </div>
