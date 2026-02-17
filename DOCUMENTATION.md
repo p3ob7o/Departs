@@ -16,6 +16,7 @@ Departs is a mobile-first web app that shows nearby public transit stops and rea
 | Walking directions | Mapbox Directions API |
 | Testing | Vitest, React Testing Library, MSW, Playwright |
 | Deployment | Vercel |
+| iOS App | SwiftUI (iOS 17+), MapKit, CoreLocation, URLSession |
 
 ## Project Structure
 
@@ -53,6 +54,17 @@ docs/
 ├── design-system.md              # UI design tokens & components
 └── user-journey.md               # User flow documentation
 e2e/                              # Playwright e2e tests
+ios/Departs/
+├── Departs.xcodeproj/            # Xcode project (iOS 17+ target)
+├── Departs/
+│   ├── Models/                   # Codable structs matching web types.ts
+│   ├── Services/                 # APIService (actor), LocationService (@Observable)
+│   ├── ViewModels/               # NearbyStopsViewModel, DepartureDetailViewModel
+│   ├── Views/                    # SwiftUI views (ContentView, screens, rows)
+│   │   └── Map/                  # UIViewRepresentable MKMapView wrappers
+│   ├── Utilities/                # StopPalette, TimeFormatter, Color+Hex
+│   └── Preview Content/          # Sample data for Xcode previews
+└── DepartsTests/                 # XCTest unit tests
 ```
 
 ## Screens
@@ -86,6 +98,17 @@ Browser Geolocation → useGeolocation hook
 /api/directions → Mapbox Directions → flat {geometry, duration, distance} → useDepartures
 ```
 
+## iOS App
+
+Native SwiftUI companion app that reuses the Vercel backend (no API keys on device). Zero third-party dependencies — MapKit for maps, CoreLocation for location, URLSession for networking.
+
+- Same 2-screen flow as web app: nearby stops → departure detail
+- MapKit `.mutedStandard` with automatic dark mode
+- `UIViewRepresentable` MKMapView for custom annotations (colored pins, pulsing user dot, dashed route)
+- Per-stop pastel colors (same 10-color palette as web)
+- `APIService` actor with 3 async methods calling `departs.vercel.app/api/*`
+- Bundle ID: `app.departs.Departs`
+
 ## Current Status
 
 - Core functionality working: geolocation, nearby stops, departure fetching, walking directions
@@ -93,6 +116,7 @@ Browser Geolocation → useGeolocation hook
 - Custom map markers rendering (blue dot, stop pins with letters, walking route)
 - 129 unit tests passing, production build succeeds
 - Deployed to Vercel at https://departs.vercel.app
+- Native iOS app builds and tests pass in Xcode (iOS 17+ target)
 
 ## Known Considerations
 

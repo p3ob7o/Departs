@@ -3,6 +3,7 @@
 ## Commands
 
 ```bash
+# Web app
 npm run dev          # Start dev server (Turbopack)
 npm run build        # Production build
 npm run test:run     # Run unit tests once (vitest)
@@ -10,6 +11,10 @@ npm run test         # Run unit tests in watch mode
 npm run test:coverage # Run tests with coverage report
 npm run test:e2e     # Run Playwright e2e tests
 npm run lint         # ESLint
+
+# iOS app (requires Xcode + sudo xcode-select -s /Applications/Xcode.app/Contents/Developer)
+xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
+xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
 ```
 
 ## Environment Variables
@@ -24,10 +29,18 @@ HERE_API_KEY=*                   # Server-side transit data
 
 ## Architecture
 
+### Web App
 - **Single-page app** with two screens managed by `selectedStop` state in `page.tsx`
 - **API proxy pattern**: client fetches `/api/*` routes, server proxies to HERE/Mapbox with keys
 - **No global state store** — hooks (`useGeolocation`, `useNearbyStops`, `useDepartures`) manage async state
 - **Path alias**: `@/*` maps to project root
+
+### iOS App (`ios/Departs/`)
+- **SwiftUI** with `@Observable` (iOS 17+ target), zero third-party dependencies
+- **MapKit** (`.mutedStandard`, auto dark mode) via `UIViewRepresentable` wrapping `MKMapView`
+- **Reuses Vercel backend**: `APIService` actor calls `departs.vercel.app/api/*` via URLSession async/await
+- **Same 2-screen flow**: `ContentView` toggles `selectedStop` state, matching web app's `page.tsx`
+- Structure: `Models/`, `Services/`, `ViewModels/`, `Views/`, `Utilities/`, `Preview Content/`
 
 ## Key Conventions
 
