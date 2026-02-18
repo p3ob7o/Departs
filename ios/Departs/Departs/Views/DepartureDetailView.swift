@@ -24,17 +24,11 @@ struct DepartureDetailView: View {
             // Content card
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Heading
-                    Text("Departures")
-                        .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(Color(.label))
-
-                    // Line info
+                    // Line info (primary)
                     if let firstLine = stop.lines.first {
-                        Text("\(stop.type.displayName) \(firstLine.name) to \(firstLine.direction)")
-                            .font(.system(size: 15))
-                            .foregroundStyle(Color(.secondaryLabel))
-                            .padding(.top, 8)
+                        Text("\(stop.type.displayName) \(firstLine.name) \u{2192} \(firstLine.direction)")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundStyle(Color(.label))
                     }
 
                     // Walking time
@@ -45,7 +39,14 @@ struct DepartureDetailView: View {
                             .padding(.top, 4)
                     }
 
-                    // Departure rows
+                    // Departures section
+                    Text("DEPARTURES")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color(.secondaryLabel))
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.top, 20)
+                        .padding(.bottom, 8)
+
                     VStack(spacing: 0) {
                         if viewModel.isLoading {
                             HStack {
@@ -75,7 +76,6 @@ struct DepartureDetailView: View {
                             }
                         }
                     }
-                    .padding(.top, 20)
                 }
                 .padding(16)
             }

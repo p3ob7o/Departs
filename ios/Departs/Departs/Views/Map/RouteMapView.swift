@@ -23,8 +23,9 @@ struct RouteMapView: UIViewRepresentable {
         context.coordinator.stopColor = stopColor
         context.coordinator.stopType = stop.type
 
-        // Remove old content
-        map.removeAnnotations(map.annotations)
+        // Remove old content (keep MKUserLocation)
+        let existing = map.annotations.filter { !($0 is MKUserLocation) }
+        map.removeAnnotations(existing)
         map.removeOverlays(map.overlays)
 
         // Add user dot
@@ -63,7 +64,12 @@ struct RouteMapView: UIViewRepresentable {
         if mapRect.size.height < minSize { mapRect = mapRect.insetBy(dx: 0, dy: -(minSize - mapRect.size.height) / 2) }
         let inset = max(mapRect.size.width, mapRect.size.height) * 0.3
         mapRect = mapRect.insetBy(dx: -inset, dy: -inset)
-        map.setVisibleMapRect(mapRect, animated: false)
+        // Defer zoom to next run loop so the map has its final frame
+        // (NavigationStack transitions can cause zero-frame layout on first call)
+        let targetRect = mapRect
+        DispatchQueue.main.async {
+            map.setVisibleMapRect(targetRect, animated: false)
+        }
     }
 
     func makeCoordinator() -> Coordinator {
