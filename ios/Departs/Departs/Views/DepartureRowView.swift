@@ -5,9 +5,21 @@ struct DepartureRowView: View {
 
     var body: some View {
         HStack {
-            Text(TimeFormatter.formatTime(departure.time))
-                .font(.system(size: 17))
-                .foregroundStyle(Color(.label))
+            VStack(alignment: .leading, spacing: 2) {
+                if let relative = TimeFormatter.relativeTime(departure.time) {
+                    Text(relative)
+                        .font(.system(size: 17, weight: .medium))
+                        .foregroundStyle(Color(.label))
+
+                    Text(TimeFormatter.formatTime(departure.time))
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color(.secondaryLabel))
+                } else {
+                    Text(TimeFormatter.formatTime(departure.time))
+                        .font(.system(size: 17))
+                        .foregroundStyle(Color(.label))
+                }
+            }
 
             Spacer()
 
@@ -28,13 +40,8 @@ struct DepartureRowView: View {
                         .foregroundStyle(.green)
                 }
             }
-
-            Image(systemName: "clock")
-                .font(.system(size: 16))
-                .foregroundStyle(Color(.secondaryLabel))
-                .padding(.leading, 4)
         }
-        .frame(height: 52)
+        .frame(minHeight: 52)
     }
 }
 

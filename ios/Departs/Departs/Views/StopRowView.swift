@@ -9,12 +9,12 @@ struct StopRowView: View {
             TransportIconView(type: stop.type, color: color)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(stop.type.displayName)
+                Text(stop.name)
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Color(.label))
 
                 if let firstLine = stop.lines.first {
-                    Text("\(firstLine.name) to \(firstLine.direction)")
+                    Text("\(firstLine.name) \u{2192} \(firstLine.direction)")
                         .font(.system(size: 15))
                         .foregroundStyle(Color(.secondaryLabel))
                         .lineLimit(1)
@@ -27,7 +27,7 @@ struct StopRowView: View {
                 .font(.system(size: 14, weight: .semibold))
                 .foregroundStyle(Color(.tertiaryLabel))
         }
-        .padding(.vertical, 12)
+        .padding(.vertical, 16)
         .contentShape(Rectangle())
     }
 }

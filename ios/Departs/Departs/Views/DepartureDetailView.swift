@@ -4,50 +4,28 @@ struct DepartureDetailView: View {
     let stop: NearbyStop
     let stopColor: Color
     let userCoordinate: Coordinate
-    let onBack: () -> Void
 
     @State private var viewModel = DepartureDetailViewModel()
 
     var body: some View {
         VStack(spacing: 0) {
-            // Header with back button and app title
-            ZStack {
-                Text("Departs")
-                    .font(.system(size: 22, weight: .bold))
-
-                HStack {
-                    Button(action: onBack) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 17, weight: .semibold))
-                            Text("Back")
-                                .font(.system(size: 17))
-                        }
-                        .foregroundStyle(Color.accentColor)
-                    }
-                    Spacer()
-                }
-                .padding(.horizontal, 16)
-            }
-            .padding(.vertical, 12)
-
-            // Route map
+            // Route map (5:4 aspect ratio)
             RouteMapView(
                 userCoordinate: userCoordinate.clLocationCoordinate2D,
                 stop: stop,
                 stopColor: stopColor,
                 walkingRoute: viewModel.walkingRoute
             )
-            .aspectRatio(1, contentMode: .fill)
+            .aspectRatio(5.0 / 4.0, contentMode: .fill)
             .frame(maxWidth: .infinity)
             .clipped()
             .ignoresSafeArea(edges: .horizontal)
 
-            // Detail content
+            // Content card
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // Heading
-                    Text("Departures:")
+                    Text("Departures")
                         .font(.system(size: 22, weight: .bold))
                         .foregroundStyle(Color(.label))
 
@@ -61,7 +39,7 @@ struct DepartureDetailView: View {
 
                     // Walking time
                     if let route = viewModel.walkingRoute {
-                        Text("\(route.walkingMinutes) min walk")
+                        Text("\(max(1, route.walkingMinutes)) min walk")
                             .font(.system(size: 15))
                             .foregroundStyle(Color(.secondaryLabel))
                             .padding(.top, 4)
@@ -101,7 +79,13 @@ struct DepartureDetailView: View {
                 }
                 .padding(16)
             }
+            .background(Color(.systemBackground))
+            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 12, topTrailingRadius: 12))
+            .shadow(color: .black.opacity(0.1), radius: 3, y: -1)
         }
+        .background(Color(.systemGroupedBackground))
+        .navigationTitle("Departs")
+        .navigationBarTitleDisplayMode(.inline)
         .task {
             await viewModel.load(
                 stopId: stop.id,
@@ -114,11 +98,12 @@ struct DepartureDetailView: View {
 
 #if DEBUG
 #Preview {
-    DepartureDetailView(
-        stop: PreviewData.stops[0],
-        stopColor: StopPalette.colors[0],
-        userCoordinate: PreviewData.userCoordinate,
-        onBack: { }
-    )
+    NavigationStack {
+        DepartureDetailView(
+            stop: PreviewData.stops[0],
+            stopColor: StopPalette.colors[0],
+            userCoordinate: PreviewData.userCoordinate
+        )
+    }
 }
 #endif

@@ -108,8 +108,8 @@ struct RouteMapView: UIViewRepresentable {
             if let polyline = overlay as? MKPolyline {
                 let renderer = MKPolylineRenderer(polyline: polyline)
                 renderer.strokeColor = UIColor(stopColor)
-                renderer.lineWidth = 3
-                renderer.lineDashPattern = [6, 4]
+                renderer.lineWidth = 4
+                renderer.lineDashPattern = [8, 5]
                 return renderer
             }
             return MKOverlayRenderer(overlay: overlay)
@@ -153,7 +153,7 @@ struct RouteMapView: UIViewRepresentable {
                 ?? MKAnnotationView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
 
-            let size: CGFloat = 32
+            let size: CGFloat = 30
             let circle = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
             circle.backgroundColor = UIColor(stopColor)
             circle.layer.cornerRadius = size / 2
@@ -165,7 +165,7 @@ struct RouteMapView: UIViewRepresentable {
             let label = UILabel(frame: circle.bounds)
             label.text = stopType.label
             label.textAlignment = .center
-            label.font = .systemFont(ofSize: 14, weight: .bold)
+            label.font = .systemFont(ofSize: 13, weight: .bold)
             label.textColor = .white
             circle.addSubview(label)
 

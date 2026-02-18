@@ -28,4 +28,16 @@ enum TimeFormatter {
         guard let date = parseISO(isoString) else { return isoString }
         return displayFormatter.string(from: date)
     }
+
+    /// Returns relative time string for departures within 30 minutes, nil otherwise.
+    static func relativeTime(_ isoString: String) -> String? {
+        guard let date = parseISO(isoString) else { return nil }
+        let minutes = Int(date.timeIntervalSinceNow / 60)
+        if minutes <= 0 {
+            return "Now"
+        } else if minutes <= 30 {
+            return "in \(minutes) min"
+        }
+        return nil
+    }
 }

@@ -12,7 +12,7 @@ struct StopsMapView: UIViewRepresentable {
         map.isZoomEnabled = false
         map.isRotateEnabled = false
         map.isPitchEnabled = false
-        map.showsUserLocation = false
+        map.showsUserLocation = true
         map.preferredConfiguration = MKStandardMapConfiguration(emphasisStyle: .muted)
         map.delegate = context.coordinator
         return map
@@ -34,13 +34,13 @@ struct StopsMapView: UIViewRepresentable {
         map.removeAnnotations(existing)
 
         // Add user dot
-        let userPin = StopAnnotation(
-            coordinate: userCoordinate,
-            stopId: "__user__",
-            transportLabel: "",
-            isUser: true
-        )
-        map.addAnnotation(userPin)
+//        let userPin = StopAnnotation(
+//            coordinate: userCoordinate,
+//            stopId: "__user__",
+//            transportLabel: "",
+//            isUser: true
+//        )
+//        map.addAnnotation(userPin)
 
         // Add stop pins
         for stop in stops {
@@ -149,7 +149,7 @@ struct StopsMapView: UIViewRepresentable {
                 ?? MKAnnotationView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
 
-            let size: CGFloat = 28
+            let size: CGFloat = 30
             let circle = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
 
             let uiColor: UIColor
