@@ -38,7 +38,10 @@ struct DepartureDetailView: View {
                 stopColor: stopColor,
                 walkingRoute: viewModel.walkingRoute
             )
-            .aspectRatio(1, contentMode: .fit)
+            .aspectRatio(1, contentMode: .fill)
+            .frame(maxWidth: .infinity)
+            .clipped()
+            .ignoresSafeArea(edges: .horizontal)
 
             // Detail content
             ScrollView {

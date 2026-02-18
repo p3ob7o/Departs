@@ -22,7 +22,10 @@ struct NearbyStopsView: View {
                 stops: stops,
                 stopColors: stopColors
             )
-            .aspectRatio(1, contentMode: .fit)
+            .aspectRatio(1, contentMode: .fill)
+            .frame(maxWidth: .infinity)
+            .clipped()
+            .ignoresSafeArea(edges: .horizontal)
 
             // Stop list
             if stops.isEmpty {
