@@ -15,8 +15,8 @@ enum TimeFormatter {
 
     private static let displayFormatter: DateFormatter = {
         let f = DateFormatter()
-        f.dateFormat = "h:mm a"
-        f.locale = Locale(identifier: "en_US")
+        f.dateStyle = .none
+        f.timeStyle = .short
         return f
     }()
 
