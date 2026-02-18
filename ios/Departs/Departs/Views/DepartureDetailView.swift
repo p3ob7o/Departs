@@ -10,6 +10,27 @@ struct DepartureDetailView: View {
 
     var body: some View {
         VStack(spacing: 0) {
+            // Header with back button and app title
+            ZStack {
+                Text("Departs")
+                    .font(.system(size: 22, weight: .bold))
+
+                HStack {
+                    Button(action: onBack) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "chevron.left")
+                                .font(.system(size: 17, weight: .semibold))
+                            Text("Back")
+                                .font(.system(size: 17))
+                        }
+                        .foregroundStyle(Color.accentColor)
+                    }
+                    Spacer()
+                }
+                .padding(.horizontal, 16)
+            }
+            .padding(.vertical, 12)
+
             // Route map
             RouteMapView(
                 userCoordinate: userCoordinate.clLocationCoordinate2D,
@@ -22,18 +43,6 @@ struct DepartureDetailView: View {
             // Detail content
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
-                    // Back button
-                    Button(action: onBack) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "chevron.left")
-                                .font(.system(size: 17, weight: .semibold))
-                            Text("Back")
-                                .font(.system(size: 17))
-                        }
-                        .foregroundStyle(Color.accentColor)
-                    }
-                    .padding(.bottom, 16)
-
                     // Heading
                     Text("Departures:")
                         .font(.system(size: 22, weight: .bold))

@@ -12,7 +12,7 @@ struct NearbyStopsView: View {
             // App title
             Text("Departs")
                 .font(.system(size: 22, weight: .bold))
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .frame(maxWidth: .infinity, alignment: .center)
                 .padding(.horizontal, 16)
                 .padding(.vertical, 12)
 
