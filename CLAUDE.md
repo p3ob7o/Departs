@@ -41,6 +41,8 @@ HERE_API_KEY=*                   # Server-side transit data
 - **Reuses Vercel backend**: `APIService` actor calls `departs.vercel.app/api/*` via URLSession async/await
 - **Same 2-screen flow**: `ContentView` toggles `selectedStop` state, matching web app's `page.tsx`
 - Structure: `Models/`, `Services/`, `ViewModels/`, `Views/`, `Utilities/`, `Preview Content/`
+- iOS models don't match web `types.ts` exactly: `NearbyStop.distance` is optional (`Int?`), `LineInfo.id` is computed from `name::direction` (API doesn't return these fields)
+- `#Preview` blocks that reference `PreviewData` must be wrapped with `#if DEBUG` (Preview Content is excluded from release/archive builds)
 
 ## Key Conventions
 
@@ -69,6 +71,18 @@ HERE_API_KEY=*                   # Server-side transit data
 
 - Multiple Chromium browsers are installed. Only **Google Chrome** (profile **"Claude"**) has the Claude extension
 - If `tabs_context_mcp` returns a connection error, call `switch_browser` to connect to Chrome
+
+## iOS Simulator Testing
+
+```bash
+# Set simulated location (e.g. Neubaugasse 36, Vienna)
+xcrun simctl location "iPhone 17 Pro" set 48.20134,16.34941
+# Grant location permission
+xcrun simctl privacy "iPhone 17 Pro" grant location-always app.departs.Departs
+# Install and launch
+xcrun simctl install "iPhone 17 Pro" /Users/paolo/Library/Developer/Xcode/DerivedData/Departs-efvvvjglmzsmuugyprgrdugprfrn/Build/Products/Debug-iphonesimulator/Departs.app
+xcrun simctl launch "iPhone 17 Pro" app.departs.Departs
+```
 
 ## Workflow
 

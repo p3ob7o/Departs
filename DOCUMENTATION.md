@@ -75,9 +75,10 @@ ios/Departs/
 - Bottom sheet lists stops: transport type heading, line + direction subtitle
 
 ### Screen 2: Departure Detail
-- Map zooms to fit walking route (dashed line) + stop pin (same pastel color as in list)
+- Map zooms to fit user + stop pin (same pastel color as in list), with walking route (dashed line) added when loaded
+- Map and departures load in parallel — map updates immediately without waiting for departure data
 - Bottom sheet shows "Departures:" heading, line info, walking time
-- Up to 4 departure times in 12-hour format with clock icons
+- Up to 4 departure times using device locale (12h or 24h per user setting) with clock icons
 
 ## Design System
 
@@ -103,10 +104,16 @@ Browser Geolocation → useGeolocation hook
 Native SwiftUI companion app that reuses the Vercel backend (no API keys on device). Zero third-party dependencies — MapKit for maps, CoreLocation for location, URLSession for networking.
 
 - Same 2-screen flow as web app: nearby stops → departure detail
+- Centered "Departs" header on both screens; Back button at top-left on detail screen
+- Pull-to-refresh on stops list to re-request location and reload stops
+- Edge-to-edge maps on both screens
 - MapKit `.mutedStandard` with automatic dark mode
 - `UIViewRepresentable` MKMapView for custom annotations (colored pins, pulsing user dot, dashed route)
+- Detail map loads route and departures in parallel — map shows user + stop immediately
 - Per-stop pastel colors (same 10-color palette as web)
 - `APIService` actor with 3 async methods calling `departs.vercel.app/api/*`
+- Time formatting uses device locale (respects 12h/24h setting)
+- App icon included (dark charcoal with app name and transit line motif)
 - Bundle ID: `app.departs.Departs`
 
 ## Current Status
@@ -114,9 +121,9 @@ Native SwiftUI companion app that reuses the Vercel backend (no API keys on devi
 - Core functionality working: geolocation, nearby stops, departure fetching, walking directions
 - Design system fully implemented with light/dark mode
 - Custom map markers rendering (blue dot, stop pins with letters, walking route)
-- 129 unit tests passing, production build succeeds
+- 129 web unit tests passing, 8 iOS unit tests passing, production build succeeds
 - Deployed to Vercel at https://departs.vercel.app
-- Native iOS app builds and tests pass in Xcode (iOS 17+ target)
+- iOS app ready for TestFlight (archive builds, app icon, signed)
 
 ## Known Considerations
 
