@@ -13,7 +13,7 @@ struct RouteMapView: UIViewRepresentable {
         map.isZoomEnabled = false
         map.isRotateEnabled = false
         map.isPitchEnabled = false
-        map.showsUserLocation = false
+        map.showsUserLocation = true
         map.preferredConfiguration = MKStandardMapConfiguration(emphasisStyle: .muted)
         map.delegate = context.coordinator
         return map
@@ -28,11 +28,11 @@ struct RouteMapView: UIViewRepresentable {
         map.removeOverlays(map.overlays)
 
         // Add user dot
-        let userPin = PinAnnotation(
-            coordinate: userCoordinate,
-            kind: .user
-        )
-        map.addAnnotation(userPin)
+//        let userPin = PinAnnotation(
+//            coordinate: userCoordinate,
+//            kind: .user
+//        )
+//        map.addAnnotation(userPin)
 
         // Add stop pin
         let stopPin = PinAnnotation(
@@ -46,21 +46,24 @@ struct RouteMapView: UIViewRepresentable {
             let coords = route.geometry.clCoordinates
             let polyline = MKPolyline(coordinates: coords, count: coords.count)
             map.addOverlay(polyline)
-
-            // Fit bounds to route
-            var mapRect = polyline.boundingMapRect
-            let padding = mapRect.size.width * 0.2
-            mapRect = mapRect.insetBy(dx: -padding, dy: -padding)
-            map.setVisibleMapRect(mapRect, animated: false)
-        } else {
-            // Fit to user + stop
-            let region = MKCoordinateRegion(
-                center: userCoordinate,
-                latitudinalMeters: 800,
-                longitudinalMeters: 800
-            )
-            map.setRegion(region, animated: false)
         }
+
+        // Fit bounds to user + stop (and route if available)
+        var points = [userCoordinate, stop.location.clLocationCoordinate2D]
+        if let route = walkingRoute {
+            points.append(contentsOf: route.geometry.clCoordinates)
+        }
+        let mapPoints = points.map { MKMapPoint($0) }
+        var mapRect = mapPoints.dropFirst().reduce(MKMapRect(origin: mapPoints[0], size: MKMapSize(width: 0, height: 0))) { rect, point in
+            rect.union(MKMapRect(origin: point, size: MKMapSize(width: 0, height: 0)))
+        }
+        // Ensure a minimum visible area (~400m) so short walks aren't over-zoomed
+        let minSize = MKMapPointsPerMeterAtLatitude(userCoordinate.latitude) * 400
+        if mapRect.size.width < minSize { mapRect = mapRect.insetBy(dx: -(minSize - mapRect.size.width) / 2, dy: 0) }
+        if mapRect.size.height < minSize { mapRect = mapRect.insetBy(dx: 0, dy: -(minSize - mapRect.size.height) / 2) }
+        let inset = max(mapRect.size.width, mapRect.size.height) * 0.5
+        mapRect = mapRect.insetBy(dx: -inset, dy: -inset)
+        map.setVisibleMapRect(mapRect, animated: false)
     }
 
     func makeCoordinator() -> Coordinator {

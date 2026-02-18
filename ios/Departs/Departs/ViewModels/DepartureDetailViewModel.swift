@@ -14,22 +14,29 @@ final class DepartureDetailViewModel {
         departures = []
         walkingRoute = nil
 
-        async let depsTask = APIService.shared.fetchDepartures(stopId: stopId)
-        async let routeTask = APIService.shared.fetchDirections(from: userCoord, to: stopCoord)
+        // Load route and departures independently so the map updates immediately
+        async let routeTask: Void = loadRoute(from: userCoord, to: stopCoord)
+        async let depsTask: Void = loadDepartures(stopId: stopId)
 
+        _ = await (routeTask, depsTask)
+    }
+
+    @MainActor
+    private func loadRoute(from userCoord: Coordinate, to stopCoord: Coordinate) async {
         do {
-            let (deps, route) = try await (depsTask, routeTask)
-            departures = deps
-            walkingRoute = route
-            isLoading = false
+            walkingRoute = try await APIService.shared.fetchDirections(from: userCoord, to: stopCoord)
         } catch {
-            // Try to at least show departures if directions fail
-            do {
-                departures = try await APIService.shared.fetchDepartures(stopId: stopId)
-            } catch {
-                self.error = error.localizedDescription
-            }
-            isLoading = false
+            // Route is optional — map still shows user + stop without it
         }
+    }
+
+    @MainActor
+    private func loadDepartures(stopId: String) async {
+        do {
+            departures = try await APIService.shared.fetchDepartures(stopId: stopId)
+        } catch {
+            self.error = error.localizedDescription
+        }
+        isLoading = false
     }
 }
