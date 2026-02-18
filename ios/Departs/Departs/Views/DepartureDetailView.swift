@@ -16,7 +16,7 @@ struct DepartureDetailView: View {
                 stopColor: stopColor,
                 walkingRoute: viewModel.walkingRoute
             )
-            .aspectRatio(5.0 / 4.0, contentMode: .fill)
+            .aspectRatio(5.0 / 4.0, contentMode: .fit)
             .frame(maxWidth: .infinity)
             .clipped()
             .ignoresSafeArea(edges: .horizontal)
