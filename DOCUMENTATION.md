@@ -70,15 +70,19 @@ ios/Departs/
 ## Screens
 
 ### Screen 1: Nearby Stops
-- Map shows user location (blue dot with pulsing halo) + 250m radius circle
+- 5:4 aspect ratio map shows user location (blue dot) and stop pins with transport-type letters
 - Each stop gets a unique muted pastel color (from a 10-color palette) on both the map marker and list icon
-- Bottom sheet lists stops: transport type heading, line + direction subtitle
+- "NEARBY STOPS" uppercase section header above the list
+- Stop rows show stop name as primary text, line → direction as secondary
+- Skeleton loading (5 placeholder rows) while stops are being fetched
+- Haptic feedback and highlight on tap; pull-to-refresh
 
 ### Screen 2: Departure Detail
-- Map zooms to fit user + stop pin (same pastel color as in list), with walking route (dashed line) added when loaded
-- Map and departures load in parallel — map updates immediately without waiting for departure data
-- Bottom sheet shows "Departures:" heading, line info, walking time
-- Up to 4 departure times using device locale (12h or 24h per user setting) with clock icons
+- 5:4 aspect ratio map zooms to fit user + stop pin with walking route (dashed line)
+- Map uses `MapContainerView` wrapper to defer zoom until frame is valid (handles NavigationStack transition timing)
+- Content card with rounded top corners: line + direction as bold heading, walking time (clamped to 1 min minimum), "DEPARTURES" section header
+- Relative times ("Now", "in 3 min") for departures ≤30 min away, absolute time as secondary
+- Up to 4 departure times using device locale (12h or 24h per user setting)
 
 ## Design System
 
@@ -103,24 +107,30 @@ Browser Geolocation → useGeolocation hook
 
 Native SwiftUI companion app that reuses the Vercel backend (no API keys on device). Zero third-party dependencies — MapKit for maps, CoreLocation for location, URLSession for networking.
 
+- `NavigationStack` with `.navigationDestination(item:)` for native push/pop transitions and swipe-back gesture
 - Same 2-screen flow as web app: nearby stops → departure detail
-- Centered "Departs" header on both screens; Back button at top-left on detail screen
+- Inline "Departs" navigation title on both screens
+- Content cards with `UnevenRoundedRectangle` rounded top corners and subtle shadow separating map from list
 - Pull-to-refresh on stops list to re-request location and reload stops
-- Edge-to-edge maps on both screens
+- Edge-to-edge 5:4 aspect ratio maps on both screens
 - MapKit `.mutedStandard` with automatic dark mode
-- `UIViewRepresentable` MKMapView for custom annotations (colored pins, pulsing user dot, dashed route)
+- `UIViewRepresentable` MKMapView for custom annotations (30pt colored pins, pulsing user dot, dashed route)
+- Detail map uses `MapContainerView` (UIView wrapper) to defer `setRegion` in `layoutSubviews` — solves zero-frame timing during NavigationStack transitions
 - Detail map loads route and departures in parallel — map shows user + stop immediately
 - Per-stop pastel colors (same 10-color palette as web)
 - `APIService` actor with 3 async methods calling `departs.vercel.app/api/*`
 - Time formatting uses device locale (respects 12h/24h setting)
+- Relative departure times ("Now", "in 3 min") via `TimeFormatter.relativeTime(_:)`
+- `Departure.id` uses UUID (not time string) to avoid duplicate identity warnings
 - App icon included (dark charcoal with app name and transit line motif)
-- Bundle ID: `app.departs.Departs`
+- Bundle ID: `app.departs.Departs`, iPhone-only target
 
 ## Current Status
 
 - Core functionality working: geolocation, nearby stops, departure fetching, walking directions
 - Design system fully implemented with light/dark mode
 - Custom map markers rendering (blue dot, stop pins with letters, walking route)
+- iOS design polish complete: NavigationStack navigation, content cards, relative times, skeleton loading, haptic feedback
 - 129 web unit tests passing, 8 iOS unit tests passing, production build succeeds
 - Deployed to Vercel at https://departs.vercel.app
 - iOS app ready for TestFlight (archive builds, app icon, signed)
