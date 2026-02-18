@@ -57,11 +57,11 @@ struct RouteMapView: UIViewRepresentable {
         var mapRect = mapPoints.dropFirst().reduce(MKMapRect(origin: mapPoints[0], size: MKMapSize(width: 0, height: 0))) { rect, point in
             rect.union(MKMapRect(origin: point, size: MKMapSize(width: 0, height: 0)))
         }
-        // Ensure a minimum visible area (~400m) so short walks aren't over-zoomed
-        let minSize = MKMapPointsPerMeterAtLatitude(userCoordinate.latitude) * 400
+        // Ensure a minimum visible area (~150m) so very short walks aren't over-zoomed
+        let minSize = MKMapPointsPerMeterAtLatitude(userCoordinate.latitude) * 150
         if mapRect.size.width < minSize { mapRect = mapRect.insetBy(dx: -(minSize - mapRect.size.width) / 2, dy: 0) }
         if mapRect.size.height < minSize { mapRect = mapRect.insetBy(dx: 0, dy: -(minSize - mapRect.size.height) / 2) }
-        let inset = max(mapRect.size.width, mapRect.size.height) * 0.5
+        let inset = max(mapRect.size.width, mapRect.size.height) * 0.3
         mapRect = mapRect.insetBy(dx: -inset, dy: -inset)
         map.setVisibleMapRect(mapRect, animated: false)
     }
