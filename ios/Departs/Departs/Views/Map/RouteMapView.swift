@@ -7,7 +7,7 @@ struct RouteMapView: UIViewRepresentable {
     let stopColor: Color
     let walkingRoute: WalkingRoute?
 
-    func makeUIView(context: Context) -> MKMapView {
+    func makeUIView(context: Context) -> MapContainerView {
         let map = MKMapView()
         map.isScrollEnabled = false
         map.isZoomEnabled = false
@@ -16,10 +16,11 @@ struct RouteMapView: UIViewRepresentable {
         map.showsUserLocation = true
         map.preferredConfiguration = MKStandardMapConfiguration(emphasisStyle: .muted)
         map.delegate = context.coordinator
-        return map
+        return MapContainerView(mapView: map)
     }
 
-    func updateUIView(_ map: MKMapView, context: Context) {
+    func updateUIView(_ container: MapContainerView, context: Context) {
+        let map = container.mapView
         context.coordinator.stopColor = stopColor
         context.coordinator.stopType = stop.type
 
@@ -27,13 +28,6 @@ struct RouteMapView: UIViewRepresentable {
         let existing = map.annotations.filter { !($0 is MKUserLocation) }
         map.removeAnnotations(existing)
         map.removeOverlays(map.overlays)
-
-        // Add user dot
-//        let userPin = PinAnnotation(
-//            coordinate: userCoordinate,
-//            kind: .user
-//        )
-//        map.addAnnotation(userPin)
 
         // Add stop pin
         let stopPin = PinAnnotation(
@@ -49,32 +43,68 @@ struct RouteMapView: UIViewRepresentable {
             map.addOverlay(polyline)
         }
 
-        // Fit bounds to user + stop (and route if available)
-        var points = [userCoordinate, stop.location.clLocationCoordinate2D]
+        // Fit region to user + stop (and route if available)
+        var lats = [userCoordinate.latitude, stop.location.lat]
+        var lons = [userCoordinate.longitude, stop.location.lon]
         if let route = walkingRoute {
-            points.append(contentsOf: route.geometry.clCoordinates)
+            for coord in route.geometry.clCoordinates {
+                lats.append(coord.latitude)
+                lons.append(coord.longitude)
+            }
         }
-        let mapPoints = points.map { MKMapPoint($0) }
-        var mapRect = mapPoints.dropFirst().reduce(MKMapRect(origin: mapPoints[0], size: MKMapSize(width: 0, height: 0))) { rect, point in
-            rect.union(MKMapRect(origin: point, size: MKMapSize(width: 0, height: 0)))
-        }
-        // Ensure a minimum visible area (~150m) so very short walks aren't over-zoomed
-        let minSize = MKMapPointsPerMeterAtLatitude(userCoordinate.latitude) * 150
-        if mapRect.size.width < minSize { mapRect = mapRect.insetBy(dx: -(minSize - mapRect.size.width) / 2, dy: 0) }
-        if mapRect.size.height < minSize { mapRect = mapRect.insetBy(dx: 0, dy: -(minSize - mapRect.size.height) / 2) }
-        let inset = max(mapRect.size.width, mapRect.size.height) * 0.3
-        mapRect = mapRect.insetBy(dx: -inset, dy: -inset)
-        // Defer zoom to next run loop so the map has its final frame
-        // (NavigationStack transitions can cause zero-frame layout on first call)
-        let targetRect = mapRect
-        DispatchQueue.main.async {
-            map.setVisibleMapRect(targetRect, animated: false)
+        let center = CLLocationCoordinate2D(
+            latitude: (lats.min()! + lats.max()!) / 2,
+            longitude: (lons.min()! + lons.max()!) / 2
+        )
+        // 1° lat ≈ 111km; min span ~150m = 0.00135°. Add 60% padding.
+        let latSpan = max((lats.max()! - lats.min()!) * 1.6, 0.00135)
+        let lonSpan = max((lons.max()! - lons.min()!) * 1.6, 0.002)
+        let region = MKCoordinateRegion(
+            center: center,
+            span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan)
+        )
+
+        // Store target region — container applies it in layoutSubviews when frame is valid
+        container.targetRegion = region
+        if map.bounds.size.width > 0 {
+            map.setRegion(region, animated: false)
         }
     }
 
     func makeCoordinator() -> Coordinator {
         Coordinator(stopColor: stopColor, stopType: stop.type)
     }
+
+    // MARK: - Container view
+
+    /// Wraps MKMapView to apply deferred zoom in layoutSubviews,
+    /// which is guaranteed to fire when the frame becomes valid
+    /// (unlike delegate callbacks during NavigationStack transitions).
+    final class MapContainerView: UIView {
+        let mapView: MKMapView
+        var targetRegion: MKCoordinateRegion?
+
+        init(mapView: MKMapView) {
+            self.mapView = mapView
+            super.init(frame: .zero)
+            addSubview(mapView)
+        }
+
+        required init?(coder: NSCoder) { fatalError() }
+
+        override func layoutSubviews() {
+            super.layoutSubviews()
+            mapView.frame = bounds
+            if let region = targetRegion, bounds.width > 0, bounds.height > 0 {
+                targetRegion = nil
+                DispatchQueue.main.async {
+                    self.mapView.setRegion(region, animated: false)
+                }
+            }
+        }
+    }
+
+    // MARK: - Annotations
 
     enum PinKind {
         case user, stop
@@ -89,6 +119,8 @@ struct RouteMapView: UIViewRepresentable {
             self.kind = kind
         }
     }
+
+    // MARK: - Coordinator
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var stopColor: Color
