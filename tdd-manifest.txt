@@ -1,0 +1,158 @@
+# TDD Manifest — Departs
+# Format: FILE | TEST_NAME
+# Order: data layer → API routes → hooks → leaf components → composite components → page
+#
+# Each test is implemented one at a time. The pass condition for each test
+# is that it passes AND all previous tests still pass (no regressions).
+
+# ── Library: transitProvider (HERE response transformation) ──
+app/lib/transitProvider.test.ts | transforms HERE stations response to NearbyStop[]
+app/lib/transitProvider.test.ts | maps HERE transport modes to TransportType
+app/lib/transitProvider.test.ts | maps lightRail to tram
+app/lib/transitProvider.test.ts | maps intercityTrain to rail
+app/lib/transitProvider.test.ts | extracts line info with direction
+app/lib/transitProvider.test.ts | converts lng to lon in location
+app/lib/transitProvider.test.ts | returns empty array for empty stations response
+app/lib/transitProvider.test.ts | transforms HERE boards response to Departure[]
+app/lib/transitProvider.test.ts | sets realTime to false when no rtTime present
+app/lib/transitProvider.test.ts | sets realTime to true when rtTime is present
+app/lib/transitProvider.test.ts | calculates delay in seconds from time vs rtTime
+app/lib/transitProvider.test.ts | sets delay to 0 when rtTime equals scheduled time
+app/lib/transitProvider.test.ts | uses scheduled time as the departure time
+
+# ── Library: api client (fetch helpers) ──
+app/lib/api.test.ts | fetches nearby stops from /api/stops/nearby
+app/lib/api.test.ts | passes lat and lon as query params
+app/lib/api.test.ts | throws on non-ok response
+app/lib/api.test.ts | fetches departures from /api/departures
+app/lib/api.test.ts | passes stopId as query param
+app/lib/api.test.ts | fetches walking directions from /api/directions
+app/lib/api.test.ts | passes from and to as query params
+
+# ── API route: /api/stops/nearby ──
+app/api/stops/nearby/route.test.ts | returns 400 when lat is missing
+app/api/stops/nearby/route.test.ts | returns 400 when lon is missing
+app/api/stops/nearby/route.test.ts | returns 400 when lat is not a valid number
+app/api/stops/nearby/route.test.ts | proxies request to HERE stations API
+app/api/stops/nearby/route.test.ts | sets cache headers for 24 hours
+app/api/stops/nearby/route.test.ts | returns 500 when HERE API fails
+
+# ── API route: /api/departures ──
+app/api/departures/route.test.ts | returns 400 when stopId is missing
+app/api/departures/route.test.ts | proxies request to HERE boards API
+app/api/departures/route.test.ts | sets cache headers for 30 seconds
+app/api/departures/route.test.ts | returns 500 when HERE API fails
+
+# ── API route: /api/directions ──
+app/api/directions/route.test.ts | returns 400 when from is missing
+app/api/directions/route.test.ts | returns 400 when to is missing
+app/api/directions/route.test.ts | returns 400 when coordinates are invalid
+app/api/directions/route.test.ts | proxies request to Mapbox Directions API
+app/api/directions/route.test.ts | sets cache headers for 1 hour
+app/api/directions/route.test.ts | returns 500 when Mapbox API fails
+
+# ── Hook: useGeolocation ──
+app/hooks/useGeolocation.test.ts | starts in loading state
+app/hooks/useGeolocation.test.ts | calls getCurrentPosition on mount
+app/hooks/useGeolocation.test.ts | returns coordinates on success
+app/hooks/useGeolocation.test.ts | returns permission denied error
+app/hooks/useGeolocation.test.ts | returns position unavailable error
+app/hooks/useGeolocation.test.ts | returns timeout error
+app/hooks/useGeolocation.test.ts | provides a retry function that re-triggers geolocation
+app/hooks/useGeolocation.test.ts | passes high accuracy and timeout options
+
+# ── Hook: useNearbyStops ──
+app/hooks/useNearbyStops.test.ts | starts in loading state when coords are provided
+app/hooks/useNearbyStops.test.ts | does not fetch when coords are null
+app/hooks/useNearbyStops.test.ts | returns stops on successful fetch
+app/hooks/useNearbyStops.test.ts | returns error on fetch failure
+app/hooks/useNearbyStops.test.ts | refetches when coordinates change
+
+# ── Hook: useDepartures ──
+app/hooks/useDepartures.test.ts | starts in loading state when stopId is provided
+app/hooks/useDepartures.test.ts | does not fetch when stopId is null
+app/hooks/useDepartures.test.ts | fetches departures and directions in parallel
+app/hooks/useDepartures.test.ts | still shows departures when directions fail (graceful degradation)
+app/hooks/useDepartures.test.ts | returns error when departures fetch fails
+app/hooks/useDepartures.test.ts | refetches when stopId changes
+
+# ── Component: TransportIcon (leaf) ──
+app/components/TransportIcon.test.tsx | renders subway icon
+app/components/TransportIcon.test.tsx | renders tram icon
+app/components/TransportIcon.test.tsx | renders bus icon
+app/components/TransportIcon.test.tsx | renders rail icon
+app/components/TransportIcon.test.tsx | has 40x40px dimensions
+app/components/TransportIcon.test.tsx | includes accessible label
+
+# ── Component: LoadingState (leaf) ──
+app/components/LoadingState.test.tsx | renders a loading spinner
+app/components/LoadingState.test.tsx | displays loading text
+app/components/LoadingState.test.tsx | has an accessible label for screen readers
+app/components/LoadingState.test.tsx | renders with custom message when provided
+
+# ── Component: ErrorState (leaf) ──
+app/components/ErrorState.test.tsx | renders permission denied error
+app/components/ErrorState.test.tsx | renders network error
+app/components/ErrorState.test.tsx | renders timeout error
+app/components/ErrorState.test.tsx | renders empty state
+app/components/ErrorState.test.tsx | renders offline error
+app/components/ErrorState.test.tsx | calls onRetry when retry button is tapped
+app/components/ErrorState.test.tsx | does not show retry button for empty state
+
+# ── Component: StopRow ──
+app/components/StopRow.test.tsx | renders the transport icon
+app/components/StopRow.test.tsx | displays the stop name
+app/components/StopRow.test.tsx | displays the first line with direction
+app/components/StopRow.test.tsx | renders a chevron indicator
+app/components/StopRow.test.tsx | calls onTap with stop when clicked
+app/components/StopRow.test.tsx | has minimum 44px touch target
+app/components/StopRow.test.tsx | shows distance in meters
+
+# ── Component: DepartureRow ──
+app/components/DepartureRow.test.tsx | renders the departure time
+app/components/DepartureRow.test.tsx | uses a semantic <time> element
+app/components/DepartureRow.test.tsx | shows real-time indicator when realTime is true
+app/components/DepartureRow.test.tsx | does not show real-time indicator when realTime is false
+app/components/DepartureRow.test.tsx | shows delay when present
+app/components/DepartureRow.test.tsx | does not show delay when delay is null
+app/components/DepartureRow.test.tsx | shows on-time indicator when delay is 0
+
+# ── Component: BottomSheet ──
+app/components/BottomSheet.test.tsx | renders children content
+app/components/BottomSheet.test.tsx | renders a drag handle
+app/components/BottomSheet.test.tsx | has rounded top corners
+app/components/BottomSheet.test.tsx | has horizontal padding
+app/components/BottomSheet.test.tsx | is scrollable
+app/components/BottomSheet.test.tsx | accounts for safe area inset
+
+# ── Component: StopList (composite) ──
+app/components/StopList.test.tsx | renders a row for each stop
+app/components/StopList.test.tsx | renders stops sorted by distance
+app/components/StopList.test.tsx | calls onSelectStop when a stop is tapped
+app/components/StopList.test.tsx | renders empty state when no stops provided
+
+# ── Component: DepartureDetail (composite) ──
+app/components/DepartureDetail.test.tsx | renders the stop name as header
+app/components/DepartureDetail.test.tsx | renders departure rows
+app/components/DepartureDetail.test.tsx | renders a back button
+app/components/DepartureDetail.test.tsx | calls onBack when back button is tapped
+app/components/DepartureDetail.test.tsx | shows walking duration
+app/components/DepartureDetail.test.tsx | gracefully handles null walking route
+app/components/DepartureDetail.test.tsx | shows line info in the header
+
+# ── Component: MapView ──
+app/components/Map.test.tsx | renders the map container
+app/components/Map.test.tsx | passes user coordinates to the map
+app/components/Map.test.tsx | uses light style by default
+app/components/Map.test.tsx | uses dark style when darkMode is true
+app/components/Map.test.tsx | renders markers for each stop
+app/components/Map.test.tsx | renders walking route when provided
+app/components/Map.test.tsx | does not render route layer when no walking route
+
+# ── Page integration ──
+app/page.test.tsx | shows loading state initially
+app/page.test.tsx | transitions to nearby stops view after geolocation + fetch
+app/page.test.tsx | transitions to departure detail when a stop is selected
+app/page.test.tsx | shows error state when geolocation is denied
+app/page.test.tsx | shows error state when API fetch fails
+app/page.test.tsx | allows retry from error state
