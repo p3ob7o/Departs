@@ -22,6 +22,21 @@ describe("GET /api/departures", () => {
     expect(body).toHaveLength(4);
   });
 
+  it("returns line metadata for departures", async () => {
+    const request = new Request(
+      "http://localhost/api/departures?stopId=stop-1"
+    );
+    const response = await GET(request);
+
+    expect(response.status).toBe(200);
+    const body = await response.json();
+    expect(body[0].line).toEqual({
+      name: "U2",
+      direction: "Pankow",
+      type: "subway",
+    });
+  });
+
   it("sets cache headers for 30 seconds", async () => {
     const request = new Request(
       "http://localhost/api/departures?stopId=stop-1"

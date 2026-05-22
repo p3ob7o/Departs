@@ -3,11 +3,12 @@ import Foundation
 actor APIService {
     static let shared = APIService()
 
-    private let baseURL = "https://departs.vercel.app"
+    private static let apiScheme = "https"
+    private static let apiHost = "departs.vercel.app"
     private let decoder = JSONDecoder()
 
     func fetchNearbyStops(lat: Double, lon: Double) async throws -> [NearbyStop] {
-        let url = URL(string: "\(baseURL)/api/stops/nearby?lat=\(lat)&lon=\(lon)")!
+        let url = try Self.nearbyStopsURL(lat: lat, lon: lon)
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw APIError.requestFailed
@@ -16,10 +17,7 @@ actor APIService {
     }
 
     func fetchDepartures(stopId: String) async throws -> [Departure] {
-        guard let encoded = stopId.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) else {
-            throw APIError.invalidStopId
-        }
-        let url = URL(string: "\(baseURL)/api/departures?stopId=\(encoded)")!
+        let url = try Self.departuresURL(stopId: stopId)
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw APIError.requestFailed
@@ -28,23 +26,65 @@ actor APIService {
     }
 
     func fetchDirections(from: Coordinate, to: Coordinate) async throws -> WalkingRoute {
-        let url = URL(string: "\(baseURL)/api/directions?from=\(from.lat),\(from.lon)&to=\(to.lat),\(to.lon)")!
+        let url = try Self.directionsURL(from: from, to: to)
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw APIError.requestFailed
         }
         return try decoder.decode(WalkingRoute.self, from: data)
     }
+
+    static func nearbyStopsURL(lat: Double, lon: Double) throws -> URL {
+        try makeURL(
+            path: "/api/stops/nearby",
+            queryItems: [
+                URLQueryItem(name: "lat", value: String(lat)),
+                URLQueryItem(name: "lon", value: String(lon)),
+            ]
+        )
+    }
+
+    static func departuresURL(stopId: String) throws -> URL {
+        try makeURL(
+            path: "/api/departures",
+            queryItems: [URLQueryItem(name: "stopId", value: stopId)]
+        )
+    }
+
+    static func directionsURL(from: Coordinate, to: Coordinate) throws -> URL {
+        try makeURL(
+            path: "/api/directions",
+            queryItems: [
+                URLQueryItem(name: "from", value: "\(from.lat),\(from.lon)"),
+                URLQueryItem(name: "to", value: "\(to.lat),\(to.lon)"),
+            ]
+        )
+    }
+
+    private static func makeURL(path: String, queryItems: [URLQueryItem]) throws -> URL {
+        var components = URLComponents()
+        components.scheme = apiScheme
+        components.host = apiHost
+        components.path = path
+        components.queryItems = queryItems
+
+        guard let url = components.url else {
+            throw APIError.invalidURL
+        }
+        return url
+    }
 }
 
 enum APIError: LocalizedError {
     case requestFailed
     case invalidStopId
+    case invalidURL
 
     var errorDescription: String? {
         switch self {
         case .requestFailed: "Failed to connect to the server."
         case .invalidStopId: "Invalid stop identifier."
+        case .invalidURL: "Invalid API request URL."
         }
     }
 }

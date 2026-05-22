@@ -23,34 +23,37 @@ struct RouteMapView: UIViewRepresentable {
         let map = container.mapView
         context.coordinator.stopColor = stopColor
         context.coordinator.stopType = stop.type
+        let routeCoordinates = walkingRoute?.geometry.clCoordinates ?? []
+        let stopAnnotationKey = "\(stop.id)|\(stop.location.lat)|\(stop.location.lon)|\(stop.type.label)"
 
-        // Remove old content (keep MKUserLocation)
-        let existing = map.annotations.filter { !($0 is MKUserLocation) }
-        map.removeAnnotations(existing)
-        map.removeOverlays(map.overlays)
+        if context.coordinator.stopAnnotationKey != stopAnnotationKey {
+            let existing = map.annotations.filter { $0 is PinAnnotation }
+            map.removeAnnotations(existing)
 
-        // Add stop pin
-        let stopPin = PinAnnotation(
-            coordinate: stop.location.clLocationCoordinate2D,
-            kind: .stop
-        )
-        map.addAnnotation(stopPin)
+            let stopPin = PinAnnotation(
+                coordinate: stop.location.clLocationCoordinate2D,
+                kind: .stop
+            )
+            map.addAnnotation(stopPin)
+            context.coordinator.stopAnnotationKey = stopAnnotationKey
+        }
 
-        // Add walking route polyline
-        if let route = walkingRoute {
-            let coords = route.geometry.clCoordinates
-            let polyline = MKPolyline(coordinates: coords, count: coords.count)
-            map.addOverlay(polyline)
+        let routeKey = Self.routeKey(for: routeCoordinates)
+        if context.coordinator.routeKey != routeKey {
+            map.removeOverlays(map.overlays)
+            if routeCoordinates.count > 1 {
+                let polyline = MKPolyline(coordinates: routeCoordinates, count: routeCoordinates.count)
+                map.addOverlay(polyline)
+            }
+            context.coordinator.routeKey = routeKey
         }
 
         // Fit region to user + stop (and route if available)
         var lats = [userCoordinate.latitude, stop.location.lat]
         var lons = [userCoordinate.longitude, stop.location.lon]
-        if let route = walkingRoute {
-            for coord in route.geometry.clCoordinates {
-                lats.append(coord.latitude)
-                lons.append(coord.longitude)
-            }
+        for coord in routeCoordinates {
+            lats.append(coord.latitude)
+            lons.append(coord.longitude)
         }
         let center = CLLocationCoordinate2D(
             latitude: (lats.min()! + lats.max()!) / 2,
@@ -64,10 +67,18 @@ struct RouteMapView: UIViewRepresentable {
             span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan)
         )
 
-        // Store target region — container applies it in layoutSubviews when frame is valid
-        container.targetRegion = region
-        if map.bounds.size.width > 0 {
-            map.setRegion(region, animated: false)
+        let regionKey = Self.regionKey(
+            userCoordinate: userCoordinate,
+            stopCoordinate: stop.location.clLocationCoordinate2D,
+            routeKey: routeKey
+        )
+        if context.coordinator.regionKey != regionKey {
+            context.coordinator.regionKey = regionKey
+            container.targetRegion = region
+            if map.bounds.size.width > 0 {
+                container.targetRegion = nil
+                map.setRegion(region, animated: false)
+            }
         }
     }
 
@@ -120,11 +131,27 @@ struct RouteMapView: UIViewRepresentable {
         }
     }
 
+    private static func routeKey(for coordinates: [CLLocationCoordinate2D]) -> String {
+        guard !coordinates.isEmpty else { return "none" }
+        return coordinates.map { "\($0.latitude),\($0.longitude)" }.joined(separator: "|")
+    }
+
+    private static func regionKey(
+        userCoordinate: CLLocationCoordinate2D,
+        stopCoordinate: CLLocationCoordinate2D,
+        routeKey: String
+    ) -> String {
+        "\(userCoordinate.latitude),\(userCoordinate.longitude)|\(stopCoordinate.latitude),\(stopCoordinate.longitude)|\(routeKey)"
+    }
+
     // MARK: - Coordinator
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var stopColor: Color
         var stopType: TransportType
+        var stopAnnotationKey: String?
+        var routeKey: String?
+        var regionKey: String?
 
         init(stopColor: Color, stopType: TransportType) {
             self.stopColor = stopColor

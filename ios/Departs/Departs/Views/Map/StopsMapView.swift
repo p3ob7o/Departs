@@ -21,37 +21,17 @@ struct StopsMapView: UIViewRepresentable {
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.stopColors = stopColors
 
-        // Update region centered on user
-        let region = MKCoordinateRegion(
-            center: userCoordinate,
-            latitudinalMeters: 800,
-            longitudinalMeters: 800
-        )
-        map.setRegion(region, animated: false)
-
-        // Remove old annotations
-        let existing = map.annotations.filter { !($0 is MKUserLocation) }
-        map.removeAnnotations(existing)
-
-        // Add user dot
-//        let userPin = StopAnnotation(
-//            coordinate: userCoordinate,
-//            stopId: "__user__",
-//            transportLabel: "",
-//            isUser: true
-//        )
-//        map.addAnnotation(userPin)
-
-        // Add stop pins
-        for stop in stops {
-            let pin = StopAnnotation(
-                coordinate: stop.location.clLocationCoordinate2D,
-                stopId: stop.id,
-                transportLabel: stop.type.label,
-                isUser: false
+        if !Self.coordinatesEqual(context.coordinator.regionCenter, userCoordinate) {
+            let region = MKCoordinateRegion(
+                center: userCoordinate,
+                latitudinalMeters: 800,
+                longitudinalMeters: 800
             )
-            map.addAnnotation(pin)
+            map.setRegion(region, animated: false)
+            context.coordinator.regionCenter = userCoordinate
         }
+
+        Self.syncStopAnnotations(on: map, stops: stops)
     }
 
     func makeCoordinator() -> Coordinator {
@@ -72,8 +52,55 @@ struct StopsMapView: UIViewRepresentable {
         }
     }
 
+    private static func syncStopAnnotations(on map: MKMapView, stops: [NearbyStop]) {
+        var stopsByID: [String: NearbyStop] = [:]
+        for stop in stops {
+            stopsByID[stop.id] = stop
+        }
+
+        let existingPins = map.annotations.compactMap { $0 as? StopAnnotation }
+        for pin in existingPins {
+            guard
+                let stop = stopsByID[pin.stopId],
+                pin.transportLabel == stop.type.label,
+                coordinatesEqual(pin.coordinate, stop.location.clLocationCoordinate2D)
+            else {
+                map.removeAnnotation(pin)
+                continue
+            }
+        }
+
+        let existingIDs = Set(map.annotations.compactMap { ($0 as? StopAnnotation)?.stopId })
+        for stop in stops where !existingIDs.contains(stop.id) {
+            let pin = StopAnnotation(
+                coordinate: stop.location.clLocationCoordinate2D,
+                stopId: stop.id,
+                transportLabel: stop.type.label,
+                isUser: false
+            )
+            map.addAnnotation(pin)
+        }
+    }
+
+    private static func coordinatesEqual(
+        _ lhs: CLLocationCoordinate2D?,
+        _ rhs: CLLocationCoordinate2D
+    ) -> Bool {
+        guard let lhs else { return false }
+        return coordinatesEqual(lhs, rhs)
+    }
+
+    private static func coordinatesEqual(
+        _ lhs: CLLocationCoordinate2D,
+        _ rhs: CLLocationCoordinate2D
+    ) -> Bool {
+        abs(lhs.latitude - rhs.latitude) < 0.000001 &&
+            abs(lhs.longitude - rhs.longitude) < 0.000001
+    }
+
     final class Coordinator: NSObject, MKMapViewDelegate {
         var stopColors: [String: Color]
+        var regionCenter: CLLocationCoordinate2D?
 
         init(stopColors: [String: Color]) {
             self.stopColors = stopColors
