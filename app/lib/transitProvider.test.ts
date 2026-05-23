@@ -175,5 +175,15 @@ describe("transitProvider", () => {
 
       expect(result[0].time).toBe("2024-01-15T10:05:00+01:00");
     });
+
+    it("preserves line metadata from HERE transport info", () => {
+      const result = transformDepartures(hereBoardsResponse);
+
+      expect(result[0].line).toEqual({
+        name: "U2",
+        direction: "Pankow",
+        type: "subway",
+      });
+    });
   });
 });

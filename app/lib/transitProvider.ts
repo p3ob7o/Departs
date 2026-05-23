@@ -83,10 +83,20 @@ export function transformDepartures(data: any): Departure[] {
       delay =
         (new Date(dep.rtTime).getTime() - new Date(dep.time).getTime()) / 1000;
     }
+    const line =
+      dep.transport?.name && dep.transport?.headsign
+        ? {
+            name: dep.transport.name,
+            direction: dep.transport.headsign,
+            type: mapMode(dep.transport.mode),
+          }
+        : undefined;
+
     return {
       time: dep.time,
       realTime: hasRt,
       delay,
+      ...(line ? { line } : {}),
     };
   });
 }

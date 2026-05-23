@@ -13,20 +13,20 @@ enum TimeFormatter {
         return f
     }()
 
-    private static let displayFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateStyle = .none
-        f.timeStyle = .short
-        return f
-    }()
-
     static func parseISO(_ string: String) -> Date? {
         isoFormatter.date(from: string) ?? isoFormatterNoFraction.date(from: string)
     }
 
-    static func formatTime(_ isoString: String) -> String {
+    static func formatTime(_ isoString: String, locale: Locale = .current) -> String {
         guard let date = parseISO(isoString) else { return isoString }
-        return displayFormatter.string(from: date)
+
+        let formatter = DateFormatter()
+        formatter.dateStyle = .none
+        formatter.timeStyle = .short
+        formatter.locale = locale
+        formatter.timeZone = timeZone(from: isoString) ?? .current
+
+        return formatter.string(from: date)
     }
 
     /// Returns relative time string for departures within 30 minutes, nil otherwise.
@@ -39,5 +39,28 @@ enum TimeFormatter {
             return "in \(minutes) min"
         }
         return nil
+    }
+
+    private static func timeZone(from isoString: String) -> TimeZone? {
+        if isoString.hasSuffix("Z") {
+            return TimeZone(secondsFromGMT: 0)
+        }
+
+        guard isoString.count >= 6 else { return nil }
+
+        let suffix = isoString.suffix(6)
+        guard suffix.first == "+" || suffix.first == "-" else { return nil }
+
+        let parts = suffix.dropFirst().split(separator: ":")
+        guard
+            parts.count == 2,
+            let hours = Int(parts[0]),
+            let minutes = Int(parts[1])
+        else {
+            return nil
+        }
+
+        let sign = suffix.first == "-" ? -1 : 1
+        return TimeZone(secondsFromGMT: sign * ((hours * 3600) + (minutes * 60)))
     }
 }

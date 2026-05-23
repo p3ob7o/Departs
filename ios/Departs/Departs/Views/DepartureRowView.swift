@@ -19,7 +19,15 @@ struct DepartureRowView: View {
                         .font(.system(size: 17))
                         .foregroundStyle(Color(.label))
                 }
+
+                if let line = departure.line {
+                    Text("\(line.name) to \(line.direction)")
+                        .font(.system(size: 13))
+                        .foregroundStyle(Color(.secondaryLabel))
+                        .lineLimit(1)
+                }
             }
+            .layoutPriority(1)
 
             Spacer()
 

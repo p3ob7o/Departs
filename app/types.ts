@@ -20,6 +20,11 @@ export interface Departure {
   time: string;
   realTime: boolean;
   delay: number | null;
+  line?: {
+    name: string;
+    direction: string;
+    type: TransportType;
+  };
 }
 
 export interface WalkingRoute {

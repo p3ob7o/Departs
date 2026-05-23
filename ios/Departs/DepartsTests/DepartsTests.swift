@@ -33,6 +33,28 @@ final class DepartsTests: XCTestCase {
         XCTAssertEqual(dep.time, "2026-02-17T14:45:00Z")
         XCTAssertTrue(dep.realTime)
         XCTAssertEqual(dep.delay, 120)
+        XCTAssertNil(dep.line)
+    }
+
+    func testDepartureDecodingWithLineMetadata() throws {
+        let json = """
+        {
+            "time": "2026-02-17T14:45:00+02:00",
+            "realTime": true,
+            "delay": 120,
+            "line": {
+                "name": "U2",
+                "direction": "Pankow",
+                "type": "subway"
+            }
+        }
+        """.data(using: .utf8)!
+
+        let dep = try JSONDecoder().decode(Departure.self, from: json)
+
+        XCTAssertEqual(dep.line?.name, "U2")
+        XCTAssertEqual(dep.line?.direction, "Pankow")
+        XCTAssertEqual(dep.line?.type, .subway)
     }
 
     func testWalkingRouteDecoding() throws {
@@ -54,10 +76,119 @@ final class DepartsTests: XCTestCase {
 
     // MARK: - TimeFormatter
 
-    func testFormatTime() {
-        let result = TimeFormatter.formatTime("2026-02-17T14:45:00Z")
-        // Result depends on timezone, but should contain a time string
-        XCTAssertFalse(result.isEmpty)
+    func testFormatTimeUsesTimestampLocalClock() {
+        let result = TimeFormatter.formatTime(
+            "2026-02-17T14:45:00+02:00",
+            locale: Locale(identifier: "en_US_POSIX")
+        )
+        let normalized = result.replacingOccurrences(of: "\u{202F}", with: " ")
+
+        XCTAssertEqual(normalized, "2:45 PM")
+    }
+
+    // MARK: - APIService
+
+    func testDepartureURLPercentEncodesStopId() throws {
+        let url = try APIService.departuresURL(stopId: "stop/1?direction=A&B")
+
+        XCTAssertEqual(url.scheme, "https")
+        XCTAssertEqual(url.host, "departs.vercel.app")
+        XCTAssertEqual(url.path, "/api/departures")
+        XCTAssertEqual(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first?.value, "stop/1?direction=A&B")
+    }
+
+    // MARK: - ViewModels
+
+    @MainActor
+    func testNearbyStopsViewModelCachesStopColorsWhenStopsChange() async throws {
+        let viewModel = NearbyStopsViewModel()
+        let stops = [
+            NearbyStop(
+                id: "stop-1",
+                name: "Central Station",
+                type: .subway,
+                lines: [LineInfo(name: "U2", direction: "Pankow", type: .subway)],
+                location: Coordinate(lat: 52.52, lon: 13.405),
+                distance: 120
+            ),
+            NearbyStop(
+                id: "stop-2",
+                name: "Market Square",
+                type: .tram,
+                lines: [LineInfo(name: "M1", direction: "Rosenthal", type: .tram)],
+                location: Coordinate(lat: 52.521, lon: 13.406),
+                distance: 85
+            )
+        ]
+
+        await viewModel.loadStops(near: Coordinate(lat: 52.52, lon: 13.405)) { _, _ in stops }
+
+        XCTAssertEqual(viewModel.stopColors["stop-1"], StopPalette.color(at: 0))
+        XCTAssertEqual(viewModel.stopColors["stop-2"], StopPalette.color(at: 1))
+    }
+
+    @MainActor
+    func testDepartureDetailViewModelKeepsDeparturesWhenRouteFails() async {
+        let viewModel = DepartureDetailViewModel()
+        let expectedDepartures = [
+            Departure(
+                time: "2026-02-17T14:45:00+02:00",
+                realTime: true,
+                delay: 120,
+                line: LineInfo(name: "U2", direction: "Pankow", type: .subway)
+            )
+        ]
+
+        await viewModel.load(
+            stopId: "stop-1",
+            from: Coordinate(lat: 52.52, lon: 13.405),
+            to: Coordinate(lat: 52.521, lon: 13.406),
+            fetchDepartures: { _ in expectedDepartures },
+            fetchDirections: { _, _ in throw APIError.requestFailed }
+        )
+
+        XCTAssertEqual(viewModel.departures.count, 1)
+        XCTAssertNil(viewModel.walkingRoute)
+        XCTAssertNil(viewModel.error)
+        XCTAssertFalse(viewModel.isLoading)
+    }
+
+    @MainActor
+    func testDepartureDetailViewModelShowsDeparturesBeforeSlowRouteFinishes() async {
+        let viewModel = DepartureDetailViewModel()
+        let expectedDepartures = [
+            Departure(time: "2026-02-17T14:45:00+02:00", realTime: true, delay: nil)
+        ]
+        let route = WalkingRoute(
+            geometry: GeoJSONLineString(
+                type: "LineString",
+                coordinates: [[13.405, 52.52], [13.406, 52.521]]
+            ),
+            duration: 120,
+            distance: 180
+        )
+
+        let loadTask = Task { @MainActor in
+            await viewModel.load(
+                stopId: "stop-1",
+                from: Coordinate(lat: 52.52, lon: 13.405),
+                to: Coordinate(lat: 52.521, lon: 13.406),
+                fetchDepartures: { _ in expectedDepartures },
+                fetchDirections: { _, _ in
+                    try await Task.sleep(nanoseconds: 200_000_000)
+                    return route
+                }
+            )
+        }
+
+        await Task.yield()
+
+        XCTAssertEqual(viewModel.departures.count, 1)
+        XCTAssertFalse(viewModel.isLoading)
+        XCTAssertNil(viewModel.walkingRoute)
+
+        await loadTask.value
+        XCTAssertNotNil(viewModel.walkingRoute)
     }
 
     // MARK: - StopPalette
