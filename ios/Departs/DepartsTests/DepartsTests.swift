@@ -74,6 +74,49 @@ final class DepartsTests: XCTestCase {
         XCTAssertEqual(route.geometry.clCoordinates.count, 2)
     }
 
+    func testNearbyStopCreatesSelectionForEveryLineDirection() {
+        let stop = NearbyStop(
+            id: "skanstull-subway",
+            name: "Skanstull",
+            type: .subway,
+            lines: [
+                LineInfo(name: "17", direction: "Alvik", type: .subway),
+                LineInfo(name: "17", direction: "Skarpnäck", type: .subway),
+                LineInfo(name: "18", direction: "Farsta strand", type: .subway),
+                LineInfo(name: "19", direction: "Hagsätra", type: .subway)
+            ],
+            location: Coordinate(lat: 59.30778, lon: 18.07583),
+            distance: 120
+        )
+
+        XCTAssertEqual(stop.lineSelections.count, 4)
+        XCTAssertEqual(stop.lineSelections.map(\.line.name), ["17", "17", "18", "19"])
+        XCTAssertEqual(stop.lineSelections.map(\.line.direction), ["Alvik", "Skarpnäck", "Farsta strand", "Hagsätra"])
+    }
+
+    func testStopLineSelectionHasStableUniqueIdsForRepeatedLineNames() {
+        let stop = NearbyStop(
+            id: "skanstull-bus",
+            name: "Skanstull",
+            type: .bus,
+            lines: [
+                LineInfo(name: "164", direction: "Södersjukhuset", type: .bus),
+                LineInfo(name: "3", direction: "Karolinska sjukhuset", type: .bus),
+                LineInfo(name: "55", direction: "Finnberget", type: .bus),
+                LineInfo(name: "57", direction: "Slussen", type: .bus),
+                LineInfo(name: "66", direction: "Sofia", type: .bus),
+                LineInfo(name: "74", direction: "Sickla udde", type: .bus),
+                LineInfo(name: "94", direction: "Gullmarsplan", type: .bus),
+                LineInfo(name: "96", direction: "Odenplan", type: .bus)
+            ],
+            location: Coordinate(lat: 59.30778, lon: 18.07583),
+            distance: 80
+        )
+
+        let ids = stop.lineSelections.map(\.id)
+        XCTAssertEqual(ids.count, Set(ids).count)
+    }
+
     // MARK: - TimeFormatter
 
     func testFormatTimeUsesTimestampLocalClock() {
@@ -95,6 +138,19 @@ final class DepartsTests: XCTestCase {
         XCTAssertEqual(url.host, "departs.vercel.app")
         XCTAssertEqual(url.path, "/api/departures")
         XCTAssertEqual(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first?.value, "stop/1?direction=A&B")
+    }
+
+    func testDepartureURLIncludesSelectedLineAndDirection() throws {
+        let url = try APIService.departuresURL(
+            stopId: "stop/1?platform=A&B",
+            line: LineInfo(name: "17", direction: "Hässelby strand", type: .subway)
+        )
+
+        let queryItems = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+
+        XCTAssertEqual(queryItems?.first { $0.name == "stopId" }?.value, "stop/1?platform=A&B")
+        XCTAssertEqual(queryItems?.first { $0.name == "lineName" }?.value, "17")
+        XCTAssertEqual(queryItems?.first { $0.name == "direction" }?.value, "Hässelby strand")
     }
 
     // MARK: - ViewModels
@@ -130,20 +186,22 @@ final class DepartsTests: XCTestCase {
     @MainActor
     func testDepartureDetailViewModelKeepsDeparturesWhenRouteFails() async {
         let viewModel = DepartureDetailViewModel()
+        let line = LineInfo(name: "U2", direction: "Pankow", type: .subway)
         let expectedDepartures = [
             Departure(
                 time: "2026-02-17T14:45:00+02:00",
                 realTime: true,
                 delay: 120,
-                line: LineInfo(name: "U2", direction: "Pankow", type: .subway)
+                line: line
             )
         ]
 
         await viewModel.load(
             stopId: "stop-1",
+            line: line,
             from: Coordinate(lat: 52.52, lon: 13.405),
             to: Coordinate(lat: 52.521, lon: 13.406),
-            fetchDepartures: { _ in expectedDepartures },
+            fetchDepartures: { _, _ in expectedDepartures },
             fetchDirections: { _, _ in throw APIError.requestFailed }
         )
 
@@ -156,8 +214,9 @@ final class DepartsTests: XCTestCase {
     @MainActor
     func testDepartureDetailViewModelShowsDeparturesBeforeSlowRouteFinishes() async {
         let viewModel = DepartureDetailViewModel()
+        let line = LineInfo(name: "U2", direction: "Pankow", type: .subway)
         let expectedDepartures = [
-            Departure(time: "2026-02-17T14:45:00+02:00", realTime: true, delay: nil)
+            Departure(time: "2026-02-17T14:45:00+02:00", realTime: true, delay: nil, line: line)
         ]
         let route = WalkingRoute(
             geometry: GeoJSONLineString(
@@ -171,9 +230,10 @@ final class DepartsTests: XCTestCase {
         let loadTask = Task { @MainActor in
             await viewModel.load(
                 stopId: "stop-1",
+                line: line,
                 from: Coordinate(lat: 52.52, lon: 13.405),
                 to: Coordinate(lat: 52.521, lon: 13.406),
-                fetchDepartures: { _ in expectedDepartures },
+                fetchDepartures: { _, _ in expectedDepartures },
                 fetchDirections: { _, _ in
                     try await Task.sleep(nanoseconds: 200_000_000)
                     return route

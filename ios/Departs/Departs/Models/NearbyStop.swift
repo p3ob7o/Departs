@@ -18,3 +18,21 @@ struct NearbyStop: Codable, Identifiable, Hashable {
     let location: Coordinate
     let distance: Int?
 }
+
+struct StopLineSelection: Identifiable, Hashable {
+    let stop: NearbyStop
+    let line: LineInfo
+    let lineIndex: Int
+
+    var id: String {
+        "\(stop.id)::\(lineIndex)::\(line.id)"
+    }
+}
+
+extension NearbyStop {
+    var lineSelections: [StopLineSelection] {
+        lines.enumerated().map { index, line in
+            StopLineSelection(stop: self, line: line, lineIndex: index)
+        }
+    }
+}

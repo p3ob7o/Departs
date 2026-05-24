@@ -16,8 +16,8 @@ actor APIService {
         return try decoder.decode([NearbyStop].self, from: data)
     }
 
-    func fetchDepartures(stopId: String) async throws -> [Departure] {
-        let url = try Self.departuresURL(stopId: stopId)
+    func fetchDepartures(stopId: String, line: LineInfo) async throws -> [Departure] {
+        let url = try Self.departuresURL(stopId: stopId, line: line)
         let (data, response) = try await URLSession.shared.data(from: url)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw APIError.requestFailed
@@ -44,10 +44,16 @@ actor APIService {
         )
     }
 
-    static func departuresURL(stopId: String) throws -> URL {
-        try makeURL(
+    static func departuresURL(stopId: String, line: LineInfo? = nil) throws -> URL {
+        var queryItems = [URLQueryItem(name: "stopId", value: stopId)]
+        if let line {
+            queryItems.append(URLQueryItem(name: "lineName", value: line.name))
+            queryItems.append(URLQueryItem(name: "direction", value: line.direction))
+        }
+
+        return try makeURL(
             path: "/api/departures",
-            queryItems: [URLQueryItem(name: "stopId", value: stopId)]
+            queryItems: queryItems
         )
     }
 

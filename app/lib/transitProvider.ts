@@ -44,30 +44,7 @@ export function transformStations(data: any): NearbyStop[] {
     };
   }).filter((stop: NearbyStop) => stop.lines.length > 0) as NearbyStop[];
 
-  // Deduplicate: for each line+direction combo, keep only the nearest stop
-  const seen = new Set<string>();
-  const deduped: NearbyStop[] = [];
-
-  for (const stop of stops) {
-    const uniqueLines = stop.lines.filter((line) => {
-      const key = `${line.name}::${line.direction}`;
-      return !seen.has(key);
-    });
-
-    if (uniqueLines.length === 0) continue;
-
-    for (const line of uniqueLines) {
-      seen.add(`${line.name}::${line.direction}`);
-    }
-
-    deduped.push({
-      ...stop,
-      lines: uniqueLines,
-      type: uniqueLines[0].type,
-    });
-  }
-
-  return deduped;
+  return stops;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

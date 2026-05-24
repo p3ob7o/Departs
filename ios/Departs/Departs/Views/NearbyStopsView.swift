@@ -5,7 +5,7 @@ struct NearbyStopsView: View {
     let stops: [NearbyStop]
     let stopColors: [String: Color]
     var isLoading: Bool = false
-    let onSelectStop: (NearbyStop) -> Void
+    let onSelectStopLine: (StopLineSelection) -> Void
     var onRefresh: (() async -> Void)?
 
     var body: some View {
@@ -52,14 +52,15 @@ struct NearbyStopsView: View {
                         LazyVStack(spacing: 0) {
                             sectionHeader
 
-                            ForEach(stops) { stop in
+                            ForEach(lineSelections) { selection in
                                 Button {
                                     UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                    onSelectStop(stop)
+                                    onSelectStopLine(selection)
                                 } label: {
                                     StopRowView(
-                                        stop: stop,
-                                        color: stopColors[stop.id] ?? Color(.systemGray)
+                                        stop: selection.stop,
+                                        line: selection.line,
+                                        color: stopColors[selection.stop.id] ?? Color(.systemGray)
                                     )
                                 }
                                 .buttonStyle(HighlightButtonStyle())
@@ -83,6 +84,10 @@ struct NearbyStopsView: View {
         .background(Color(.systemGroupedBackground))
         .navigationTitle("Departs")
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private var lineSelections: [StopLineSelection] {
+        stops.flatMap(\.lineSelections)
     }
 
     private var sectionHeader: some View {
@@ -134,7 +139,7 @@ private struct HighlightButtonStyle: ButtonStyle {
             stopColors: Dictionary(uniqueKeysWithValues: PreviewData.stops.enumerated().map {
                 ($0.element.id, StopPalette.color(at: $0.offset))
             }),
-            onSelectStop: { _ in }
+            onSelectStopLine: { _ in }
         )
     }
 }

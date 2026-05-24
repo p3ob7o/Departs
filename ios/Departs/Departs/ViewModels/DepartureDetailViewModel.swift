@@ -2,7 +2,7 @@ import Foundation
 
 @Observable
 final class DepartureDetailViewModel {
-    typealias DeparturesFetcher = (String) async throws -> [Departure]
+    typealias DeparturesFetcher = (String, LineInfo) async throws -> [Departure]
     typealias DirectionsFetcher = (Coordinate, Coordinate) async throws -> WalkingRoute
 
     private(set) var departures: [Departure] = []
@@ -11,13 +11,14 @@ final class DepartureDetailViewModel {
     private(set) var error: String?
 
     @MainActor
-    func load(stopId: String, from userCoord: Coordinate, to stopCoord: Coordinate) async {
+    func load(stopId: String, line: LineInfo, from userCoord: Coordinate, to stopCoord: Coordinate) async {
         await load(
             stopId: stopId,
+            line: line,
             from: userCoord,
             to: stopCoord,
-            fetchDepartures: { stopId in
-                try await APIService.shared.fetchDepartures(stopId: stopId)
+            fetchDepartures: { stopId, line in
+                try await APIService.shared.fetchDepartures(stopId: stopId, line: line)
             },
             fetchDirections: { from, to in
                 try await APIService.shared.fetchDirections(from: from, to: to)
@@ -28,6 +29,7 @@ final class DepartureDetailViewModel {
     @MainActor
     func load(
         stopId: String,
+        line: LineInfo,
         from userCoord: Coordinate,
         to stopCoord: Coordinate,
         fetchDepartures: DeparturesFetcher,
@@ -45,7 +47,7 @@ final class DepartureDetailViewModel {
         )
 
         do {
-            departures = try await fetchDepartures(stopId)
+            departures = try await fetchDepartures(stopId, line)
         } catch {
             self.error = error.localizedDescription
         }
