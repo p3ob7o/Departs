@@ -61,7 +61,7 @@ describe("transitProvider", () => {
       expect(result).toEqual([]);
     });
 
-    it("deduplicates stops with same line+direction, keeping nearest", () => {
+    it("preserves the same line and direction at separate stops", () => {
       const data = {
         stations: [
           {
@@ -92,32 +92,28 @@ describe("transitProvider", () => {
 
       const result = transformStations(data);
 
-      // Stop A kept: 49→Hütteldorf and 13A→Hauptbahnhof (both new)
-      // Stop B dropped: 49→Hütteldorf already seen
-      // Stop C kept: 49→Ring/Volkstheater (new direction) and 13A→Skodagasse (new direction)
-      expect(result).toHaveLength(2);
+      expect(result).toHaveLength(3);
       expect(result[0].id).toBe("s1");
       expect(result[0].lines).toHaveLength(2);
-      expect(result[1].id).toBe("s3");
-      expect(result[1].lines).toHaveLength(2);
+      expect(result[1].id).toBe("s2");
+      expect(result[1].lines).toEqual([
+        expect.objectContaining({ name: "49", direction: "Hütteldorf" }),
+      ]);
+      expect(result[2].id).toBe("s3");
+      expect(result[2].lines).toHaveLength(2);
     });
 
-    it("prunes duplicate lines from a stop while keeping new ones", () => {
+    it("keeps every line and direction on a stop", () => {
       const data = {
         stations: [
           {
             place: { id: "s1", name: "Stop A", location: { lat: 1, lng: 2 } },
             distance: 50,
             transports: [
-              { mode: "bus", name: "13A", headsign: "Hauptbahnhof", id: "t1" },
-            ],
-          },
-          {
-            place: { id: "s2", name: "Stop B", location: { lat: 1.1, lng: 2.1 } },
-            distance: 80,
-            transports: [
-              { mode: "bus", name: "13A", headsign: "Hauptbahnhof", id: "t2" },
-              { mode: "bus", name: "14A", headsign: "Reumannplatz", id: "t3" },
+              { mode: "subway", name: "17", headsign: "Alvik", id: "t1" },
+              { mode: "subway", name: "17", headsign: "Skarpnäck", id: "t2" },
+              { mode: "subway", name: "18", headsign: "Farsta strand", id: "t3" },
+              { mode: "subway", name: "19", headsign: "Hagsätra", id: "t4" },
             ],
           },
         ],
@@ -125,14 +121,14 @@ describe("transitProvider", () => {
 
       const result = transformStations(data);
 
-      // Stop A kept: 13A→Hauptbahnhof (new)
-      // Stop B kept but 13A→Hauptbahnhof pruned, only 14A→Reumannplatz remains
-      expect(result).toHaveLength(2);
+      expect(result).toHaveLength(1);
       expect(result[0].id).toBe("s1");
-      expect(result[0].lines).toHaveLength(1);
-      expect(result[1].id).toBe("s2");
-      expect(result[1].lines).toHaveLength(1);
-      expect(result[1].lines[0].name).toBe("14A");
+      expect(result[0].lines.map((line) => `${line.name}->${line.direction}`)).toEqual([
+        "17->Alvik",
+        "17->Skarpnäck",
+        "18->Farsta strand",
+        "19->Hagsätra",
+      ]);
     });
   });
 

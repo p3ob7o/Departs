@@ -3,7 +3,7 @@ import SwiftUI
 struct ContentView: View {
     @State private var locationService = LocationService()
     @State private var stopsViewModel = NearbyStopsViewModel()
-    @State private var selectedStop: NearbyStop?
+    @State private var selectedStopLine: StopLineSelection?
 
     var body: some View {
         Group {
@@ -35,8 +35,8 @@ struct ContentView: View {
                             stops: stopsViewModel.stops,
                             stopColors: stopsViewModel.stopColors,
                             isLoading: stopsViewModel.isLoading,
-                            onSelectStop: { stop in
-                                selectedStop = stop
+                            onSelectStopLine: { selection in
+                                selectedStopLine = selection
                             },
                             onRefresh: {
                                 locationService.requestLocation()
@@ -49,10 +49,11 @@ struct ContentView: View {
                                 }
                             }
                         )
-                        .navigationDestination(item: $selectedStop) { stop in
+                        .navigationDestination(item: $selectedStopLine) { selection in
                             DepartureDetailView(
-                                stop: stop,
-                                stopColor: stopsViewModel.stopColors[stop.id] ?? Color(.systemGray),
+                                stop: selection.stop,
+                                line: selection.line,
+                                stopColor: stopsViewModel.stopColors[selection.stop.id] ?? Color(.systemGray),
                                 userCoordinate: coordinate
                             )
                         }

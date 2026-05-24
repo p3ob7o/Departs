@@ -2,6 +2,7 @@ import SwiftUI
 
 struct DepartureDetailView: View {
     let stop: NearbyStop
+    let line: LineInfo
     let stopColor: Color
     let userCoordinate: Coordinate
 
@@ -25,12 +26,10 @@ struct DepartureDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // Line info (primary)
-                    if let lineSummary = stop.lineSummary {
-                        Text("\(stop.type.displayName) \(lineSummary)")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(Color(.label))
-                            .lineLimit(2)
-                    }
+                    Text("\(line.type.displayName) \(line.name) \u{2192} \(line.direction)")
+                        .font(.system(size: 20, weight: .bold))
+                        .foregroundStyle(Color(.label))
+                        .lineLimit(2)
 
                     // Walking time
                     if let route = viewModel.walkingRoute {
@@ -92,6 +91,7 @@ struct DepartureDetailView: View {
         .task {
             await viewModel.load(
                 stopId: stop.id,
+                line: line,
                 from: userCoordinate,
                 to: stop.location
             )
@@ -104,6 +104,7 @@ struct DepartureDetailView: View {
     NavigationStack {
         DepartureDetailView(
             stop: PreviewData.stops[0],
+            line: PreviewData.stops[0].lines[0],
             stopColor: StopPalette.colors[0],
             userCoordinate: PreviewData.userCoordinate
         )
