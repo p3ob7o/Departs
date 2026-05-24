@@ -74,6 +74,61 @@ final class DepartsTests: XCTestCase {
         XCTAssertEqual(route.geometry.clCoordinates.count, 2)
     }
 
+    func testNearbyStopLineSummaryShowsAllUniqueRoutes() {
+        let stop = NearbyStop(
+            id: "skanstull-subway",
+            name: "Skanstull",
+            type: .subway,
+            lines: [
+                LineInfo(name: "17", direction: "Alvik", type: .subway),
+                LineInfo(name: "17", direction: "Skarpnäck", type: .subway),
+                LineInfo(name: "18", direction: "Farsta strand", type: .subway),
+                LineInfo(name: "19", direction: "Hagsätra", type: .subway)
+            ],
+            location: Coordinate(lat: 59.30778, lon: 18.07583),
+            distance: 120
+        )
+
+        XCTAssertEqual(stop.lineSummary, "17, 18, 19")
+    }
+
+    func testNearbyStopLineSummaryUsesNaturalRouteSorting() {
+        let stop = NearbyStop(
+            id: "skanstull-bus",
+            name: "Skanstull",
+            type: .bus,
+            lines: [
+                LineInfo(name: "164", direction: "Södersjukhuset", type: .bus),
+                LineInfo(name: "3", direction: "Karolinska sjukhuset", type: .bus),
+                LineInfo(name: "55", direction: "Finnberget", type: .bus),
+                LineInfo(name: "57", direction: "Slussen", type: .bus),
+                LineInfo(name: "66", direction: "Sofia", type: .bus),
+                LineInfo(name: "74", direction: "Sickla udde", type: .bus),
+                LineInfo(name: "94", direction: "Gullmarsplan", type: .bus),
+                LineInfo(name: "96", direction: "Odenplan", type: .bus)
+            ],
+            location: Coordinate(lat: 59.30778, lon: 18.07583),
+            distance: 80
+        )
+
+        XCTAssertEqual(stop.lineSummary, "3, 55, 57, 66, 74, 94, 96, 164")
+    }
+
+    func testNearbyStopLineSummaryKeepsDirectionForSingleRoute() {
+        let stop = NearbyStop(
+            id: "single-line",
+            name: "skanstull",
+            type: .bus,
+            lines: [
+                LineInfo(name: "68", direction: "Globen", type: .bus)
+            ],
+            location: Coordinate(lat: 59.30778, lon: 18.07583),
+            distance: 60
+        )
+
+        XCTAssertEqual(stop.lineSummary, "68 \u{2192} Globen")
+    }
+
     // MARK: - TimeFormatter
 
     func testFormatTimeUsesTimestampLocalClock() {

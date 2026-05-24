@@ -13,11 +13,11 @@ struct StopRowView: View {
                     .font(.system(size: 17, weight: .semibold))
                     .foregroundStyle(Color(.label))
 
-                if let firstLine = stop.lines.first {
-                    Text("\(firstLine.name) \u{2192} \(firstLine.direction)")
+                if let lineSummary = stop.lineSummary {
+                    Text(lineSummary)
                         .font(.system(size: 15))
                         .foregroundStyle(Color(.secondaryLabel))
-                        .lineLimit(1)
+                        .lineLimit(2)
                 }
             }
 

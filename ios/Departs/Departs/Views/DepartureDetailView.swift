@@ -25,10 +25,11 @@ struct DepartureDetailView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 0) {
                     // Line info (primary)
-                    if let firstLine = stop.lines.first {
-                        Text("\(stop.type.displayName) \(firstLine.name) \u{2192} \(firstLine.direction)")
+                    if let lineSummary = stop.lineSummary {
+                        Text("\(stop.type.displayName) \(lineSummary)")
                             .font(.system(size: 20, weight: .bold))
                             .foregroundStyle(Color(.label))
+                            .lineLimit(2)
                     }
 
                     // Walking time
