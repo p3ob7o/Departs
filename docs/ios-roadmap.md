@@ -18,12 +18,12 @@ The web retirement and runtime dependency patches are merged. Historical designs
 
 See [implementation behavior and checks](ios-fast-answers.md). These features require a new native binary; a merged PR does not update installed apps.
 
-## Release order
+## Release status on 15 November 2026
 
-1. Merge and deploy [backend PR #9](https://github.com/p3ob7o/Departs/pull/9): predicted times, all boards, validation, upstream timeouts, and the bounded radius parameter. Verify the three API routes over HTTP.
-2. Merge the native fast-answer PR into `main`. It incorporates and supersedes [native refresh PR #10](https://github.com/p3ob7o/Departs/pull/10).
-3. Confirm the latest uploaded TestFlight build before deciding whether [build-number PR #7](https://github.com/p3ob7o/Departs/pull/7) is still needed. Increment the native build number before distribution.
-4. Run device acceptance and distribute through TestFlight before public release.
+- [Backend PR #9](https://github.com/p3ob7o/Departs/pull/9) and [native PR #15](https://github.com/p3ob7o/Departs/pull/15) are merged. Production HTTP checks passed for nearby stops, selected-line departures, wider search, and walking directions. Native PR #15 supersedes [PR #10](https://github.com/p3ob7o/Departs/pull/10).
+- **Departs 1.1 (5)** is uploaded to TestFlight, processed as `VALID`, and available for internal testing. App Store Connect confirmed the previous release was 1.0 (4). [Release PR #16](https://github.com/p3ob7o/Departs/pull/16) records the new version and supersedes the build-4 bookkeeping in [PR #7](https://github.com/p3ob7o/Departs/pull/7).
+- Validation passed: 41 native unit tests, six native UI tests, 62 backend tests, backend type checking/lint/build, a distribution-signed Release package, and Apple's package validation. The Release app also displayed live-fetched departures and walking/leave guidance in the simulator.
+- Complete physical-device acceptance, including Shortcuts, real GPS, and mobile-data startup time, before expanding the cohort. External testing is awaiting beta-review submission; no public App Store release has been submitted.
 
 ## Adoption work after validation
 
