@@ -1,3 +1,4 @@
+import type { Departure } from "@/app/types";
 import { transformDepartures } from "@/app/lib/transitProvider";
 
 export async function GET(request: Request): Promise<Response> {
@@ -36,7 +37,27 @@ export async function GET(request: Request): Promise<Response> {
     if (!res.ok) throw new Error(`HERE API error: ${res.status}`);
 
     const data = await res.json();
-    const departures = transformDepartures(data)
+    const allDepartures = transformDepartures(data)
+      .sort((a, b) => Date.parse(a.time) - Date.parse(b.time));
+    if (searchParams.get("groupBy") === "line") {
+      const groups = new Map<string, { line: NonNullable<Departure["line"]>; departures: Departure[] }>();
+      for (const departure of allDepartures) {
+        if (!departure.line) continue;
+        const key = JSON.stringify([departure.line.type, departure.line.name, departure.line.direction]);
+        let group = groups.get(key);
+        if (!group) {
+          group = { line: departure.line, departures: [] };
+          groups.set(key, group);
+        }
+        if (group.departures.length < 4) group.departures.push(departure);
+      }
+      // Below the upstream cap, absent lines have no departures in this board.
+      // At the cap they remain unknown and clients must fall back.
+      return Response.json({ groups: [...groups.values()], complete: allDepartures.length < 50 }, {
+        headers: { "Cache-Control": "public, max-age=30" },
+      });
+    }
+    const departures = allDepartures
       .filter((departure) => {
         if (!lineName || !direction) return true;
         return (

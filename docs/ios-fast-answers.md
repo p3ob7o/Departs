@@ -2,7 +2,7 @@
 
 ## What users see
 
-Departs opens with cached content when available, then finds nearby lines and fetches the next two departures. Up to six options load initially; “More nearby options” loads the next six. Pinning saves the exact stop, transport type, line, and direction. Nearby pinned options appear first; the Pinned filter also includes saved routes outside the current area.
+Departs opens with cached content when available, then finds nearby lines and fetches the next two departures. The first three provider stop boards load initially; additional stop sections load as they enter view. The optional grouped endpoint shares one request across a stop’s lines. Capped or unsupported grouped responses fall back to per-line calls, in batches of three. Pinning saves the exact stop, transport type, line, and direction. Nearby pins appear in their saved order in the Pinned section. “Pinned elsewhere” opens saved routes outside the current area. Swipe or hold a row to pin it; the detail screen retains its pin button.
 
 The detail screen reuses the same board and shows up to four departures. Walking directions open Apple Maps at the stop coordinate. The line's direction stays visible so the user can check the service before boarding. Maps are optional and do not start loading on the main answer path.
 
@@ -20,7 +20,7 @@ These rules are estimates, not guarantees of boarding. No platform or station-en
 
 ## Data and network behavior
 
-`TransitStore` is the single observable source for list and detail. Independent walking/departure tasks publish their results as each arrives. A refresh batches each kind of request three at a time. Only displayed options are fetched. APIService coalesces matching URLs, limits each request to 12 seconds, and bypasses the local URL cache for departure refreshes. No periodic work is scheduled while the scene is inactive; already-started shared requests may finish and populate the cache.
+`TransitStore` is the single observable source for list and detail. Independent walking/departure tasks publish their results as each arrives. A refresh batches each kind of request three at a time. Stop sections request their boards on demand. Countdown ticks never change the running/idle partition; fetched boards can change it, deferred while the list is being touched or scrolling. APIService coalesces matching URLs, limits each request to 12 seconds, and bypasses the local URL cache for departure refreshes. No periodic work is scheduled while the scene is inactive; already-started shared requests may finish and populate the cache.
 
 UserDefaults stores pins, the last successful nearby snapshot, and the 40 newest boards. Boards older than one day are discarded on launch. Walks remain in memory only. Pins use length-prefixed service identities, so provider ordering and embedded punctuation do not break them. Area revisions reject older searches; route results are checked against the current walking origin. A failed refresh keeps the last useful answer.
 

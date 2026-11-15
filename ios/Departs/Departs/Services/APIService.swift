@@ -56,6 +56,13 @@ actor APIService {
         return try decoder.decode([Departure].self, from: data)
     }
 
+    func fetchGroupedDepartures(stopId: String) async throws -> GroupedDepartures {
+        var components = URLComponents(url: try Self.departuresURL(stopId: stopId), resolvingAgainstBaseURL: false)!
+        components.queryItems = (components.queryItems ?? []) + [URLQueryItem(name: "groupBy", value: "line")]
+        let bytes = try await data(at: components.url!, refresh: true)
+        return try decoder.decode(GroupedDepartures.self, from: bytes)
+    }
+
     func fetchDirections(from: Coordinate, to: Coordinate) async throws -> WalkingRoute {
         let url = try Self.directionsURL(from: from, to: to)
         let data = try await data(at: url)
@@ -126,4 +133,13 @@ enum APIError: LocalizedError {
         case .invalidURL: "Invalid API request URL."
         }
     }
+}
+
+struct GroupedDepartures: Decodable {
+    struct Group: Decodable {
+        let line: LineInfo
+        let departures: [Departure]
+    }
+    let groups: [Group]
+    var complete: Bool? = nil
 }

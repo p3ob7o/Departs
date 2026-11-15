@@ -6,10 +6,13 @@ struct TransitClient {
     var departures: (StopLineSelection) async throws -> [Departure]
     var directions: (Coordinate, Coordinate) async throws -> WalkingRoute
 
+    var grouped: ((String) async throws -> GroupedDepartures)? = nil
+
     static let live = TransitClient(
         stops: { try await APIService.shared.fetchNearbyStops(lat: $0.lat, lon: $0.lon, radius: $1) },
         departures: { try await APIService.shared.fetchDepartures(stopId: $0.stop.id, line: $0.line) },
-        directions: { try await APIService.shared.fetchDirections(from: $0, to: $1) }
+        directions: { try await APIService.shared.fetchDirections(from: $0, to: $1) },
+        grouped: { try await APIService.shared.fetchGroupedDepartures(stopId: $0) }
     )
 }
 
@@ -29,6 +32,16 @@ final class TransitStore {
     private(set) var boardErrors: Set<String> = []
     private(set) var loadingBoards: Set<String> = []
     private(set) var loadingWalks: Set<String> = []
+    private(set) var groups: [StopGroup] = []
+    private(set) var runningIDs: Set<String> = []
+    var interacting = false {
+        didSet { if !interacting { rebuildGroups() } }
+    }
+    private var demandedStops: [NearbyStop] = []
+    private var loadedStopIDs: Set<String> = []
+    private var pendingStopIDs: Set<String> = []
+    private var draining = false
+    private var groupedUnavailable = false
     private var restoredBoards: Set<String> = []
     var favoritesOnly = false
     var followsLocation = true
@@ -53,6 +66,90 @@ final class TransitStore {
             radius = [400, 800, 1600].contains(saved.radius) ? saved.radius : 400
             stops = saved.stops
             stopsCheckedAt = saved.checkedAt
+        }
+        rebuildGroups()
+    }
+
+    struct StopGroup: Identifiable {
+        let id: String
+        let name: String
+        var stops: [NearbyStop]
+        var options: [StopLineSelection] { stops.flatMap(\.lineSelections) }
+    }
+
+    var nearbyPins: [StopLineSelection] {
+        let ids = Set(stops.flatMap(\.lineSelections).map(\.id))
+        return pins.filter { ids.contains($0.id) }
+    }
+    var distantPins: [StopLineSelection] {
+        let ids = Set(stops.flatMap(\.lineSelections).map(\.id))
+        return pins.filter { !ids.contains($0.id) }
+    }
+
+    private func rebuildGroups() {
+        guard !interacting else { return }
+        runningIDs = Set(boards.filter { !$0.value.upcoming(at: $0.value.checkedAt).isEmpty }.map(\.key))
+        var result: [StopGroup] = []
+        for stop in stops {
+            if let index = result.firstIndex(where: { $0.name == stop.name && $0.stops[0].location.distance(to: stop.location) <= 150 }) {
+                result[index].stops.append(stop)
+            } else {
+                result.append(.init(id: stop.id, name: stop.name, stops: [stop]))
+            }
+        }
+        groups = result.enumerated().sorted { lhs, rhs in
+            let l = lhs.element.stops.compactMap { walk(for: $0, at: now())?.route.duration }.min()
+            let r = rhs.element.stops.compactMap { walk(for: $0, at: now())?.route.duration }.min()
+            if let l, let r, l != r { return l < r }
+            return lhs.offset < rhs.offset
+        }.map(\.element)
+    }
+
+    func loadGroup(_ group: StopGroup) async {
+        for stop in group.stops where !loadedStopIDs.contains(stop.id) && pendingStopIDs.insert(stop.id).inserted {
+            demandedStops.append(stop)
+        }
+        await drainStops()
+    }
+
+    private func drainStops() async {
+        guard !draining else { return }
+        draining = true
+        defer { draining = false }
+        while !demandedStops.isEmpty {
+            let batch = Array(demandedStops.prefix(3))
+            demandedStops.removeFirst(min(3, demandedStops.count))
+            var missing: [StopLineSelection] = []
+            let options = batch.flatMap(\.lineSelections)
+            await runBatches(batch.compactMap { $0.lineSelections.first }) { selection in
+                let stop = selection.stop
+                if let grouped = self.client.grouped, !self.groupedUnavailable {
+                    do {
+                        let response = try await grouped(stop.id)
+                        for option in stop.lineSelections {
+                            if let group = response.groups.first(where: { $0.line == option.line }) {
+                                self.boards[option.id] = .init(departures: group.departures, checkedAt: self.now())
+                                self.boardErrors.remove(option.id)
+                                self.restoredBoards.remove(option.id)
+                            } else if response.complete == true {
+                                self.boards[option.id] = .init(departures: [], checkedAt: self.now())
+                                self.boardErrors.remove(option.id)
+                                self.restoredBoards.remove(option.id)
+                            } else { missing.append(option) }
+                        }
+                    } catch {
+                        if error is DecodingError { self.groupedUnavailable = true }
+                        missing.append(contentsOf: stop.lineSelections)
+                    }
+                } else { missing.append(contentsOf: stop.lineSelections) }
+                self.loadedStopIDs.insert(stop.id)
+            }
+            async let routes: Void = refreshWalks(for: options)
+            await runBatches(missing) { await self.refreshBoard($0, force: true) }
+            await routes
+            persistence.saveBoards(boards)
+            for stop in batch { pendingStopIDs.remove(stop.id) }
+            rebuildGroups()
         }
     }
 
@@ -109,6 +206,9 @@ final class TransitStore {
             stops = []
             stopsCheckedAt = nil
             visibleLimit = 6
+            loadedStopIDs = []
+            for stop in demandedStops { pendingStopIDs.remove(stop.id) }
+            demandedStops = []
         }
         area = newArea
         followsLocation = newArea.source == .location
@@ -125,6 +225,7 @@ final class TransitStore {
             let byID = Dictionary(received.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
             let oldIDs = Set(stops.map(\.id))
             stops = stops.compactMap { byID[$0.id] } + received.filter { !oldIDs.contains($0.id) }
+            rebuildGroups()
             stopsCheckedAt = now()
             let refreshedSelections = Dictionary(uniqueKeysWithValues: stops.flatMap(\.lineSelections).map { ($0.id, $0) })
             pins = pins.map { refreshedSelections[$0.id] ?? $0 }
@@ -139,6 +240,12 @@ final class TransitStore {
     }
 
     func refreshAnswers(force: Bool = false) async {
+        if client.grouped != nil {
+            let targets = loadedStopIDs.isEmpty ? Array(stops.prefix(3)) : stops.filter { loadedStopIDs.contains($0.id) }
+            for stop in targets where pendingStopIDs.insert(stop.id).inserted { demandedStops.append(stop) }
+            await drainStops()
+            return
+        }
         let options = visibleSelections
         async let routes: Void = refreshWalks(for: options)
         await runBatches(options) { await self.refreshBoard($0, force: force) }
@@ -168,6 +275,7 @@ final class TransitStore {
             boardErrors.remove(key)
             restoredBoards.remove(key)
             persistence.saveBoards(boards)
+            rebuildGroups()
         } catch {
             guard !Self.cancelled(error) else { return }
             boardErrors.insert(key)

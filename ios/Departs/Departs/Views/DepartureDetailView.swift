@@ -106,6 +106,7 @@ struct DepartureDetailView: View {
                 Button { store.togglePin(selection) } label: {
                     Image(systemName: store.isPinned(selection) ? "pin.fill" : "pin").frame(width: 44, height: 44)
                 }.accessibilityLabel(store.isPinned(selection) ? "Unpin this direction" : "Pin this direction")
+                .accessibilityIdentifier(store.isPinned(selection) ? "unpin-route" : "pin-route")
             }
         }
         .safeAreaInset(edge: .bottom) {

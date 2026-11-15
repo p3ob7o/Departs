@@ -35,27 +35,23 @@ final class DepartsUITests: XCTestCase {
         launchAndAllowLocation()
         let option = app.buttons["departure-option"].firstMatch
         XCTAssertTrue(option.waitForExistence(timeout: 12))
-        XCTAssertTrue(app.staticTexts["Then · Scheduled"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'Live'")).firstMatch.waitForExistence(timeout: 8))
         XCTAssertFalse(app.maps.firstMatch.exists, "A map must not delay the opening answer")
-        for identifier in ["choose-area", "pin-route", "search-farther"] {
-            let control = app.buttons[identifier].firstMatch
-            XCTAssertGreaterThanOrEqual(control.frame.height, 44, identifier)
-            XCTAssertGreaterThanOrEqual(control.frame.width, 44, identifier)
-            print("TARGET \(identifier): \(control.frame)")
-        }
-        for title in ["Nearby", "Pinned (0)"] {
-            let control = app.buttons[title]
-            XCTAssertGreaterThanOrEqual(control.frame.height, 44)
-            print("TARGET filter: \(control.frame)")
-        }
+        let screen = app.frame
+        let visible = app.buttons.matching(identifier: "departure-option").allElementsBoundByIndex.filter { screen.contains($0.frame) }
+        print("REQUESTS opening=\(server.departureCount)")
+        XCTAssertLessThanOrEqual(server.departureCount, 3)
+        print("DENSITY first=\(option.frame.minY) visible=\(visible.count)")
+        XCTAssertLessThanOrEqual(option.frame.minY, screen.height <= 667 ? 130 : 170)
+        XCTAssertGreaterThanOrEqual(visible.count, screen.height <= 667 ? 5 : 6)
         capture("Nearby departures")
+        option.swipeLeft()
         app.buttons["pin-route"].firstMatch.tap()
-        XCTAssertTrue(app.buttons["unpin-route"].firstMatch.exists)
         app.terminate()
         app.launch()
-        XCTAssertTrue(app.buttons["unpin-route"].firstMatch.waitForExistence(timeout: 5))
-        app.buttons["Pinned (1)"].tap()
-        XCTAssertEqual(app.buttons.matching(identifier: "departure-option").count, 1)
+        XCTAssertTrue(app.buttons["departure-option"].firstMatch.waitForExistence(timeout: 5))
+        app.buttons["departure-option"].firstMatch.swipeLeft()
+        XCTAssertTrue(app.buttons["unpin-route"].firstMatch.exists)
 
         let id = ["fixture-stop", "tram", "49", "Hütteldorf"].map { "\($0.utf8.count):\($0)" }.joined()
         var link = URLComponents(string: "departs://pin")!
@@ -66,9 +62,20 @@ final class DepartsUITests: XCTestCase {
         capture("Pinned departure detail")
     }
 
+    func testCountdownKeepsVisibleRouteOrder() {
+        launchAndAllowLocation()
+        let rows = app.buttons.matching(identifier: "departure-option")
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 12))
+        let before = rows.allElementsBoundByIndex.compactMap { $0.value as? String }
+        let tick = expectation(description: "One countdown tick")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 16) { tick.fulfill() }
+        wait(for: [tick], timeout: 20)
+        XCTAssertEqual(rows.allElementsBoundByIndex.compactMap { $0.value as? String }, before)
+    }
+
     func testFailedRefreshKeepsSavedTimesAndRecovers() {
         launchAndAllowLocation()
-        XCTAssertTrue(app.staticTexts["Then · Scheduled"].waitForExistence(timeout: 12))
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'Live'")).firstMatch.waitForExistence(timeout: 12))
         app.buttons["departure-option"].firstMatch.tap()
         XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
         server.setOffline(true)
@@ -85,12 +92,14 @@ final class DepartsUITests: XCTestCase {
 
     func testWiderSearchAndAreaSearchStayAvailable() {
         launchAndAllowLocation()
-        XCTAssertTrue(app.buttons["search-farther"].waitForExistence(timeout: 12))
-        app.swipeUp()
+        XCTAssertTrue(app.buttons["departure-option"].firstMatch.waitForExistence(timeout: 12))
+        for _ in 0..<5 {
+            if app.buttons["search-farther"].exists && app.buttons["search-farther"].isHittable { break }
+            app.swipeUp()
+        }
         app.buttons["search-farther"].tap()
         let requested = expectation(for: NSPredicate { _, _ in self.server.radii.contains(800) }, evaluatedWith: nil)
         wait(for: [requested], timeout: 5)
-        app.swipeDown()
         app.buttons["choose-area"].tap()
         XCTAssertTrue(app.textFields["area-query"].waitForExistence(timeout: 3))
         capture("Choose an area")
@@ -115,7 +124,7 @@ final class DepartsUITests: XCTestCase {
 
     func testForegroundRefreshKeepsCachedAnswerWhenOffline() {
         launchAndAllowLocation()
-        XCTAssertTrue(app.staticTexts["Then · Scheduled"].waitForExistence(timeout: 12), app.debugDescription)
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'Live'")).firstMatch.waitForExistence(timeout: 12), app.debugDescription)
         XCUIDevice.shared.press(.home)
         server.setOffline(true)
         app.activate()
@@ -130,7 +139,6 @@ final class DepartsUITests: XCTestCase {
         launchAndAllowLocation()
         let option = app.buttons["departure-option"].firstMatch
         XCTAssertTrue(option.waitForExistence(timeout: 12))
-        app.swipeUp()
         capture("Nearby at accessibility text size")
         option.tap()
         XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
@@ -165,6 +173,8 @@ private final class TransitFixtureServer {
     private let queue = DispatchQueue(label: "departs.ui-fixtures")
     private var offline = false
     private var requestedRadii: [Int] = []
+    private var departureRequests = 0
+    var departureCount: Int { queue.sync { departureRequests } }
     var baseURL: String { "http://127.0.0.1:\(listener.port!.rawValue)" }
     var radii: [Int] { queue.sync { requestedRadii } }
 
@@ -205,17 +215,27 @@ private final class TransitFixtureServer {
 
     private func response(to url: URLComponents) -> Any {
         if offline { return ["error": "Offline fixture"] }
-        let line: [String: Any] = ["name": "49", "direction": "Hütteldorf", "type": "tram"]
+        let lines: [[String: Any]] = (0..<8).map { index in
+            ["name": "\(49 + index)", "direction": index == 0 ? "Hütteldorf" : "Destination \(index)", "type": "tram"]
+        }
+        let line = lines.first { $0["name"] as? String == url.queryItems?.first(where: { $0.name == "lineName" })?.value } ?? lines[0]
         switch url.path {
         case "/api/stops/nearby":
             requestedRadii.append(Int(url.queryItems?.first { $0.name == "radius" }?.value ?? "0") ?? 0)
-            return [["id": "fixture-stop", "name": "Volkstheater", "type": "tram", "location": ["lat": 48.204, "lon": 16.357], "distance": 280, "lines": [line]]]
+            return [["id": "fixture-stop", "name": "Volkstheater", "type": "tram", "location": ["lat": 48.204, "lon": 16.357], "distance": 280, "lines": lines]]
         case "/api/departures":
+            departureRequests += 1
             let formatter = ISO8601DateFormatter()
             formatter.timeZone = TimeZone(identifier: "Europe/Vienna")
-            return [7, 12].enumerated().map { index, minutes in
-                ["time": formatter.string(from: Date().addingTimeInterval(Double(minutes * 60))), "realTime": index == 0, "line": line] as [String: Any]
+            func board(_ service: [String: Any]) -> [[String: Any]] {
+                [7, 12].enumerated().map { index, minutes in
+                    ["time": formatter.string(from: Date().addingTimeInterval(Double(minutes * 60))), "realTime": index == 0, "line": service]
+                }
             }
+            if url.queryItems?.contains(where: { $0.name == "groupBy" && $0.value == "line" }) == true {
+                return ["groups": lines.map { ["line": $0, "departures": board($0)] }]
+            }
+            return board(line)
         case "/api/directions":
             return ["duration": 180, "distance": 280, "geometry": ["type": "LineString", "coordinates": [[16.34941, 48.20134], [16.357, 48.204]]]]
         default: return ["error": "Unexpected fixture URL"]

@@ -140,3 +140,34 @@ describe("GET /api/departures", () => {
     expect(response.status).toBe(500);
   });
 });
+
+describe("optional grouped boards", () => {
+  it("returns groups with at most four departures without changing the legacy array", async () => {
+    const grouped = await GET(new Request("http://localhost/api/departures?stopId=stop-1&groupBy=line"));
+    const payload = await grouped.json();
+    expect(Array.isArray(payload.groups)).toBe(true);
+    expect(typeof payload.complete).toBe("boolean");
+    for (const group of payload.groups) {
+      expect(group.line.name).toBeTruthy();
+      expect(group.departures.length).toBeLessThanOrEqual(4);
+      expect(group.departures.every((departure: { line: unknown }) => JSON.stringify(departure.line) === JSON.stringify(group.line))).toBe(true);
+    }
+    const legacy = await GET(new Request("http://localhost/api/departures?stopId=stop-1"));
+    expect(Array.isArray(await legacy.json())).toBe(true);
+  });
+});
+
+it("does not claim a capped grouped board is complete", async () => {
+  const { server } = await import("@/app/__tests__/setup");
+  const { http, HttpResponse } = await import("msw");
+  server.use(http.get("https://transit.hereapi.com/v8/departures", () => HttpResponse.json({
+    boards: [{ departures: Array.from({ length: 50 }, () => ({
+      time: "2026-11-15T10:00:00Z", transport: { mode: "bus", name: "1", headsign: "Centre" },
+    })) }],
+  })));
+  const response = await GET(new Request("http://localhost/api/departures?stopId=stop-1&groupBy=line"));
+  const body = await response.json();
+  expect(body.complete).toBe(false);
+  expect(body.groups).toHaveLength(1);
+  expect(body.groups[0].departures).toHaveLength(4);
+});

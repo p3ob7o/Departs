@@ -35,6 +35,67 @@ final class FastDepartureTests: XCTestCase {
     private var fix: LocationFix { .init(coordinate: coordinate, capturedAt: instant, accuracy: 10) }
     private var area: SearchArea { .init(coordinate: coordinate, name: "Near you", source: .location) }
 
+    @MainActor func testGroupedBoardAvoidsPerLineRequestAndFallsBackWhenUnsupported() async {
+        var api = client()
+        let line = self.line
+        let departures = [departure(7)]
+        var individualCalls = 0
+        var groupedCalls = 0
+        api.departures = { _ in individualCalls += 1; return departures }
+        api.grouped = { _ in groupedCalls += 1; return GroupedDepartures(groups: [.init(line: line, departures: departures)]) }
+        let store = makeStore(api)
+        await store.loadArea(area)
+        XCTAssertEqual(groupedCalls, 1)
+        XCTAssertEqual(individualCalls, 0)
+        XCTAssertEqual(store.runningIDs.count, 1)
+
+        api.grouped = { _ in
+            groupedCalls += 1
+            throw DecodingError.dataCorrupted(.init(codingPath: [], debugDescription: "Legacy array"))
+        }
+        let fallback = makeStore(api)
+        await fallback.loadArea(area)
+        await fallback.refreshAnswers(force: true)
+        XCTAssertEqual(groupedCalls, 2, "Unsupported grouped responses are tried once per session")
+        XCTAssertEqual(individualCalls, 2)
+        XCTAssertEqual(fallback.runningIDs.count, 1)
+    }
+
+    @MainActor func testCompleteGroupedBoardMarksMissingLinesIdleWithoutExtraRequests() async {
+        var api = client()
+        let lines = [line, LineInfo(name: "N1", direction: "Night service", type: .bus)]
+        let nearby = [stop(lines: lines)]
+        let departures = [departure(7)]
+        let line = self.line
+        api.stops = { _, _ in nearby }
+        api.grouped = { _ in .init(groups: [.init(line: line, departures: departures)], complete: true) }
+        api.departures = { _ in XCTFail("Complete grouped boards must not fetch per line"); return [] }
+        let store = makeStore(api)
+        await store.loadArea(area)
+        XCTAssertEqual(store.boards.count, 2)
+        XCTAssertEqual(store.runningIDs.count, 1)
+    }
+
+    @MainActor func testCountdownDoesNotReorderAndInteractionDefersGroupChange() async {
+        var current = instant
+        var response = [departure(7)]
+        var api = client()
+        api.departures = { _ in response }
+        let store = TransitStore(client: api, persistence: persistence(), now: { current })
+        await store.loadArea(area)
+        let original = store.runningIDs
+        XCTAssertEqual(original.count, 1)
+        current = instant.addingTimeInterval(900)
+        _ = store.advice(for: stop().lineSelections[0], at: current)
+        XCTAssertEqual(store.runningIDs, original, "A countdown tick must not move rows")
+        store.interacting = true
+        response = []
+        await store.refreshBoard(stop().lineSelections[0], force: true)
+        XCTAssertEqual(store.runningIDs, original)
+        store.interacting = false
+        XCTAssertTrue(store.runningIDs.isEmpty)
+    }
+
     func testLeaveTimeSubtractsWalkingAndConservativeBuffer() {
         let board = DepartureBoard(departures: [departure(7)], checkedAt: instant)
         let walk = CachedWalk(origin: coordinate, route: route(), checkedAt: instant)

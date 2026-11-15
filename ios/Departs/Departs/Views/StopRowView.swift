@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct StopRowView: View {
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.dynamicTypeSize) private var textSize
     let selection: StopLineSelection
     let board: DepartureBoard?
     let walk: CachedWalk?
@@ -13,86 +15,88 @@ struct StopRowView: View {
     let now: Date
     let onOpen: () -> Void
     let onPin: () -> Void
+    var direction: String? = nil
+    var showStop = false
 
+    private var departures: [Departure] { Array(board?.upcoming(at: now).prefix(2) ?? []) }
+    private var answer: String {
+        if advice.kind != .unavailable { return advice.kind == .caution ? "Too tight" : advice.title }
+        guard let first = departures.first else { return loading ? "Checking…" : "Nothing soon" }
+        return fresh ? TimeFormatter.relativeTime(first.time, now: now) ?? TimeFormatter.formatTime(first.time) : TimeFormatter.formatTime(first.time)
+    }
+    private var times: String {
+        departures.map { fresh ? TimeFormatter.relativeTime($0.time, now: now) ?? TimeFormatter.formatTime($0.time) : TimeFormatter.formatTime($0.time) }.joined(separator: " · ")
+    }
     var body: some View {
-        HStack(alignment: .top, spacing: 4) {
-            Button(action: onOpen) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .top, spacing: 10) {
-                        TransportIconView(type: selection.line.type, color: StopPalette.colors[0])
-                            .accessibilityLabel(selection.line.type.displayName)
-                        Text("\(selection.line.name) → \(selection.line.direction)")
-                            .font(.headline).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
-                    }
-                    Text(selection.stop.name).font(.subheadline).foregroundStyle(.secondary)
-                    if let board {
-                        let departures = Array(board.upcoming(at: now).prefix(2))
-                        if departures.isEmpty {
-                            Text(fresh ? "No upcoming departures" : "Times need an update")
-                                .font(.subheadline).foregroundStyle(.secondary)
-                        } else {
-                            ViewThatFits(in: .horizontal) {
-                                HStack(alignment: .firstTextBaseline, spacing: 18) { times(departures) }
-                                VStack(alignment: .leading, spacing: 8) { times(departures) }
-                            }
-                        }
-                        HStack(spacing: 4) {
-                            Label { Text(TimeFormatter.freshness(board.checkedAt, now: now, fresh: fresh)) } icon: {
-                                if !fresh { Image(systemName: "clock.badge.exclamationmark").foregroundStyle(Color(.label)) }
-                            }
-                                .fixedSize(horizontal: false, vertical: true)
-                            if loading { ProgressView().controlSize(.mini) }
-                        }
-                        .font(.caption).foregroundStyle(fresh ? Color.secondary : Color.primary)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityIdentifier("board-status")
-                    } else {
-                        HStack {
-                            if loading { ProgressView().controlSize(.small) }
-                            Text(failed ? "Couldn't load times · tap to retry" : "Checking departures…")
-                                .font(.subheadline).foregroundStyle(.secondary)
-                        }
-                    }
-                    if let walk {
-                        Label("\(max(1, walk.route.walkingMinutes)) min walk\(fromCurrentLocation ? "" : " from searched area")", systemImage: "figure.walk")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    }
-                    if advice.kind != .unavailable {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(advice.title).font(.headline)
-                                .foregroundStyle(.primary)
-                            Text(advice.detail).font(.caption).foregroundStyle(.secondary)
+        Button(action: onOpen) {
+            let layout = textSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
+            layout {
+                HStack(alignment: .top, spacing: 8) {
+                    HStack(spacing: 3) {
+                        if !textSize.isAccessibilitySize { Image(systemName: modeSymbol).font(.caption2) }
+                        Text(selection.line.name)
+                    }.font(.headline).padding(.horizontal, 6).padding(.vertical, 4)
+                        .foregroundStyle(.white).background(modeColor, in: RoundedRectangle(cornerRadius: 6))
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(direction ?? selection.line.direction).font(.subheadline.weight(.semibold))
+                            .lineLimit(textSize.isAccessibilitySize ? nil : 2)
+                        if showStop { Text(selection.stop.name).font(.caption) }
+                        if !textSize.isAccessibilitySize {
+                            Text(status).font(.caption).lineLimit(1)
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+                if !textSize.isAccessibilitySize { Spacer(minLength: 0) }
+                VStack(alignment: textSize.isAccessibilitySize ? .leading : .trailing, spacing: 3) {
+                    Label(answer, systemImage: advice.kind == .leave ? "checkmark.circle" : advice.kind == .caution ? "exclamationmark.circle" : "clock").font(.headline).monospacedDigit().foregroundStyle(answerColor)
+                    Text(times).font(.caption).monospacedDigit()
+                }
             }
-            .buttonStyle(.plain)
-            .accessibilityLabel("\(advice.title). \(selection.line.type.displayName) \(selection.line.name) toward \(selection.line.direction) from \(selection.stop.name)")
-            .accessibilityIdentifier("departure-option")
-
-            Button(action: onPin) {
-                Image(systemName: pinned ? "pin.fill" : "pin")
-                    .frame(width: 44, height: 44)
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("\(pinned ? "Unpin" : "Pin") \(selection.line.name) toward \(selection.line.direction) at \(selection.stop.name)")
-            .accessibilityIdentifier(pinned ? "unpin-route" : "pin-route")
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+        .buttonStyle(.plain)
+        .accessibilityLabel("\(answer). \(selection.line.type.displayName) \(selection.line.name) toward \(selection.line.direction) from \(selection.stop.name). \(times). \(status)")
+        .accessibilityValue(selection.id)
+        .accessibilityIdentifier("departure-option")
+        .swipeActions { pinAction }
+        .contextMenu { pinAction }
     }
-
-    @ViewBuilder private func times(_ departures: [Departure]) -> some View {
-        ForEach(Array(departures.enumerated()), id: \.element.id) { index, departure in
-            VStack(alignment: .leading, spacing: 2) {
-                Text(fresh ? (TimeFormatter.relativeTime(departure.time, now: now) ?? TimeFormatter.formatTime(departure.time)) : TimeFormatter.formatTime(departure.time))
-                    .font(index == 0 ? .title2.bold() : .headline).monospacedDigit()
-                Text("\(index == 0 ? "" : "Then · ")\(departure.realTime ? (fresh ? "Live" : "Saved prediction") : "Scheduled")")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+    private var status: String {
+        if failed { return "Couldn't load · retry" }
+        if !fresh { return "Saved information" }
+        guard let first = departures.first else { return loading ? "Checking departures" : "No upcoming departures" }
+        let delay = first.delay.map { Int(ceil($0 / 60)) } ?? 0
+        return (first.realTime ? "Live" : "Scheduled") + (delay >= 1 ? " · \(delay) min late" : "")
+    }
+    private var answerColor: Color {
+        switch advice.kind {
+        case .leave: Color(hex: scheme == .dark ? "30D158" : "1D7A36")
+        case .caution: Color(hex: scheme == .dark ? "FF9F0A" : "B25000")
+        case .unavailable: .primary
         }
+    }
+    private var modeSymbol: String {
+        switch selection.line.type {
+        case .bus: "bus"
+        case .tram: "tram"
+        case .subway, .rail: "train.side.front.car"
+        }
+    }
+    private var modeColor: Color {
+        switch selection.line.type {
+        case .tram: Color(hex: "3A6C9E")
+        case .bus: Color(hex: "A8553F")
+        case .rail: Color(hex: "3B7A47")
+        case .subway: Color(hex: scheme == .dark ? "8065B8" : "6B52A6")
+        }
+    }
+    private var pinAction: some View {
+        Button(action: onPin) { Label(pinned ? "Unpin route" : "Pin route", systemImage: pinned ? "pin.slash" : "pin") }
+            .accessibilityIdentifier(pinned ? "unpin-route" : "pin-route")
     }
 }
