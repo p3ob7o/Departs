@@ -21,14 +21,16 @@ export async function GET(request: Request): Promise<Response> {
   }
 
   try {
-    const maxPerBoard = lineName && direction ? "50" : "4";
     const hereParams = new URLSearchParams({
       ids: stopId,
-      maxPerBoard,
+      // HERE sorts by scheduled time. Fetch enough to reorder by predicted time.
+      maxPerBoard: "50",
+      maxPerTransport: "4",
       apiKey: process.env.HERE_API_KEY ?? "",
     });
     const res = await fetch(
-      `https://transit.hereapi.com/v8/departures?${hereParams.toString()}`
+      `https://transit.hereapi.com/v8/departures?${hereParams.toString()}`,
+      { signal: AbortSignal.timeout(10_000) }
     );
 
     if (!res.ok) throw new Error(`HERE API error: ${res.status}`);
@@ -42,6 +44,7 @@ export async function GET(request: Request): Promise<Response> {
           departure.line.direction === direction
         );
       })
+      .sort((a, b) => Date.parse(a.time) - Date.parse(b.time))
       .slice(0, 4);
 
     return Response.json(departures, {

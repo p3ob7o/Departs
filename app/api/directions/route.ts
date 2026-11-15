@@ -1,13 +1,4 @@
-function isValidLatLon(lat: number, lon: number): boolean {
-  return (
-    Number.isFinite(lat) &&
-    Number.isFinite(lon) &&
-    lat >= -90 &&
-    lat <= 90 &&
-    lon >= -180 &&
-    lon <= 180
-  );
-}
+import { isValidCoordinate } from "@/app/lib/coordinates";
 
 export async function GET(request: Request): Promise<Response> {
   const { searchParams } = new URL(request.url);
@@ -27,10 +18,12 @@ export async function GET(request: Request): Promise<Response> {
   const [toLat, toLon] = toParts.map(Number);
 
   if (
+    fromParts.some((part) => !part.trim()) ||
+    toParts.some((part) => !part.trim()) ||
     fromParts.length !== 2 ||
     toParts.length !== 2 ||
-    !isValidLatLon(fromLat, fromLon) ||
-    !isValidLatLon(toLat, toLon)
+    !isValidCoordinate(fromLat, fromLon) ||
+    !isValidCoordinate(toLat, toLon)
   ) {
     return Response.json(
       { error: "Invalid coordinate format" },
@@ -40,7 +33,8 @@ export async function GET(request: Request): Promise<Response> {
 
   try {
     const res = await fetch(
-      `https://api.mapbox.com/directions/v5/mapbox/walking/${fromLon},${fromLat};${toLon},${toLat}?geometries=geojson&access_token=${process.env.MAPBOX_SECRET_TOKEN}`
+      `https://api.mapbox.com/directions/v5/mapbox/walking/${fromLon},${fromLat};${toLon},${toLat}?geometries=geojson&access_token=${process.env.MAPBOX_SECRET_TOKEN}`,
+      { signal: AbortSignal.timeout(10_000) }
     );
 
     if (!res.ok) throw new Error(`Mapbox API error: ${res.status}`);
@@ -49,9 +43,14 @@ export async function GET(request: Request): Promise<Response> {
     const route = data.routes?.[0];
 
     if (
-      !route?.geometry ||
-      typeof route.duration !== "number" ||
-      typeof route.distance !== "number"
+      route?.geometry?.type !== "LineString" ||
+      !Array.isArray(route.geometry.coordinates) ||
+      route.geometry.coordinates.length < 2 ||
+      !route.geometry.coordinates.every((point: unknown) =>
+        Array.isArray(point) && point.length >= 2 && isValidCoordinate(point[1], point[0])
+      ) ||
+      !Number.isFinite(route.duration) || route.duration < 0 ||
+      !Number.isFinite(route.distance) || route.distance < 0
     ) {
       return Response.json(
         { error: "No walking route found" },

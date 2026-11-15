@@ -51,7 +51,9 @@ export function transformStations(data: any): NearbyStop[] {
 export function transformDepartures(data: any): Departure[] {
   if (Array.isArray(data)) return data;
 
-  const deps = data.boards?.[0]?.departures ?? [];
+  // A station query can return more than one platform board.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const deps = (data.boards ?? []).flatMap((board: any) => board.departures ?? []);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   return deps.map((dep: any) => {
     const hasRt = !!dep.rtTime;
@@ -70,7 +72,7 @@ export function transformDepartures(data: any): Departure[] {
         : undefined;
 
     return {
-      time: dep.time,
+      time: dep.rtTime ?? dep.time,
       realTime: hasRt,
       delay,
       ...(line ? { line } : {}),

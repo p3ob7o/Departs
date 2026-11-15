@@ -15,7 +15,7 @@ test.describe("Departure Detail (Screen 2)", () => {
 
     // Should show departure times
     await expect(page.getByText(/10:05/)).toBeVisible();
-    await expect(page.getByText(/10:12/)).toBeVisible();
+    await expect(page.getByText(/10:14/)).toBeVisible();
   });
 
   test("shows walking route on map", async ({ page }) => {

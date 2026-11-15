@@ -29,6 +29,15 @@ describe("GET /api/stops/nearby", () => {
     expect(response.status).toBe(400);
   });
 
+  it.each(["Infinity,13", "91,13", "52,181", " ,13"])("rejects invalid coordinates %s before calling HERE", async (value) => {
+    const [lat, lon] = value.split(",");
+    const spy = vi.spyOn(global, "fetch");
+    const response = await GET(new Request(`http://localhost/api/stops/nearby?${new URLSearchParams({ lat, lon })}`));
+    expect(response.status).toBe(400);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   it("proxies request to HERE stations API", async () => {
     const request = new Request(
       "http://localhost/api/stops/nearby?lat=52.52&lon=13.405"

@@ -1,9 +1,15 @@
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { DepartureRow } from "@/app/components/DepartureRow";
+import { DepartureRow, formatDepartureTime } from "@/app/components/DepartureRow";
 import { departures } from "@/app/__tests__/fixtures/departures";
 
 describe("DepartureRow", () => {
+  it("uses the station clock independently of the device timezone and respects locale", () => {
+    expect(formatDepartureTime("2026-11-15T14:45:00+09:00", "en-US")).toBe("2:45 PM");
+    expect(formatDepartureTime("2026-11-15T14:45:00-05:00", "en-GB")).toBe("14:45");
+    expect(formatDepartureTime("2026-11-15T14:45:00Z", "en-GB")).toBe("14:45");
+  });
+
   it("renders the departure time", () => {
     render(<DepartureRow departure={departures[0]} />);
 

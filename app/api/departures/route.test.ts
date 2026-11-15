@@ -83,6 +83,20 @@ describe("GET /api/departures", () => {
     ]);
   });
 
+  it("sorts all platform boards by predicted time before selecting four departures", async () => {
+    const { server } = await import("@/app/__tests__/setup");
+    const { http, HttpResponse } = await import("msw");
+    server.use(http.get("https://transit.hereapi.com/v8/departures", () => HttpResponse.json({ boards: [
+      { departures: [{ time: "2026-11-15T10:00:00Z", rtTime: "2026-11-15T10:30:00Z" }] },
+      { departures: [5, 10, 15, 20].map((minute) => ({ time: `2026-11-15T10:${String(minute).padStart(2, "0")}:00Z` })) },
+    ] })));
+    const response = await GET(new Request("http://localhost/api/departures?stopId=station"));
+    const body = await response.json();
+    expect(body.map((departure: { time: string }) => departure.time)).toEqual([
+      "2026-11-15T10:05:00Z", "2026-11-15T10:10:00Z", "2026-11-15T10:15:00Z", "2026-11-15T10:20:00Z",
+    ]);
+  });
+
   it("returns line metadata for departures", async () => {
     const request = new Request(
       "http://localhost/api/departures?stopId=stop-1"

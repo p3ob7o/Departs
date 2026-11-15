@@ -146,6 +146,15 @@ describe("transitProvider", () => {
       expect(result[0].delay).toBeNull();
     });
 
+    it("uses the predicted departure clock when a vehicle is delayed", () => {
+      expect(transformDepartures(hereBoardsResponse)[1].time).toBe("2024-01-15T10:14:00+01:00");
+    });
+
+    it("includes departures from every returned board", () => {
+      const dep = hereBoardsResponse.boards[0].departures[0];
+      expect(transformDepartures({ boards: [{ departures: [dep] }, { departures: [dep] }] })).toHaveLength(2);
+    });
+
     it("sets realTime to true when rtTime is present", () => {
       const result = transformDepartures(hereBoardsResponse);
 

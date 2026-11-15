@@ -1,12 +1,10 @@
 import type { Departure } from "@/app/types";
 
-function formatTime(isoTime: string): string {
-  const date = new Date(isoTime);
-  let hours = date.getHours();
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-  const ampm = hours >= 12 ? "PM" : "AM";
-  hours = hours % 12 || 12;
-  return `${hours}:${minutes} ${ampm}`;
+export function formatDepartureTime(isoTime: string, locale?: string): string {
+  // HERE timestamps carry the station's offset. Format that wall clock, even
+  // when the device timezone differs, while respecting its 12/24-hour locale.
+  const stationClock = new Date(isoTime.replace(/(?:Z|[+-]\d{2}:\d{2})$/, "Z"));
+  return stationClock.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit", timeZone: "UTC" });
 }
 
 function ClockIcon() {
@@ -46,7 +44,7 @@ export function DepartureRow({ departure }: { departure: Departure }) {
           color: "var(--color-text-primary)",
         }}
       >
-        {formatTime(time)}
+        {formatDepartureTime(time)}
       </time>
       {realTime && (
         <span data-testid="realtime-indicator" className="w-2 h-2 rounded-full bg-green-500 mr-2" />
