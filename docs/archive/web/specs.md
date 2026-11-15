@@ -1,5 +1,7 @@
 # Departs - Technical Specifications
 
+> Historical web design. Departs now focuses exclusively on iOS. See [the current roadmap](../../ios-roadmap.md) and [implementation guide](../../../DOCUMENTATION.md).
+
 ## 1. Architecture Overview
 
 Departs is a **Next.js** mobile-first web application. It runs entirely in the browser with no user accounts or backend database. The Next.js server acts as a thin API proxy to external services, keeping API keys secure.

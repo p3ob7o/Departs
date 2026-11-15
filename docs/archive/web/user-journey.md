@@ -1,5 +1,7 @@
 # Departs - User Journey & API Flow
 
+> Historical web design. Departs now focuses exclusively on iOS. See [the current roadmap](../../ios-roadmap.md) and [implementation guide](../../../DOCUMENTATION.md).
+
 ```mermaid
 flowchart TD
     A[User opens Departs] --> B[App requests user location]

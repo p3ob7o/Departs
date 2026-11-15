@@ -1,5 +1,7 @@
 # Departs - Product Requirements Document
 
+> Historical web design. Departs now focuses exclusively on iOS. See [the current roadmap](../../ios-roadmap.md) and [implementation guide](../../../DOCUMENTATION.md).
+
 ## 1. Product Overview
 
 **Departs** is a mobile-first web app that instantly shows the nearest public transit options when launched. No login, no setup — open the app, see what's leaving near you, tap to get walking directions and the next departures.

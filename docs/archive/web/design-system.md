@@ -1,5 +1,7 @@
 # Departs - Design System
 
+> Historical web design. Departs now focuses exclusively on iOS. See [the current roadmap](../../ios-roadmap.md) and [implementation guide](../../../DOCUMENTATION.md).
+
 ## 1. Brand Identity
 
 ### Logo

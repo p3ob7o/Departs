@@ -1,43 +1,15 @@
-import "@testing-library/jest-dom/vitest";
-import { cleanup } from "@testing-library/react";
 import { setupServer } from "msw/node";
 import { handlers } from "./mocks/handlers";
 import { beforeAll, afterAll, afterEach, vi } from "vitest";
 
-// MSW server
 export const server = setupServer(...handlers);
 
-beforeAll(() => server.listen({ onUnhandledRequest: "warn" }));
+beforeAll(() => server.listen({ onUnhandledRequest: "error" }));
 afterEach(() => {
-  cleanup();
   vi.clearAllMocks();
   server.resetHandlers();
 });
 afterAll(() => server.close());
 
-// Mock matchMedia (not available in jsdom)
-Object.defineProperty(window, "matchMedia", {
-  writable: true,
-  value: vi.fn().mockImplementation((query: string) => ({
-    matches: false,
-    media: query,
-    onchange: null,
-    addListener: vi.fn(),
-    removeListener: vi.fn(),
-    addEventListener: vi.fn(),
-    removeEventListener: vi.fn(),
-    dispatchEvent: vi.fn(),
-  })),
-});
-
-// Mock react-map-gl
-vi.mock("react-map-gl/mapbox", () => import("./mocks/react-map-gl"));
-
-// Mock mapbox-gl (no WebGL in jsdom)
-vi.mock("mapbox-gl", () => import("./mocks/mapbox-gl"));
-
-// Stub environment variables
 vi.stubEnv("HERE_API_KEY", "test-here-api-key");
 vi.stubEnv("MAPBOX_SECRET_TOKEN", "sk.test-mapbox-secret");
-vi.stubEnv("NEXT_PUBLIC_MAPBOX_TOKEN", "pk.test-mapbox-public");
-vi.stubEnv("NEXT_PUBLIC_SEARCH_RADIUS", "250");
