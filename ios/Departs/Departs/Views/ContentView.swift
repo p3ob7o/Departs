@@ -40,13 +40,7 @@ struct ContentView: View {
                             },
                             onRefresh: {
                                 locationService.requestLocation()
-                                for _ in 0..<100 {
-                                    try? await Task.sleep(for: .milliseconds(100))
-                                    if case .located = locationService.state { break }
-                                }
-                                if case .located(let coord) = locationService.state {
-                                    await stopsViewModel.loadStops(near: coord)
-                                }
+                                // The location state change below owns the stops request.
                             }
                         )
                         .navigationDestination(item: $selectedStopLine) { selection in

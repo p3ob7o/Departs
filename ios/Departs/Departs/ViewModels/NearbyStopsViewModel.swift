@@ -5,6 +5,8 @@ import SwiftUI
 final class NearbyStopsViewModel {
     typealias NearbyStopsFetcher = (Double, Double) async throws -> [NearbyStop]
 
+    private var loadID = UUID()
+
     private(set) var stops: [NearbyStop] = []
     private(set) var isLoading = false
     private(set) var error: String?
@@ -19,15 +21,19 @@ final class NearbyStopsViewModel {
 
     @MainActor
     func loadStops(near coordinate: Coordinate, fetch: NearbyStopsFetcher) async {
+        let requestID = UUID()
+        loadID = requestID
         isLoading = true
         error = nil
-        defer { isLoading = false }
+        defer { if loadID == requestID { isLoading = false } }
 
         do {
             let loadedStops = try await fetch(coordinate.lat, coordinate.lon)
+            guard loadID == requestID, !Task.isCancelled else { return }
             stops = loadedStops
             stopColors = Self.makeStopColors(for: loadedStops)
         } catch {
+            guard loadID == requestID, !Task.isCancelled else { return }
             self.error = error.localizedDescription
         }
     }

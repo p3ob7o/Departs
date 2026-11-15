@@ -81,6 +81,9 @@ struct DepartureDetailView: View {
                 .padding(.top, 28)
                 .padding(.bottom, 16)
             }
+            .refreshable {
+                await viewModel.load(stopId: stop.id, line: line, from: userCoordinate, to: stop.location)
+            }
             .background(Color(.systemBackground))
             .clipShape(UnevenRoundedRectangle(topLeadingRadius: 12, topTrailingRadius: 12))
             .shadow(color: .black.opacity(0.1), radius: 3, y: -1)
