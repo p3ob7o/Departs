@@ -51,9 +51,13 @@ export async function GET(request: Request): Promise<Response> {
         }
         if (group.departures.length < 4) group.departures.push(departure);
       }
-      // Below the upstream cap, absent lines have no departures in this board.
-      // At the cap they remain unknown and clients must fall back.
-      return Response.json({ groups: [...groups.values()], complete: allDepartures.length < 50 }, {
+      // HERE caps each platform board, before transformation or flattening.
+      // Missing lines at a capped hub have limited timetable coverage; another
+      // filtered request has the same cap and cannot recover later times.
+      const complete = Array.isArray(data.boards) && data.boards.every(
+        (board: { departures?: unknown[] }) => Array.isArray(board.departures) && board.departures.length < 50
+      );
+      return Response.json({ groups: [...groups.values()], complete }, {
         headers: { "Cache-Control": "public, max-age=30" },
       });
     }

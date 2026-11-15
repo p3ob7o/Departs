@@ -4,7 +4,7 @@ enum TimeFormatter {
     static func freshness(_ checkedAt: Date, now: Date, fresh: Bool) -> String {
         let minutes = max(0, Int(now.timeIntervalSince(checkedAt) / 60))
         let age = minutes == 0 ? "just now" : "\(minutes) min ago"
-        return fresh ? "Updated \(age)" : "Saved information · updated \(age)"
+        return fresh ? "Updated \(age)" : "Saved information · checked at \(checkedAt.formatted(date: .omitted, time: .shortened))"
     }
 
     private static let isoFormatter: ISO8601DateFormatter = {

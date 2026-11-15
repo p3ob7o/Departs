@@ -28,6 +28,11 @@ actor APIService {
         components.port = base.port
         guard let url = components.url else { throw APIError.invalidURL }
         if let task = requests[url] { return try await task.value }
+        #if DEBUG
+        if ProcessInfo.processInfo.environment["DEPARTS_TRACE_REQUESTS"] == "1" {
+            print("DEPARTS_REQUEST \(Date().timeIntervalSince1970) \(url.path)?\(url.query ?? "")")
+        }
+        #endif
         let session = session
         let task = Task<Data, Error> {
             var request = URLRequest(url: url)
@@ -60,6 +65,7 @@ actor APIService {
         var components = URLComponents(url: try Self.departuresURL(stopId: stopId), resolvingAgainstBaseURL: false)!
         components.queryItems = (components.queryItems ?? []) + [URLQueryItem(name: "groupBy", value: "line")]
         let bytes = try await data(at: components.url!, refresh: true)
+        if (try? decoder.decode([Departure].self, from: bytes)) != nil { throw APIError.groupedUnavailable }
         return try decoder.decode(GroupedDepartures.self, from: bytes)
     }
 
@@ -125,12 +131,14 @@ enum APIError: LocalizedError {
     case requestFailed
     case invalidStopId
     case invalidURL
+    case groupedUnavailable
 
     var errorDescription: String? {
         switch self {
         case .requestFailed: "Failed to connect to the server."
         case .invalidStopId: "Invalid stop identifier."
         case .invalidURL: "Invalid API request URL."
+        case .groupedUnavailable: "This server uses individual departure boards."
         }
     }
 }
@@ -142,4 +150,8 @@ struct GroupedDepartures: Decodable {
     }
     let groups: [Group]
     var complete: Bool? = nil
+    var latestListedTime: String? {
+        groups.flatMap(\.departures).filter { TimeFormatter.parseISO($0.time) != nil }
+            .max { TimeFormatter.parseISO($0.time)! < TimeFormatter.parseISO($1.time)! }?.time
+    }
 }

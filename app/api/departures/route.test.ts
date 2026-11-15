@@ -171,3 +171,15 @@ it("does not claim a capped grouped board is complete", async () => {
   expect(body.groups).toHaveLength(1);
   expect(body.groups[0].departures).toHaveLength(4);
 });
+
+it("checks the cap per platform board, not after flattening", async () => {
+  const { server } = await import("@/app/__tests__/setup");
+  const { http, HttpResponse } = await import("msw");
+  server.use(http.get("https://transit.hereapi.com/v8/departures", () => HttpResponse.json({
+    boards: [1, 2].map(() => ({ departures: Array.from({ length: 30 }, () => ({
+      time: "2026-11-15T10:00:00Z", transport: { mode: "bus", name: "1", headsign: "Centre" },
+    })) })),
+  })));
+  const response = await GET(new Request("http://localhost/api/departures?stopId=stop-1&groupBy=line"));
+  expect((await response.json()).complete).toBe(true);
+});

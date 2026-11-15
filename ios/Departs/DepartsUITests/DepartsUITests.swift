@@ -44,14 +44,18 @@ final class DepartsUITests: XCTestCase {
         print("DENSITY first=\(option.frame.minY) visible=\(visible.count)")
         XCTAssertLessThanOrEqual(option.frame.minY, screen.height <= 667 ? 130 : 170)
         XCTAssertGreaterThanOrEqual(visible.count, screen.height <= 667 ? 5 : 6)
+        assertTarget(option)
+        assertTarget(app.buttons["pin-hint"])
         capture("Nearby departures")
         option.swipeLeft()
+        assertTarget(app.buttons["pin-route"].firstMatch)
         app.buttons["pin-route"].firstMatch.tap()
         app.terminate()
         app.launch()
         XCTAssertTrue(app.buttons["departure-option"].firstMatch.waitForExistence(timeout: 5))
         app.buttons["departure-option"].firstMatch.swipeLeft()
         XCTAssertTrue(app.buttons["unpin-route"].firstMatch.exists)
+        assertTarget(app.buttons["unpin-route"].firstMatch)
 
         let id = ["fixture-stop", "tram", "49", "Hütteldorf"].map { "\($0.utf8.count):\($0)" }.joined()
         var link = URLComponents(string: "departs://pin")!
@@ -66,11 +70,100 @@ final class DepartsUITests: XCTestCase {
         launchAndAllowLocation()
         let rows = app.buttons.matching(identifier: "departure-option")
         XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 12))
-        let before = rows.allElementsBoundByIndex.compactMap { $0.value as? String }
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'Live'")).firstMatch.waitForExistence(timeout: 8))
+        let before = routeOrder(rows)
+        XCTAssertGreaterThanOrEqual(before.count, 6)
+        XCTAssertFalse(before.contains { $0.contains("55 toward") || $0.contains("56 toward") }, "Future and idle lines must be collapsed")
         let tick = expectation(description: "One countdown tick")
         DispatchQueue.main.asyncAfter(deadline: .now() + 16) { tick.fulfill() }
         wait(for: [tick], timeout: 20)
-        XCTAssertEqual(rows.allElementsBoundByIndex.compactMap { $0.value as? String }, before)
+        XCTAssertEqual(routeOrder(rows), before)
+        XCTAssertTrue(rows.allElementsBoundByIndex.allSatisfy { ($0.value as? String ?? "").isEmpty }, "Opaque identities must not be spoken as accessibility values")
+    }
+
+    func testFutureRowsAndChangedBoardsUseTheHorizon() {
+        launchAndAllowLocation()
+        let rows = app.buttons.matching(identifier: "departure-option")
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'Live'")).firstMatch.waitForExistence(timeout: 12))
+        let disclosure = app.buttons["2 lines with nothing soon"].firstMatch
+        for _ in 0..<3 where !disclosure.isHittable { app.swipeUp() }
+        assertTarget(disclosure)
+        disclosure.tap()
+        let future = app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'Tram 55 toward'")).firstMatch
+        XCTAssertTrue(future.waitForExistence(timeout: 4))
+        XCTAssertFalse(future.label.contains("Leave"))
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label BEGINSWITH 'Nothing soon. Tram 56'")).firstMatch.exists)
+        capture("Expanded future and idle lines")
+        disclosure.tap()
+        for _ in 0..<5 where rows.firstMatch.frame.minY < 120 { app.swipeDown() }
+        server.setChangedServices()
+        let beforeRefresh = server.radii.count
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25))
+            .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)), withVelocity: .slow, thenHoldForDuration: 0.5)
+        let refreshed = expectation(for: NSPredicate { _, _ in self.server.radii.count > beforeRefresh }, evaluatedWith: nil)
+        wait(for: [refreshed], timeout: 5)
+        let gained = app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'Tram 56 toward'")).firstMatch
+        let repartitioned = expectation(for: NSPredicate(format: "label CONTAINS 'Tram 50 toward'"), evaluatedWith: rows.firstMatch)
+        wait(for: [repartitioned], timeout: 8)
+        for _ in 0..<4 where !gained.exists { app.swipeUp() }
+        XCTAssertTrue(gained.waitForExistence(timeout: 4))
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'Tram 49 toward'")).firstMatch.exists)
+        capture("Changed boards after refresh")
+    }
+
+    func testBoardArrivingDuringScrollKeepsProviderOrder() {
+        server.holdSecondBoard()
+        launchAndAllowLocation()
+        let rows = app.buttons.matching(identifier: "departure-option")
+        XCTAssertTrue(rows.firstMatch.waitForExistence(timeout: 12))
+        let held = expectation(for: NSPredicate { _, _ in self.server.heldCount > 0 }, evaluatedWith: nil)
+        wait(for: [held], timeout: 5)
+        let firstSection = Array(routeOrder(rows).prefix(6))
+        let fixture = server!
+        DispatchQueue.global().asyncAfter(deadline: .now() + 1) { fixture.releaseHeldBoards() }
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
+            .press(forDuration: 0.2, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)), withVelocity: .slow, thenHoldForDuration: 2)
+        XCTAssertEqual(server.heldCount, 0)
+        XCTAssertEqual(Array(routeOrder(rows).prefix(6)), firstSection)
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'from Second stop'")).firstMatch.exists)
+        capture("Board delivered during scroll")
+    }
+
+    func testScrollingLoadsVisibleSectionsAndRefreshesOnlyTheViewport() {
+        server.setExtendedStops()
+        launchAndAllowLocation()
+        XCTAssertTrue(app.buttons["departure-option"].firstMatch.waitForExistence(timeout: 12))
+        let last = app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'from Extra stop 7'")).firstMatch
+        for _ in 0..<14 {
+            if last.exists && last.isHittable { break }
+            app.swipeUp()
+        }
+        let loaded = app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'from Extra stop 7' AND (label CONTAINS 'Live' OR label CONTAINS 'Scheduled')")).firstMatch
+        print("REQUESTS scrolled stops=\(server.requestedStops)")
+        let didLoad = loaded.waitForExistence(timeout: 8)
+        print("LAST ROW \(last.exists ? last.label : "missing")")
+        capture("Last stop visibility check")
+        XCTAssertTrue(didLoad, "Visible rows must demand stops beyond the three opening boards")
+        server.clearRequestedStops()
+        let refresh = expectation(description: "Periodic viewport refresh")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 34) { refresh.fulfill() }
+        wait(for: [refresh], timeout: 38)
+        let refreshed = Set(server.requestedStops)
+        XCTAssertTrue(refreshed.contains("extra-7"))
+        XCTAssertFalse(refreshed.contains("fixture-stop"), "An offscreen section must leave the refresh set")
+        XCTAssertFalse(refreshed.contains("second-stop"))
+        print("REQUESTS viewport after scrolling=\(server.requestedStops.count), stops=\(refreshed.sorted())")
+        capture("Visible sections after scrolling")
+    }
+
+    func testLegacyServerLoadsBoardsWithoutGroupedSupport() {
+        server.setLegacy()
+        launchAndAllowLocation()
+        XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'Live'")).firstMatch.waitForExistence(timeout: 12))
+        XCTAssertEqual(server.individualCount, 10)
+        XCTAssertLessThanOrEqual(server.departureCount, 12)
+        print("REQUESTS legacy opening=\(server.departureCount), per-line=\(server.individualCount)")
+        capture("Legacy server fallback")
     }
 
     func testFailedRefreshKeepsSavedTimesAndRecovers() {
@@ -97,6 +190,7 @@ final class DepartsUITests: XCTestCase {
             if app.buttons["search-farther"].exists && app.buttons["search-farther"].isHittable { break }
             app.swipeUp()
         }
+        assertTarget(app.buttons["search-farther"])
         app.buttons["search-farther"].tap()
         let requested = expectation(for: NSPredicate { _, _ in self.server.radii.contains(800) }, evaluatedWith: nil)
         wait(for: [requested], timeout: 5)
@@ -105,7 +199,12 @@ final class DepartsUITests: XCTestCase {
         capture("Choose an area")
         app.buttons["Cancel"].tap()
         XCTAssertTrue(app.buttons["departure-option"].firstMatch.exists)
-        app.buttons["departure-option"].firstMatch.tap()
+        let visible = app.buttons.matching(identifier: "departure-option").allElementsBoundByIndex.first {
+            $0.isHittable && $0.frame.minY > app.navigationBars.firstMatch.frame.maxY && $0.frame.maxY < app.frame.maxY
+        }
+        XCTAssertNotNil(visible)
+        visible!.tap()
+        XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
         app.buttons["walking-directions"].tap()
         XCTAssertTrue(XCUIApplication(bundleIdentifier: "com.apple.Maps").wait(for: .runningForeground, timeout: 5))
     }
@@ -117,19 +216,25 @@ final class DepartsUITests: XCTestCase {
         XCTAssertTrue(alert.waitForExistence(timeout: 5))
         alert.buttons["Don’t Allow"].tap()
         XCTAssertTrue(app.staticTexts["location-status"].waitForExistence(timeout: 5))
+        capture("Location denied with accessibility text")
+        assertTarget(app.buttons["Open Settings"])
         app.buttons["choose-area"].tap()
         XCTAssertTrue(app.textFields["area-query"].waitForExistence(timeout: 3))
-        capture("Location denied with accessibility text")
+        capture("Search after location denied")
     }
 
     func testForegroundRefreshKeepsCachedAnswerWhenOffline() {
         launchAndAllowLocation()
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'Live'")).firstMatch.waitForExistence(timeout: 12), app.debugDescription)
-        XCUIDevice.shared.press(.home)
         server.setOffline(true)
+        XCUIDevice.shared.press(.home)
+        let interval = expectation(description: "Non-forced refresh interval elapses")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 26) { interval.fulfill() }
+        wait(for: [interval], timeout: 30)
         app.activate()
         let saved = app.staticTexts.matching(NSPredicate(format: "identifier == 'board-status' AND label CONTAINS 'Saved'")).firstMatch
         XCTAssertTrue(saved.waitForExistence(timeout: 5))
+        assertTarget(app.buttons["refresh-list"])
         XCTAssertTrue(app.buttons["departure-option"].firstMatch.exists)
         capture("Offline on foreground return")
     }
@@ -143,6 +248,7 @@ final class DepartsUITests: XCTestCase {
         option.tap()
         XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["walking-directions"].isHittable)
+        assertTarget(app.buttons["walking-directions"])
         capture("Detail at accessibility text size")
     }
 
@@ -166,6 +272,20 @@ final class DepartsUITests: XCTestCase {
         attachment.lifetime = .keepAlways
         add(attachment)
     }
+
+    private func assertTarget(_ element: XCUIElement, file: StaticString = #filePath, line: UInt = #line) {
+        XCTAssertTrue(element.exists, file: file, line: line)
+        print("TARGET \(element.identifier) \(element.frame.width)×\(element.frame.height)")
+        XCTAssertGreaterThanOrEqual(element.frame.width + 0.001, 44, file: file, line: line)
+        XCTAssertGreaterThanOrEqual(element.frame.height + 0.001, 44, file: file, line: line)
+    }
+
+    private func routeOrder(_ rows: XCUIElementQuery) -> [String] {
+        rows.allElementsBoundByIndex.compactMap { row in
+            guard let range = row.label.range(of: "(Tram|Bus|Subway|Train) .* toward .* from [^.]+", options: .regularExpression) else { return nil }
+            return String(row.label[range])
+        }
+    }
 }
 
 private final class TransitFixtureServer {
@@ -174,7 +294,18 @@ private final class TransitFixtureServer {
     private var offline = false
     private var requestedRadii: [Int] = []
     private var departureRequests = 0
+    private var firstBoardAt: Date?
+    private var changedServices = false
+    private var legacy = false
+    private var holdingSecond = false
+    private var heldResponses: [() -> Void] = []
+    private var individualRequests = 0
+    private var extendedStops = false
+    private var requestedStopIDs: [String] = []
     var departureCount: Int { queue.sync { departureRequests } }
+    var individualCount: Int { queue.sync { individualRequests } }
+    var heldCount: Int { queue.sync { heldResponses.count } }
+    var requestedStops: [String] { queue.sync { requestedStopIDs } }
     var baseURL: String { "http://127.0.0.1:\(listener.port!.rawValue)" }
     var radii: [Int] { queue.sync { requestedRadii } }
 
@@ -192,6 +323,17 @@ private final class TransitFixtureServer {
 
     func stop() { listener.cancel() }
     func setOffline(_ value: Bool) { queue.sync { offline = value } }
+    func setChangedServices() { queue.sync { changedServices = true } }
+    func setLegacy() { queue.sync { legacy = true } }
+    func setExtendedStops() { queue.sync { extendedStops = true } }
+    func clearRequestedStops() { queue.sync { requestedStopIDs = [] } }
+    func holdSecondBoard() { queue.sync { holdingSecond = true } }
+    func releaseHeldBoards() { queue.sync {
+        holdingSecond = false
+        let responses = heldResponses
+        heldResponses = []
+        responses.forEach { $0() }
+    } }
 
     private func receive(_ connection: NWConnection, buffer: Data) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { [weak self] data, _, complete, error in
@@ -209,7 +351,10 @@ private final class TransitFixtureServer {
             let status = self.offline ? "503 Service Unavailable" : "200 OK"
             var response = Data("HTTP/1.1 \(status)\r\nContent-Type: application/json\r\nCache-Control: no-store\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n".utf8)
             response.append(body)
-            connection.send(content: response, completion: .contentProcessed { _ in connection.cancel() })
+            let send = { connection.send(content: response, completion: .contentProcessed { _ in connection.cancel() }) }
+            if self.holdingSecond, url.path == "/api/departures", url.queryItems?.first(where: { $0.name == "stopId" })?.value == "second-stop" {
+                self.heldResponses.append(send)
+            } else { send() }
         }
     }
 
@@ -218,23 +363,49 @@ private final class TransitFixtureServer {
         let lines: [[String: Any]] = (0..<8).map { index in
             ["name": "\(49 + index)", "direction": index == 0 ? "Hütteldorf" : "Destination \(index)", "type": "tram"]
         }
-        let line = lines.first { $0["name"] as? String == url.queryItems?.first(where: { $0.name == "lineName" })?.value } ?? lines[0]
+        let secondLines: [[String: Any]] = [["name": "77", "direction": "Station", "type": "tram"], ["name": "78", "direction": "Park", "type": "tram"]]
+        let line = (lines + secondLines).first { $0["name"] as? String == url.queryItems?.first(where: { $0.name == "lineName" })?.value } ?? lines[0]
         switch url.path {
         case "/api/stops/nearby":
             requestedRadii.append(Int(url.queryItems?.first { $0.name == "radius" }?.value ?? "0") ?? 0)
-            return [["id": "fixture-stop", "name": "Volkstheater", "type": "tram", "location": ["lat": 48.204, "lon": 16.357], "distance": 280, "lines": lines]]
+            var stops: [[String: Any]] = [["id": "fixture-stop", "name": "Volkstheater", "type": "tram", "location": ["lat": 48.203, "lon": 16.3515], "distance": 280, "lines": lines],
+                    ["id": "second-stop", "name": "Second stop", "type": "tram", "location": ["lat": 48.204, "lon": 16.352], "distance": 360,
+                     "lines": secondLines]]
+            if extendedStops {
+                stops += (0..<8).map { ["id": "extra-\($0)", "name": "Extra stop \($0)", "type": "tram", "location": ["lat": 48.204, "lon": 16.352], "distance": 380, "lines": secondLines] }
+            }
+            return stops
         case "/api/departures":
             departureRequests += 1
+            requestedStopIDs.append(url.queryItems?.first(where: { $0.name == "stopId" })?.value ?? "")
+            if firstBoardAt == nil { firstBoardAt = Date() }
             let formatter = ISO8601DateFormatter()
             formatter.timeZone = TimeZone(identifier: "Europe/Vienna")
             func board(_ service: [String: Any]) -> [[String: Any]] {
-                [7, 12].enumerated().map { index, minutes in
-                    ["time": formatter.string(from: Date().addingTimeInterval(Double(minutes * 60))), "realTime": index == 0, "line": service]
+                let minutes: [Double]
+                switch service["name"] as? String {
+                case "49": minutes = changedServices ? [] : [3, 13]
+                case "50": minutes = [8, 14]
+                case "51": minutes = [14, 20]
+                case "52": minutes = [25, 32]
+                case "53": minutes = [45, 55]
+                case "54": minutes = [58, 65]
+                case "55": minutes = [60.1, 166]
+                case "56": minutes = changedServices ? [4, 14] : []
+                case "77": minutes = holdingSecond ? [] : [2, 9]
+                case "78": minutes = holdingSecond ? [134] : [2, 9]
+                default: minutes = [2, 9]
+                }
+                return minutes.enumerated().map { index, minutes in
+                    ["time": formatter.string(from: firstBoardAt!.addingTimeInterval(minutes * 60)), "realTime": index == 0, "line": service]
                 }
             }
             if url.queryItems?.contains(where: { $0.name == "groupBy" && $0.value == "line" }) == true {
-                return ["groups": lines.map { ["line": $0, "departures": board($0)] }]
+                if legacy { return board(line) }
+                let requestedLines: [[String: Any]] = url.queryItems?.first(where: { $0.name == "stopId" })?.value == "fixture-stop" ? lines : secondLines
+                return ["groups": requestedLines.map { ["line": $0, "departures": board($0)] }, "complete": true]
             }
+            individualRequests += 1
             return board(line)
         case "/api/directions":
             return ["duration": 180, "distance": 280, "geometry": ["type": "LineString", "coordinates": [[16.34941, 48.20134], [16.357, 48.204]]]]

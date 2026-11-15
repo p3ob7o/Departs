@@ -17,15 +17,10 @@ struct StopRowView: View {
     let onPin: () -> Void
     var direction: String? = nil
     var showStop = false
+    var idle = false
 
-    private var departures: [Departure] { Array(board?.upcoming(at: now).prefix(2) ?? []) }
-    private var answer: String {
-        if advice.kind != .unavailable { return advice.kind == .caution ? "Too tight" : advice.title }
-        guard let first = departures.first else { return loading ? "Checking…" : "Nothing soon" }
-        return fresh ? TimeFormatter.relativeTime(first.time, now: now) ?? TimeFormatter.formatTime(first.time) : TimeFormatter.formatTime(first.time)
-    }
-    private var times: String {
-        departures.map { fresh ? TimeFormatter.relativeTime($0.time, now: now) ?? TimeFormatter.formatTime($0.time) : TimeFormatter.formatTime($0.time) }.joined(separator: " · ")
+    private var content: DepartureRowContent {
+        .init(board: board, advice: advice, loading: loading, failed: failed, fresh: fresh, idle: idle, now: now)
     }
     var body: some View {
         Button(action: onOpen) {
@@ -43,41 +38,54 @@ struct StopRowView: View {
                     VStack(alignment: .leading, spacing: 3) {
                         Text(direction ?? selection.line.direction).font(.subheadline.weight(.semibold))
                             .lineLimit(textSize.isAccessibilitySize ? nil : 2)
-                        if showStop { Text(selection.stop.name).font(.caption) }
-                        if !textSize.isAccessibilitySize {
-                            Text(status).font(.caption).lineLimit(1)
-                        }
+                        if showStop && !textSize.isAccessibilitySize { pinnedDetails }
+                        HStack(alignment: .firstTextBaseline, spacing: 4) {
+                            Image(systemName: content.statusSymbol).font(.caption2)
+                            Text(content.status).fixedSize(horizontal: false, vertical: true)
+                        }.font(.caption)
                     }
                 }
                 if !textSize.isAccessibilitySize { Spacer(minLength: 0) }
                 VStack(alignment: textSize.isAccessibilitySize ? .leading : .trailing, spacing: 3) {
-                    Label(answer, systemImage: advice.kind == .leave ? "checkmark.circle" : advice.kind == .caution ? "exclamationmark.circle" : "clock").font(.headline).monospacedDigit().foregroundStyle(answerColor)
-                    Text(times).font(.caption).monospacedDigit()
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        if textSize.isAccessibilitySize {
+                            Image(systemName: content.adviceKind == .leave ? "checkmark.circle" : content.adviceKind == .caution ? "exclamationmark.circle" : "clock")
+                        }
+                        Text(content.answer).fixedSize(horizontal: false, vertical: true)
+                    }
+                        .font(.headline)
+                        .monospacedDigit().foregroundStyle(answerColor)
+                    let timesLayout = textSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 3)) : AnyLayout(HStackLayout(spacing: 3))
+                    timesLayout {
+                        ForEach(Array(content.times.enumerated()), id: \.offset) { index, time in
+                            if index > 0 && !textSize.isAccessibilitySize { Text("·") }
+                            Text(time.text).strikethrough(time.tooTight)
+                        }
+                    }.font(.caption).monospacedDigit()
                 }
+                if showStop && textSize.isAccessibilitySize { pinnedDetails }
             }
             .foregroundStyle(.primary)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(answer). \(selection.line.type.displayName) \(selection.line.name) toward \(selection.line.direction) from \(selection.stop.name). \(times). \(status)")
-        .accessibilityValue(selection.id)
+        .accessibilityLabel("\(content.answer). \(selection.line.type.displayName) \(selection.line.name) toward \(selection.line.direction) from \(selection.stop.name). \(content.spokenTimes). \(content.status)\(showStop && walk != nil ? ". \(max(1, walk!.route.walkingMinutes)) min walk" : "")")
         .accessibilityIdentifier("departure-option")
         .swipeActions { pinAction }
         .contextMenu { pinAction }
     }
-    private var status: String {
-        if failed { return "Couldn't load · retry" }
-        if !fresh { return "Saved information" }
-        guard let first = departures.first else { return loading ? "Checking departures" : "No upcoming departures" }
-        let delay = first.delay.map { Int(ceil($0 / 60)) } ?? 0
-        return (first.realTime ? "Live" : "Scheduled") + (delay >= 1 ? " · \(delay) min late" : "")
-    }
     private var answerColor: Color {
-        switch advice.kind {
+        switch content.adviceKind {
         case .leave: Color(hex: scheme == .dark ? "30D158" : "1D7A36")
         case .caution: Color(hex: scheme == .dark ? "FF9F0A" : "B25000")
         case .unavailable: .primary
+        }
+    }
+    @ViewBuilder private var pinnedDetails: some View {
+        Text(selection.stop.name).font(.caption)
+        if let walk {
+            Text(fromCurrentLocation ? "\(max(1, walk.route.walkingMinutes)) min walk" : "\(max(1, walk.route.walkingMinutes)) min walk from this area").font(.caption)
         }
     }
     private var modeSymbol: String {
@@ -98,5 +106,68 @@ struct StopRowView: View {
     private var pinAction: some View {
         Button(action: onPin) { Label(pinned ? "Unpin route" : "Pin route", systemImage: pinned ? "pin.slash" : "pin") }
             .accessibilityIdentifier(pinned ? "unpin-route" : "pin-route")
+    }
+}
+
+/// The compact answer and its spoken equivalent share the same selected service.
+struct DepartureRowContent {
+    struct TimeLabel {
+        let text: String
+        var tooTight = false
+    }
+    let answer: String
+    let status: String
+    let statusSymbol: String
+    let adviceKind: DepartureAdvice.Kind
+    let times: [TimeLabel]
+    var spokenTimes: String { times.map { $0.text + ($0.tooTight ? ", too tight" : "") }.joined(separator: ". ") }
+
+    init(board: DepartureBoard?, advice: DepartureAdvice, loading: Bool, failed: Bool, fresh: Bool, idle: Bool, now: Date) {
+        let departures = board?.upcoming(at: now) ?? []
+        let target = advice.departureTime.flatMap(TimeFormatter.parseISO)
+        let showAdvice = !idle && fresh && !failed && advice.kind != .unavailable &&
+            (target == nil || target!.timeIntervalSince(now) <= TransitStore.runningHorizon)
+        adviceKind = showAdvice ? advice.kind : .unavailable
+        func time(_ departure: Departure) -> String {
+            fresh && !idle ? TimeFormatter.relativeTime(departure.time, now: now) ?? TimeFormatter.formatTime(departure.time) : TimeFormatter.formatTime(departure.time)
+        }
+        if let coverage = board?.coverageLimit {
+            answer = coverage.message
+        } else if showAdvice { answer = advice.kind == .caution ? "Too tight" : advice.title }
+        else if let first = departures.first { answer = time(first) }
+        else if board == nil { answer = loading ? "Checking…" : "Unavailable" }
+        else { answer = failed || !fresh ? "Needs an update" : "Nothing soon" }
+
+        var shown = Array(departures.prefix(2))
+        if showAdvice, let matched = departures.first(where: { $0.time == advice.departureTime }),
+           !shown.contains(where: { $0.time == matched.time }), let first = departures.first {
+            shown = [first, matched]
+        }
+        if !showAdvice { shown = Array(shown.dropFirst()) }
+        times = shown.map { departure in
+            let chosen = showAdvice && departure.time == advice.departureTime
+            let tight = showAdvice && ((target.map { (TimeFormatter.parseISO(departure.time) ?? .distantFuture) < $0 }) ?? (advice.kind == .caution))
+            return .init(text: chosen ? "for \(TimeFormatter.formatTime(departure.time))" : time(departure), tooTight: tight)
+        }
+        if failed {
+            status = board == nil ? "Couldn't load · retry" : "Saved · couldn't update"
+            statusSymbol = "exclamationmark.triangle"
+        } else if board == nil {
+            status = loading ? "Checking departures" : "Times unavailable"
+            statusSymbol = "clock"
+        } else if !fresh {
+            status = "Saved information"
+            statusSymbol = "clock.badge.exclamationmark"
+        } else if board?.coverageLimit != nil {
+            status = "Limited timetable"
+            statusSymbol = "clock"
+        } else if let first = (showAdvice ? departures.first(where: { $0.time == advice.departureTime }) : nil) ?? departures.first {
+            let delay = max(0, Int((first.delay ?? 0) / 60))
+            status = (first.realTime ? "Live" : "Scheduled") + (delay >= 1 ? " · \(delay) min late" : "")
+            statusSymbol = first.realTime ? "dot.radiowaves.left.and.right" : "calendar"
+        } else {
+            status = "No upcoming departures"
+            statusSymbol = "clock"
+        }
     }
 }

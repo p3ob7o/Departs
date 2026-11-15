@@ -9,7 +9,7 @@ Departs answers “What is leaving near me?” in a native app requiring iOS 26 
 The flow is:
 
 1. Restore saved stops, boards, and pinned directions synchronously, then request location without blocking navigation.
-2. Find stops within 400 metres and load answers for the first six line/direction options. Departures and walking routes update independently, in batches of three each.
+2. Find stops within 400 metres and load nearby pins plus the first three provider stop boards. Refresh pins and visible stop sections; keep a 25-second throttle unless the user explicitly refreshes. Departure and walking queues run independently, in batches of three each.
 3. Show the next two times, live/scheduled labels, walking time, and leave-time advice when the board, location, and route are fresh enough.
 4. Open a line for up to four departures and walking navigation. Both screens share one `TransitStore`, so opening a board reuses the answer already shown.
 5. Refresh the visible screen on foreground return and every 30 seconds after the previous refresh completes. Pull-to-refresh remains available. Saved times remain visible after failure, with an explicit saved-data label.
