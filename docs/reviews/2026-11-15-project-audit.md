@@ -1,5 +1,7 @@
 # Departs project review — 15 November 2026
 
+> Historical snapshot from before the owner chose to focus exclusively on iOS later on 15 November 2026. Web-only PR #8 is retired; PR #9 is scoped to the backend; native #10 and runtime #11 remain relevant. This report is carried forward from #12 by the retirement PR. The current scope and five product priorities are in [the iOS roadmap](../ios-roadmap.md). The web/PWA recommendations and original PR validation below describe the earlier review, not the current roadmap.
+
 The app has a clear purpose: open it, find a nearby transit option, and see when to leave for the stop. The native client is ahead of the web client in line selection and presentation. Several correctness defects and dependency advisories should be addressed before inviting more users.
 
 This review produced four independent fix PRs. They are proposals against `main`, not production changes. All four merge together without conflicts; the combined web checks pass. No branches were deleted, PRs merged, or TestFlight releases uploaded.

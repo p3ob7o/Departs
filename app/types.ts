@@ -26,9 +26,3 @@ export interface Departure {
     type: TransportType;
   };
 }
-
-export interface WalkingRoute {
-  geometry: GeoJSON.LineString;
-  duration: number;
-  distance: number;
-}
