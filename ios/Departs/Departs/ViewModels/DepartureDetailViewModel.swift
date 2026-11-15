@@ -5,6 +5,8 @@ final class DepartureDetailViewModel {
     typealias DeparturesFetcher = (String, LineInfo) async throws -> [Departure]
     typealias DirectionsFetcher = (Coordinate, Coordinate) async throws -> WalkingRoute
 
+    private var loadID = UUID()
+
     private(set) var departures: [Departure] = []
     private(set) var walkingRoute: WalkingRoute?
     private(set) var isLoading = false
@@ -35,6 +37,8 @@ final class DepartureDetailViewModel {
         fetchDepartures: DeparturesFetcher,
         fetchDirections: DirectionsFetcher
     ) async {
+        let requestID = UUID()
+        loadID = requestID
         isLoading = true
         error = nil
         departures = []
@@ -47,13 +51,18 @@ final class DepartureDetailViewModel {
         )
 
         do {
-            departures = try await fetchDepartures(stopId, line)
+            let loadedDepartures = try await fetchDepartures(stopId, line)
+            guard loadID == requestID, !Task.isCancelled else { return }
+            departures = loadedDepartures
         } catch {
+            guard loadID == requestID, !Task.isCancelled else { return }
             self.error = error.localizedDescription
         }
 
         isLoading = false
-        walkingRoute = await route
+        let loadedRoute = await route
+        guard loadID == requestID, !Task.isCancelled else { return }
+        walkingRoute = loadedRoute
     }
 
     private static func fetchRouteIgnoringFailure(

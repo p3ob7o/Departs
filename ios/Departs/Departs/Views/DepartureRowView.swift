@@ -4,9 +4,15 @@ struct DepartureRowView: View {
     let departure: Departure
 
     var body: some View {
+        TimelineView(.periodic(from: .now, by: 15)) { context in
+            row(at: context.date)
+        }
+    }
+
+    private func row(at now: Date) -> some View {
         HStack {
             VStack(alignment: .leading, spacing: 2) {
-                if let relative = TimeFormatter.relativeTime(departure.time) {
+                if let relative = TimeFormatter.relativeTime(departure.time, now: now) {
                     Text(relative)
                         .font(.system(size: 17, weight: .medium))
                         .foregroundStyle(Color(.label))

@@ -251,6 +251,68 @@ final class DepartsTests: XCTestCase {
         XCTAssertNotNil(viewModel.walkingRoute)
     }
 
+    func testRelativeTimeAdvancesWithTheClock() {
+        let departure = "2026-11-15T10:02:00Z"
+        XCTAssertEqual(TimeFormatter.relativeTime(departure, now: TimeFormatter.parseISO("2026-11-15T10:00:00Z")!), "in 2 min")
+        XCTAssertEqual(TimeFormatter.relativeTime(departure, now: TimeFormatter.parseISO("2026-11-15T10:01:00Z")!), "in 1 min")
+        XCTAssertEqual(TimeFormatter.relativeTime(departure, now: TimeFormatter.parseISO(departure)!), "Now")
+        XCTAssertEqual(TimeFormatter.relativeTime(departure, now: TimeFormatter.parseISO("2026-11-15T10:03:00Z")!), "Departed")
+    }
+
+    func testRelativeTimeDoesNotCallAnOldDepartureNow() {
+        XCTAssertEqual(TimeFormatter.relativeTime("2024-01-15T10:00:00Z"), "Departed")
+    }
+
+    @MainActor
+    func testNearbyStopsIgnoresOlderLoadFinishingLast() async {
+        let viewModel = NearbyStopsViewModel()
+        let coordinate = Coordinate(lat: 48.2, lon: 16.3)
+        let started = expectation(description: "first request started")
+        var finishOld: CheckedContinuation<[NearbyStop], Error>!
+        let oldTask = Task { @MainActor in
+            await viewModel.loadStops(near: coordinate) { _, _ in
+                try await withCheckedThrowingContinuation { continuation in
+                    finishOld = continuation
+                    started.fulfill()
+                }
+            }
+        }
+        await fulfillment(of: [started], timeout: 2)
+        let newest = NearbyStop(id: "new", name: "New stop", type: .bus, lines: [], location: coordinate, distance: 1)
+        await viewModel.loadStops(near: coordinate) { _, _ in [newest] }
+        finishOld.resume(returning: [])
+        await oldTask.value
+        XCTAssertEqual(viewModel.stops.map(\.id), ["new"])
+        XCTAssertFalse(viewModel.isLoading)
+    }
+
+    @MainActor
+    func testDepartureDetailIgnoresOlderLoadFinishingLast() async {
+        let viewModel = DepartureDetailViewModel()
+        let coordinate = Coordinate(lat: 48.2, lon: 16.3)
+        let line = LineInfo(name: "49", direction: "Volkstheater", type: .tram)
+        let started = expectation(description: "first board started")
+        var finishOld: CheckedContinuation<[Departure], Error>!
+        let oldTask = Task { @MainActor in
+            await viewModel.load(stopId: "old", line: line, from: coordinate, to: coordinate,
+                fetchDepartures: { _, _ in
+                    try await withCheckedThrowingContinuation { continuation in
+                        finishOld = continuation
+                        started.fulfill()
+                    }
+                }, fetchDirections: { _, _ in throw APIError.requestFailed })
+        }
+        await fulfillment(of: [started], timeout: 2)
+        let newest = Departure(time: "2026-11-15T10:00:00Z", realTime: false, delay: nil)
+        await viewModel.load(stopId: "new", line: line, from: coordinate, to: coordinate,
+            fetchDepartures: { _, _ in [newest] }, fetchDirections: { _, _ in throw APIError.requestFailed })
+        finishOld.resume(returning: [])
+        await oldTask.value
+        XCTAssertEqual(viewModel.departures.map(\.time), [newest.time])
+        XCTAssertNil(viewModel.error)
+        XCTAssertFalse(viewModel.isLoading)
+    }
+
     // MARK: - StopPalette
 
     func testPaletteCount() {
