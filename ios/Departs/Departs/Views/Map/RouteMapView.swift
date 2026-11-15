@@ -23,6 +23,7 @@ struct RouteMapView: UIViewRepresentable {
         let map = container.mapView
         context.coordinator.stopColor = stopColor
         context.coordinator.stopType = stop.type
+        context.coordinator.stopName = stop.name
         let routeCoordinates = walkingRoute?.geometry.clCoordinates ?? []
         let stopAnnotationKey = "\(stop.id)|\(stop.location.lat)|\(stop.location.lon)|\(stop.type.label)"
 
@@ -149,6 +150,7 @@ struct RouteMapView: UIViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate {
         var stopColor: Color
         var stopType: TransportType
+        var stopName = ""
         var stopAnnotationKey: String?
         var routeKey: String?
         var regionKey: String?
@@ -185,6 +187,8 @@ struct RouteMapView: UIViewRepresentable {
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: id)
                 ?? MKAnnotationView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
+            view.isAccessibilityElement = true
+            view.accessibilityLabel = annotation.kind == .stop ? "\(stopName), \(stopType.displayName) stop" : "Your location"
 
             let size: CGFloat = 24
             let container = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
@@ -217,6 +221,8 @@ struct RouteMapView: UIViewRepresentable {
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: id)
                 ?? MKAnnotationView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
+            view.isAccessibilityElement = true
+            view.accessibilityLabel = annotation.kind == .stop ? "\(stopName), \(stopType.displayName) stop" : "Your location"
 
             let size: CGFloat = 30
             let circle = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))

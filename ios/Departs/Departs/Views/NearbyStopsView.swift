@@ -7,6 +7,7 @@ struct NearbyStopsView: View {
     let onSearch: () -> Void
     let onLocate: () -> Void
     let onRefresh: () async -> Void
+    @Environment(\.openURL) private var openURL
     @State private var showingMap = false
 
     var body: some View {
@@ -22,8 +23,9 @@ struct NearbyStopsView: View {
                     Button(action: onSearch) { Label("Choose area", systemImage: "magnifyingglass").frame(minHeight: 44) }
                         .accessibilityIdentifier("choose-area")
                     Spacer()
-                    Button(action: onLocate) { Image(systemName: "location.fill").frame(width: 44, height: 44) }
+                    Button(action: onLocate) { Image(systemName: store.followsLocation ? "location.fill" : "location").frame(width: 44, height: 44) }
                         .accessibilityLabel("Use my location")
+                        .accessibilityValue(store.followsLocation ? "Following your location" : "Showing a chosen or saved area")
                     if store.area != nil {
                         Button { showingMap = true } label: { Image(systemName: "map").frame(width: 44, height: 44) }
                             .accessibilityLabel("Show nearby map")
@@ -42,11 +44,16 @@ struct NearbyStopsView: View {
                         .font(.subheadline).foregroundStyle(.secondary)
                         .accessibilityIdentifier("location-status")
                 }
+                if case .denied = locationState {
+                    Button {
+                        if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) }
+                    } label: { Text("Open Settings").frame(minWidth: 44, minHeight: 44) }
+                }
                 if let error = store.stopsError, !store.favoritesOnly {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(error).font(.subheadline)
-                        Button("Try again") { Task { await onRefresh() } }.frame(minHeight: 44)
-                    }.padding().background(.background, in: RoundedRectangle(cornerRadius: 16))
+                        Button { Task { await onRefresh() } } label: { Text("Try again").frame(minWidth: 44, minHeight: 44) }
+                    }.padding().background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 16))
                 }
 
                 if store.visibleSelections.isEmpty {
@@ -70,8 +77,9 @@ struct NearbyStopsView: View {
                         }
                     }
                     if store.selections.count > store.visibleLimit {
-                        Button("More nearby options") { store.showMore() }
-                            .frame(maxWidth: .infinity, minHeight: 48)
+                        Button { store.showMore() } label: {
+                            Text("More nearby options").frame(maxWidth: .infinity, minHeight: 48)
+                        }
                     }
                     if store.favoritesOnly {
                         Text("Your pinned routes are also available in the Shortcuts app.")
@@ -79,8 +87,10 @@ struct NearbyStopsView: View {
                     }
                 }
                 if store.canSearchFarther && !store.favoritesOnly {
-                    Button("Search farther · \(store.radius == 400 ? "800 m" : "1.6 km")") {
+                    Button {
                         Task { await store.searchFarther() }
+                    } label: {
+                        Text("Search farther · \(store.radius == 400 ? "800 m" : "1.6 km")").frame(minWidth: 44, minHeight: 44)
                     }
                     .buttonStyle(.bordered).frame(maxWidth: .infinity, minHeight: 48)
                     .disabled(store.isLoadingStops)

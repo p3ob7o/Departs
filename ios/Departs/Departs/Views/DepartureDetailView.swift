@@ -45,8 +45,10 @@ struct DepartureDetailView: View {
                             }.accessibilityLabel("Refresh departures")
                         }
                         if let board {
-                            Text("\(fresh ? "Updated" : "Saved information · updated") \(board.checkedAt, style: .relative) ago")
-                            .font(.caption).foregroundStyle(fresh ? Color.secondary : Color.orange)
+                            Label { Text(TimeFormatter.freshness(board.checkedAt, now: timeline.date, fresh: fresh)) } icon: {
+                                if !fresh { Image(systemName: "clock.badge.exclamationmark").foregroundStyle(Color(.label)) }
+                            }
+                            .font(.caption).foregroundStyle(fresh ? Color.secondary : Color.primary)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityElement(children: .combine)
                             .accessibilityIdentifier("board-status")
@@ -90,7 +92,7 @@ struct DepartureDetailView: View {
                     }
                     if showingMap, let origin = store.walkingOrigin {
                         RouteMapView(userCoordinate: origin.clLocationCoordinate2D, stop: selection.stop,
-                                     stopColor: .accentColor, walkingRoute: walk?.route)
+                                     stopColor: StopPalette.colors[0], walkingRoute: walk?.route)
                             .frame(height: 250).clipShape(RoundedRectangle(cornerRadius: 18))
                     }
                 }.padding(16)
@@ -112,11 +114,12 @@ struct DepartureDetailView: View {
                 destination.name = selection.stop.name
                 destination.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
             } label: {
-                Label("Walking directions", systemImage: "figure.walk")
+                Label(dynamicTypeSize.isAccessibilitySize ? "Walk" : "Walking directions", systemImage: "figure.walk")
                     .font(.headline).frame(maxWidth: .infinity, minHeight: 48)
             }
             .buttonStyle(.borderedProminent).padding(.horizontal, 16).padding(.vertical, 8)
             .background(.bar)
+            .accessibilityLabel("Walking directions")
             .accessibilityIdentifier("walking-directions")
         }
         .task(id: selection.id) { await store.refreshSelection(selection) }

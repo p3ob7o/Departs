@@ -1,6 +1,12 @@
 import Foundation
 
 enum TimeFormatter {
+    static func freshness(_ checkedAt: Date, now: Date, fresh: Bool) -> String {
+        let minutes = max(0, Int(now.timeIntervalSince(checkedAt) / 60))
+        let age = minutes == 0 ? "just now" : "\(minutes) min ago"
+        return fresh ? "Updated \(age)" : "Saved information · updated \(age)"
+    }
+
     private static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]

@@ -4,11 +4,13 @@ struct TransportIconView: View {
     let type: TransportType
     var color: Color = Color(.systemGray)
 
+    @ScaledMetric(relativeTo: .body) private var diameter = 40.0
+
     var body: some View {
         Text(type.label)
-            .font(.system(size: 16, weight: .bold))
+            .font(.body.bold())
             .foregroundStyle(.white)
-            .frame(width: 40, height: 40)
+            .frame(width: diameter, height: diameter)
             .background(color)
             .clipShape(Circle())
     }

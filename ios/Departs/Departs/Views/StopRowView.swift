@@ -19,7 +19,7 @@ struct StopRowView: View {
             Button(action: onOpen) {
                 VStack(alignment: .leading, spacing: 10) {
                     HStack(alignment: .top, spacing: 10) {
-                        TransportIconView(type: selection.line.type, color: .accentColor)
+                        TransportIconView(type: selection.line.type, color: StopPalette.colors[0])
                             .accessibilityLabel(selection.line.type.displayName)
                         Text("\(selection.line.name) → \(selection.line.direction)")
                             .font(.headline).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
@@ -37,11 +37,13 @@ struct StopRowView: View {
                             }
                         }
                         HStack(spacing: 4) {
-                            Text("\(fresh ? "Updated" : "Saved · updated") \(board.checkedAt, style: .relative) ago")
+                            Label { Text(TimeFormatter.freshness(board.checkedAt, now: now, fresh: fresh)) } icon: {
+                                if !fresh { Image(systemName: "clock.badge.exclamationmark").foregroundStyle(Color(.label)) }
+                            }
                                 .fixedSize(horizontal: false, vertical: true)
                             if loading { ProgressView().controlSize(.mini) }
                         }
-                        .font(.caption).foregroundStyle(fresh ? Color.secondary : Color.orange)
+                        .font(.caption).foregroundStyle(fresh ? Color.secondary : Color.primary)
                         .accessibilityElement(children: .combine)
                         .accessibilityIdentifier("board-status")
                     } else {
@@ -58,7 +60,7 @@ struct StopRowView: View {
                     if advice.kind != .unavailable {
                         VStack(alignment: .leading, spacing: 3) {
                             Text(advice.title).font(.headline)
-                                .foregroundStyle(advice.kind == .leave ? Color.accentColor : Color.primary)
+                                .foregroundStyle(.primary)
                             Text(advice.detail).font(.caption).foregroundStyle(.secondary)
                         }
                     }
@@ -67,6 +69,7 @@ struct StopRowView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("\(advice.title). \(selection.line.type.displayName) \(selection.line.name) toward \(selection.line.direction) from \(selection.stop.name)")
             .accessibilityIdentifier("departure-option")
 
             Button(action: onPin) {
