@@ -43,6 +43,11 @@ describe("GET /api/directions", () => {
     expect(response.status).toBe(400);
   });
 
+  it.each([",13.4", "52.5,", " ,13.4"])("rejects missing coordinate components in %s", async (from) => {
+    const response = await GET(new Request(`http://localhost/api/directions?${new URLSearchParams({ from, to: "52.52,13.405" })}`));
+    expect(response.status).toBe(400);
+  });
+
   it("proxies request to Mapbox Directions API", async () => {
     const request = new Request(
       "http://localhost/api/directions?from=52.5195,13.4&to=52.52,13.405"
@@ -80,6 +85,16 @@ describe("GET /api/directions", () => {
     const response = await GET(request);
 
     expect(response.status).toBe(500);
+  });
+
+  it.each([[], [[13]], [[13, 52], [14]], [[13, 52], [14, 91]]].map((coordinates) => ({ coordinates })))("rejects malformed route coordinates $coordinates", async ({ coordinates }) => {
+    const { server } = await import("@/app/__tests__/setup");
+    const { http, HttpResponse } = await import("msw");
+    server.use(http.get("https://api.mapbox.com/directions/v5/mapbox/walking/*", () => HttpResponse.json({ routes: [{
+      geometry: { type: "LineString", coordinates }, duration: 120, distance: 80,
+    }] })));
+    const response = await GET(new Request("http://localhost/api/directions?from=52,13&to=52.1,13.1"));
+    expect(response.status).toBe(502);
   });
 
   it("returns 502 when Mapbox returns no routes", async () => {
