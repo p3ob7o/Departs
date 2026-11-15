@@ -64,6 +64,7 @@ final class DepartsUITests: XCTestCase {
         app.open(link.url!)
         XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.staticTexts["Next departures"].exists)
+        XCTAssertGreaterThan(app.buttons["walking-directions"].frame.width, 140, "The toolbar must visibly show its title, not only the icon")
         capture("Pinned departure detail")
     }
 
@@ -179,7 +180,8 @@ final class DepartsUITests: XCTestCase {
         app.buttons["Refresh departures"].tap()
         let saved = app.staticTexts.matching(NSPredicate(format: "label CONTAINS 'Saved information'")).firstMatch
         XCTAssertTrue(saved.waitForExistence(timeout: 5))
-        XCTAssertFalse(app.staticTexts.matching(NSPredicate(format: "label BEGINSWITH 'Leave in' OR label == 'Leave now'")).firstMatch.exists)
+        XCTAssertEqual(app.staticTexts["departure-advice-title"].label, "Refresh before you leave",
+                       "The selected board must not give leave advice after its refresh fails")
         capture("Saved departures after failed refresh")
         server.setOffline(false)
         XCTAssertTrue(app.buttons["refresh-advice"].exists)
@@ -226,23 +228,34 @@ final class DepartsUITests: XCTestCase {
         XCTAssertTrue(app.maps.firstMatch.isHittable)
         capture("Route map sheet")
         app.buttons["Done"].tap()
-        for _ in 0..<4 {
-            if app.buttons["other-line"].firstMatch.isHittable { break }
+        XCTAssertTrue(app.staticTexts["departure-too-tight"].exists)
+        let other = app.buttons["other-line"].firstMatch
+        for _ in 0..<6 {
+            if other.isHittable && other.frame.maxY < app.buttons["walking-directions"].frame.minY { break }
             app.swipeUp()
         }
-        app.buttons["other-line"].firstMatch.tap()
+        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier == 'other-line' AND label CONTAINS 'Tram 55 toward'")).firstMatch.exists)
+        capture("Other lines at this stop")
+        other.tap()
         XCTAssertTrue(app.navigationBars["50 Destination 1"].waitForExistence(timeout: 5))
     }
 
     func testStopMapSelectionReturnsToList() {
+        server.setMergedPlatforms()
         launchAndAllowLocation()
         XCTAssertTrue(app.buttons["departure-option"].firstMatch.waitForExistence(timeout: 12))
         app.buttons["Show nearby map"].tap()
-        let pin = app.descendants(matching: .any).matching(identifier: "stop-map-pin").firstMatch
+        let pin = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == 'stop-map-pin' AND label BEGINSWITH 'Volkstheater,'")).firstMatch
         XCTAssertTrue(pin.waitForExistence(timeout: 8), app.debugDescription)
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "stop-map-pin").count, 2, "Three provider platforms form two physical stops")
+        assertTarget(pin)
+        let chosenLabel = pin.label
         pin.tap()
         XCTAssertTrue(app.buttons["Show in list"].waitForExistence(timeout: 5))
+        assertTarget(app.buttons["Show in list"])
         capture("Selected stop map")
+        let chosen = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == 'stop-map-pin' AND label == %@", chosenLabel)).firstMatch
+        XCTAssertTrue(chosen.isSelected, app.debugDescription)
         app.buttons["Show in list"].tap()
         XCTAssertTrue(app.buttons["departure-option"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertFalse(app.maps.firstMatch.exists)
@@ -264,6 +277,7 @@ final class DepartsUITests: XCTestCase {
         app.buttons["choose-area"].tap()
         XCTAssertTrue(app.buttons["recent-area"].firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.buttons["Current location"].exists)
+        XCTAssertLessThan(app.buttons["Current location"].frame.maxY, app.staticTexts["Recent places"].frame.minY)
         capture("Recent places")
         app.buttons["recent-area"].firstMatch.tap()
         XCTAssertTrue(app.buttons["departure-option"].firstMatch.waitForExistence(timeout: 5))
@@ -300,6 +314,7 @@ final class DepartsUITests: XCTestCase {
     }
 
     func testLargeTextKeepsDirectionAndWalkingActionAccessible() {
+        server.setLongDirection()
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         launchAndAllowLocation()
         let option = app.buttons["departure-option"].firstMatch
@@ -307,10 +322,14 @@ final class DepartsUITests: XCTestCase {
         capture("Nearby at accessibility text size")
         option.tap()
         XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.buttons["walking-directions"].isHittable)
         capture("Detail at accessibility text size")
+        XCTAssertGreaterThan(app.buttons["walking-directions"].frame.width, 140, "The toolbar title remains visible at accessibility text sizes")
+        let direction = app.staticTexts["detail-direction"]
+        XCTAssertEqual(direction.label, "Wien Kaiserebersdorf, Zinnergasse")
+        XCTAssertGreaterThan(direction.frame.height, 80, "The full headsign wraps and scales with accessibility text")
+        XCTAssertTrue(app.frame.contains(direction.frame))
         for _ in 0..<8 {
-            if app.buttons["show-route-map"].isHittable { break }
+            if app.buttons["show-route-map"].isHittable && app.buttons["show-route-map"].frame.maxY < app.buttons["walking-directions"].frame.minY { break }
             app.swipeUp()
         }
         assertTarget(app.buttons["show-route-map"])
@@ -318,6 +337,11 @@ final class DepartsUITests: XCTestCase {
         XCTAssertTrue(app.maps.firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.maps.firstMatch.isHittable)
         capture("Route map at accessibility text size")
+        app.buttons["Done"].tap()
+        // The native toolbar's accessibility hit-point query is unreliable on
+        // iOS 27. Verify the actual tap and Apple Maps handoff at its visible center.
+        app.buttons["walking-directions"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
+        XCTAssertTrue(XCUIApplication(bundleIdentifier: "com.apple.Maps").wait(for: .runningForeground, timeout: 5))
     }
 
     private func launchAndAllowLocation() {
@@ -369,6 +393,8 @@ private final class TransitFixtureServer {
     private var heldResponses: [() -> Void] = []
     private var individualRequests = 0
     private var extendedStops = false
+    private var mergedPlatforms = false
+    private var longDirection = false
     private var requestedStopIDs: [String] = []
     var departureCount: Int { queue.sync { departureRequests } }
     var individualCount: Int { queue.sync { individualRequests } }
@@ -394,6 +420,8 @@ private final class TransitFixtureServer {
     func setChangedServices() { queue.sync { changedServices = true } }
     func setLegacy() { queue.sync { legacy = true } }
     func setExtendedStops() { queue.sync { extendedStops = true } }
+    func setMergedPlatforms() { queue.sync { mergedPlatforms = true } }
+    func setLongDirection() { queue.sync { longDirection = true } }
     func clearRequestedStops() { queue.sync { requestedStopIDs = [] } }
     func holdSecondBoard() { queue.sync { holdingSecond = true } }
     func releaseHeldBoards() { queue.sync {
@@ -429,7 +457,7 @@ private final class TransitFixtureServer {
     private func response(to url: URLComponents) -> Any {
         if offline { return ["error": "Offline fixture"] }
         let lines: [[String: Any]] = (0..<8).map { index in
-            ["name": "\(49 + index)", "direction": index == 0 ? "Hütteldorf" : "Destination \(index)", "type": "tram"]
+            ["name": "\(49 + index)", "direction": index == 0 ? (longDirection ? "Wien Kaiserebersdorf, Zinnergasse" : "Hütteldorf") : "Destination \(index)", "type": "tram"]
         }
         let secondLines: [[String: Any]] = [["name": "77", "direction": "Station", "type": "tram"], ["name": "78", "direction": "Park", "type": "tram"]]
         let line = (lines + secondLines).first { $0["name"] as? String == url.queryItems?.first(where: { $0.name == "lineName" })?.value } ?? lines[0]
@@ -443,6 +471,10 @@ private final class TransitFixtureServer {
                      "lines": secondLines]]
             if extendedStops {
                 stops += (0..<8).map { ["id": "extra-\($0)", "name": "Extra stop \($0)", "type": "tram", "location": ["lat": 48.204, "lon": 16.352], "distance": 380, "lines": secondLines] }
+            }
+            if mergedPlatforms {
+                stops.append(["id": "other-platform", "name": "Volkstheater", "type": "tram",
+                              "location": ["lat": 48.20305, "lon": 16.35155], "distance": 285, "lines": secondLines])
             }
             return stops
         case "/api/departures":
@@ -478,7 +510,9 @@ private final class TransitFixtureServer {
             individualRequests += 1
             return board(line)
         case "/api/directions":
-            return ["duration": 180, "distance": 280, "geometry": ["type": "LineString", "coordinates": [[16.34941, 48.20134], [16.357, 48.204]]]]
+            let from = url.queryItems!.first { $0.name == "from" }!.value!.split(separator: ",").map { Double($0)! }
+            let to = url.queryItems!.first { $0.name == "to" }!.value!.split(separator: ",").map { Double($0)! }
+            return ["duration": 180, "distance": 280, "geometry": ["type": "LineString", "coordinates": [[from[1], from[0]], [to[1], to[0]]]]]
         default: return ["error": "Unexpected fixture URL"]
         }
     }

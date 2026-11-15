@@ -221,19 +221,11 @@ struct RouteMapView: UIViewRepresentable {
 
         private func makeStopPin(for annotation: PinAnnotation, in mapView: MKMapView) -> MKAnnotationView {
             let id = "RouteStopPin"
-            let view = mapView.dequeueReusableAnnotationView(withIdentifier: id)
-                ?? MKAnnotationView(annotation: annotation, reuseIdentifier: id)
+            let view = mapView.dequeueReusableAnnotationView(withIdentifier: id) as? MapLineAnnotationView
+                ?? MapLineAnnotationView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
-            view.isAccessibilityElement = true
-            view.accessibilityLabel = annotation.kind == .stop ? "\(stopName), \(stopType.displayName) stop" : "Your location"
-
+            view.configure(name: lineName, type: stopType, color: stopColor)
             view.accessibilityLabel = "\(stopName), \(stopType.displayName) \(lineName)"
-            let badge = MapLineBadge(name: lineName, type: stopType, color: stopColor)
-
-            view.subviews.forEach { $0.removeFromSuperview() }
-            view.addSubview(badge)
-            view.frame = badge.bounds
-            view.centerOffset = .zero
             return view
         }
     }

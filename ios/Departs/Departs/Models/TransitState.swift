@@ -66,6 +66,14 @@ struct DepartureAdvice: Equatable {
 
     static let buffer: TimeInterval = 120
 
+    func isTooTight(_ departure: Departure) -> Bool {
+        guard kind != .unavailable else { return false }
+        if kind == .caution { return true }
+        guard let target = departureTime.flatMap(TimeFormatter.parseISO),
+              let time = TimeFormatter.parseISO(departure.time) else { return false }
+        return time < target
+    }
+
     static func make(board: DepartureBoard?, walk: CachedWalk?, location: LocationFix?,
                      requestFailed: Bool = false, now: Date = .now) -> DepartureAdvice {
         guard let board, board.isFresh(at: now), !requestFailed else {

@@ -147,19 +147,18 @@ struct NearbyStopsView: View {
         .sheet(isPresented: $showingMap) {
             if let area = store.area {
                 NavigationStack {
-                    StopsMapView(userCoordinate: area.coordinate.clLocationCoordinate2D, stops: store.stops,
-                                 stopColors: Dictionary(uniqueKeysWithValues: store.stops.map { ($0.id, StopPalette.modeColor($0.type)) }),
+                    StopsMapView(userCoordinate: area.coordinate.clLocationCoordinate2D, groups: store.groups,
                                  radius: store.radius, selectedStopID: selectedMapStop, onSelect: { selectedMapStop = $0 })
                         .safeAreaInset(edge: .bottom) {
-                            if let stop = store.stops.first(where: { $0.id == selectedMapStop }) {
+                            if let group = store.groups.first(where: { $0.id == selectedMapStop }) {
                                 VStack(alignment: .leading, spacing: 8) {
-                                    Text(stop.name).font(.headline)
-                                    Text(Array(Set(stop.lines.map(\.name))).sorted().joined(separator: " · ")).font(.subheadline)
+                                    Text(group.name).font(.headline)
+                                    Text(group.lines.map(\.name).joined(separator: " · ")).font(.subheadline)
                                     Button {
-                                        scrollTarget = store.groups.first(where: { $0.stops.contains(where: { $0.id == stop.id }) })?.id
+                                        scrollTarget = group.id
                                         showingMap = false
                                     } label: {
-                                        Label("Show in list", systemImage: "list.bullet").frame(minHeight: 44)
+                                        Label("Show in list", systemImage: "list.bullet").frame(minHeight: 48)
                                     }
                                 }.padding().frame(maxWidth: .infinity, alignment: .leading).background(.regularMaterial)
                             }

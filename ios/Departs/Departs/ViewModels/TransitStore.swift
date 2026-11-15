@@ -85,6 +85,21 @@ final class TransitStore {
         var options: [StopLineSelection] { stops.flatMap(\.lineSelections) }
         var active: [StopLineSelection] = []
         var idle: [StopLineSelection] = []
+
+        var coordinate: Coordinate {
+            let count = Double(max(1, stops.count))
+            return .init(lat: stops.reduce(0) { $0 + $1.location.lat } / count,
+                         lon: stops.reduce(0) { $0 + $1.location.lon } / count)
+        }
+        var lines: [LineInfo] {
+            var seen = Set<String>()
+            return stops.flatMap(\.lines).filter { seen.insert("\($0.type.rawValue):\($0.name)").inserted }
+        }
+    }
+
+    func group(containing stop: NearbyStop) -> StopGroup {
+        groups.first { $0.stops.contains(where: { $0.id == stop.id }) }
+            ?? partition(.init(id: stop.id, name: stop.name, stops: [stop]))
     }
 
     var nearbyPins: [StopLineSelection] {
@@ -108,20 +123,22 @@ final class TransitStore {
         }
         // Publish the partition together. Views never combine a deferred partition
         // with live board presence. Provider order stays fixed as walks arrive.
-        groups = result.map { group in
-            var group = group
-            for option in group.options {
-                if let board = boards[option.id], !boardErrors.contains(option.id),
-                   board.coverageLimit != nil || !board.upcoming(at: board.checkedAt).contains(where: {
-                       (TimeFormatter.parseISO($0.time)?.timeIntervalSince(board.checkedAt) ?? .infinity) <= Self.runningHorizon
-                   }) {
-                    group.idle.append(option)
-                } else {
-                    group.active.append(option)
-                }
+        groups = result.map(partition)
+    }
+
+    private func partition(_ source: StopGroup) -> StopGroup {
+        var group = source
+        for option in group.options {
+            if let board = boards[option.id], !boardErrors.contains(option.id),
+               board.coverageLimit != nil || !board.upcoming(at: board.checkedAt).contains(where: {
+                   (TimeFormatter.parseISO($0.time)?.timeIntervalSince(board.checkedAt) ?? .infinity) <= Self.runningHorizon
+               }) {
+                group.idle.append(option)
+            } else {
+                group.active.append(option)
             }
-            return group
         }
+        return group
     }
 
     func loadGroup(_ group: StopGroup) async {

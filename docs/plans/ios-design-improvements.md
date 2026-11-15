@@ -209,12 +209,12 @@ One list-level line replaces the per-card stamp: "updated just now", "updated 2 
 └──────────────────────────────────────────┘
 ```
 
-- The navigation title is the line and direction. The stop appears once.
+- The navigation title is the line and direction. Following Phase 3 review, the first content block also shows the line badge and full, wrapping direction with Dynamic Type; a truncated navigation title is insufficient for checking the service. The stop appears once, with the walk below the direction.
 - The advice card owns its action. In the saved-data state its button is "Refresh now".
 - Live and scheduled differ by symbol and color. Delays are prominent.
-- The route map is a preview in the advice card that opens a sheet with medium and large detents.
+- The advice card opens the route map in a sheet with medium and large detents. Phase 3 review permits a plain "Show route map" action instead of a route sketch without endpoints; no map tiles load until requested.
 - Walking directions becomes a standard bottom toolbar item with a title and a symbol.
-- "Other lines at this stop" lists the stop's remaining lines with their next times.
+- "Other lines at this stop" reuses the list rows with their next times and the same running-first, idle-collapsed partition. Next departures marks services skipped by the advice as too tight.
 
 ### 6. Search and areas
 
@@ -225,7 +225,7 @@ One list-level line replaces the per-card stamp: "updated just now", "updated 2 
 ### 7. Maps
 
 - The stops map opens as a sheet with detents. Pins can be selected. A selected pin shows the stop name and lines and scrolls the list to that stop.
-- Pins use the same badges as the list. The search radius is drawn.
+- One pin represents each merged list section. Compact line/mode badges indicate additional lines, retain a 44-point hit region and visibly mark selection. The search radius is drawn.
 - Annotations get VoiceOver labels.
 - The maps become panes that can be embedded at any size. Phase 5 and both adaptation plans rely on that.
 
