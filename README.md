@@ -1,11 +1,37 @@
 # Departs
 
-Departs finds nearby public transport stops and shows upcoming departures with a walking route to the stop. It has a mobile-first Next.js web app and a native SwiftUI iOS app, both using the same API hosted on Vercel.
+Departs is a native iOS app for finding nearby public transport, checking the next departures, and walking to the stop. It uses SwiftUI and MapKit on iOS 17 and later, with no accounts or third-party iOS dependencies.
 
-The current search radius is 400 metres. Transit information comes from HERE; walking directions come from Mapbox. The web map uses Mapbox GL and the iOS map uses MapKit. There are no accounts or application database.
+Development focuses exclusively on iOS. The browser app is retired; this repository retains the Next.js API backend that the iOS app needs. The website root returns a short retirement notice.
 
-- [Project review, branch inventory, proposed fixes, and five product improvements](docs/reviews/2026-11-15-project-audit.md)
-- [Development commands and conventions](AGENTS.md)
-- [Original product requirements](docs/PRD.md)
+## Project layout
 
-Run `npm install` and `npm run dev` for web development. Configure `NEXT_PUBLIC_MAPBOX_TOKEN`, `MAPBOX_SECRET_TOKEN`, and `HERE_API_KEY` in `.env.local` for live provider calls. Unit tests and browser tests use fixtures; browser tests also require `npx playwright install chromium webkit`.
+- `ios/Departs/`: the iOS app and XCTest suite.
+- `app/api/`: the Vercel backend for nearby stops, departures, and walking directions.
+- `app/lib/`: transit provider normalization.
+- [iOS roadmap and product decision](docs/ios-roadmap.md).
+- [Implementation and API guide](DOCUMENTATION.md).
+- [Agent commands and conventions](AGENTS.md).
+- [Original project audit](docs/reviews/2026-11-15-project-audit.md) and [archived web designs](docs/archive/web/PRD.md).
+
+## iOS development
+
+Open `ios/Departs/Departs.xcodeproj` in Xcode and select the Departs scheme. Build or run on an iOS simulator or device. From the command line, with Xcode selected:
+
+```bash
+xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
+```
+
+`APIService` calls `https://departs.vercel.app/api/`. Running the local backend does not redirect the app automatically. API keys stay on the server.
+
+## Backend development
+
+Run `npm ci`, configure `HERE_API_KEY` and `MAPBOX_SECRET_TOKEN` in `.env.local`, then run `npm run dev`. No public Mapbox token is needed: MapKit renders the native maps, while Mapbox still supplies walking directions through the server.
+
+```bash
+npm run test:run
+npm run lint
+npm run build
+```
+
+Vercel deploys `main`. Keep the API host, endpoint paths, and response shapes compatible with installed iOS builds. Merging backend changes does not distribute a new iOS binary.

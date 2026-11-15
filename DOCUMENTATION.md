@@ -1,144 +1,42 @@
-# Departs - Project Documentation
+# Departs implementation guide
 
-## Overview
+Departs answers “What is leaving near me?” in a native iOS app. The browser client has been retired. The backend remains on Vercel because installed iOS builds depend on it.
 
-Departs is a mobile-first web app that shows nearby public transit stops and real-time departure times. It uses the browser's geolocation to find stops within 400m, displays them on a map, and shows upcoming departures when a stop is selected.
+## Native app
 
-## Tech Stack
+`ios/Departs/Departs/` contains SwiftUI views, observable view models, Codable models, an `APIService` actor, and a CoreLocation service. MapKit renders the map; system appearance controls light and dark styling. There are no accounts, application database, or third-party iOS dependencies.
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16 (App Router, Turbopack) |
-| Language | TypeScript (strict) |
-| Styling | Tailwind CSS 4 + CSS custom properties |
-| Map | Mapbox GL JS via react-map-gl |
-| Transit data | HERE Public Transit API v8 |
-| Walking directions | Mapbox Directions API |
-| Testing | Vitest, React Testing Library, MSW, Playwright |
-| Deployment | Vercel |
-| iOS App | SwiftUI (iOS 17+), MapKit, CoreLocation, URLSession |
+The flow is:
 
-## Project Structure
+1. Request the device's location and load stops within 400 metres.
+2. Show nearby stops and their available lines/directions.
+3. Select a stop and line, then request its departures and walking route in parallel.
+4. Display up to four departures. A route failure does not hide an available departure board.
 
-```
-app/
-├── api/
-│   ├── departures/route.ts      # Proxy → HERE /v8/departures
-│   ├── directions/route.ts      # Proxy → Mapbox Directions
-│   └── stops/nearby/route.ts    # Proxy → HERE /v8/stations
-├── components/
-│   ├── BottomSheet.tsx           # Fixed bottom sheet (flush, no drag handle)
-│   ├── DepartureDetail.tsx       # Screen 2: departure list + header
-│   ├── DepartureRow.tsx          # Individual departure (12h time + clock icon)
-│   ├── ErrorState.tsx            # Error/permission/offline states
-│   ├── LoadingState.tsx          # Centered spinner
-│   ├── Map.tsx                   # Mapbox GL map with custom markers
-│   ├── StopList.tsx              # Screen 1: nearby stops list
-│   ├── StopRow.tsx               # Stop row (transport type + line info)
-│   └── TransportIcon.tsx         # 40px circle with transport letter + per-stop color palette
-├── hooks/
-│   ├── useDepartures.ts          # Fetches departures + walking route
-│   ├── useGeolocation.ts         # Browser geolocation with retry
-│   └── useNearbyStops.ts         # Fetches nearby stops
-├── lib/
-│   ├── api.ts                    # Client fetch helpers
-│   └── transitProvider.ts        # HERE API response transformers
-├── __tests__/                    # Fixtures, mocks, setup
-├── globals.css                   # Design tokens + layout
-├── layout.tsx                    # Root layout (no custom fonts)
-├── page.tsx                      # Main page (state machine)
-└── types.ts                      # Shared TypeScript interfaces
-docs/
-├── PRD.md                        # Product requirements
-├── specs.md                      # Technical specifications
-├── design-system.md              # UI design tokens & components
-└── user-journey.md               # User flow documentation
-e2e/                              # Playwright e2e tests
-ios/Departs/
-├── Departs.xcodeproj/            # Xcode project (iOS 17+ target)
-├── Departs/
-│   ├── Models/                   # Codable structs matching web types.ts
-│   ├── Services/                 # APIService (actor), LocationService (@Observable)
-│   ├── ViewModels/               # NearbyStopsViewModel, DepartureDetailViewModel
-│   ├── Views/                    # SwiftUI views (ContentView, screens, rows)
-│   │   └── Map/                  # UIViewRepresentable MKMapView wrappers
-│   ├── Utilities/                # StopPalette, TimeFormatter, Color+Hex
-│   └── Preview Content/          # Sample data for Xcode previews
-└── DepartsTests/                 # XCTest unit tests
-```
+The API host is compiled into `Services/APIService.swift`. `URLComponents` encodes station IDs and line/direction parameters. The native `NearbyStop.distance` is optional and `LineInfo.id` is computed from the line name and direction. Previews using `PreviewData` must stay within `#if DEBUG`.
 
-## Screens
+## Backend contract
 
-### Screen 1: Nearby Stops
-- 5:4 aspect ratio map shows user location (blue dot) and stop pins with transport-type letters
-- Each stop gets a unique muted pastel color (from a 10-color palette) on both the map marker and list icon
-- "NEARBY STOPS" uppercase section header above the list
-- Stop rows show stop name as primary text, line → direction as secondary
-- Skeleton loading (5 placeholder rows) while stops are being fetched
-- Haptic feedback and highlight on tap; pull-to-refresh
+Next.js route handlers proxy to HERE and Mapbox and normalize their data. Provider credentials are server environment variables. Keep these paths and response shapes compatible with installed iOS builds:
 
-### Screen 2: Departure Detail
-- 5:4 aspect ratio map zooms to fit user + stop pin with walking route (dashed line)
-- Map uses `MapContainerView` wrapper to defer zoom until frame is valid (handles NavigationStack transition timing)
-- Content card with rounded top corners: line + direction as bold heading, walking time (clamped to 1 min minimum), "DEPARTURES" section header
-- Relative times ("Now", "in 3 min") for departures ≤30 min away, absolute time as secondary
-- Up to 4 departure times using device locale (12h or 24h per user setting)
+| Endpoint | Query | Response | Provider |
+| --- | --- | --- | --- |
+| `/api/stops/nearby` | `lat`, `lon` | Array of stops with `id`, `name`, `type`, `lines`, `location` and optional `distance` | HERE `/v8/stations` |
+| `/api/departures` | `stopId`; optional paired `lineName`, `direction` | Array of departures with `time`, `realTime`, `delay` and optional line metadata | HERE `/v8/departures` |
+| `/api/directions` | `from=lat,lon`, `to=lat,lon` | `{geometry, duration, distance}`; GeoJSON LineString, seconds, metres | Mapbox walking directions |
 
-## Design System
+The station limit is 50 and the departure limit is four. Cache headers are 24 hours for nearby stops, 30 seconds for departures and one hour for directions. They do not trigger client refreshes. Do not assume every operator supplies realtime data.
 
-- Full light/dark mode via CSS custom properties (`--color-bg-primary`, `--color-text-primary`, etc.)
-- Dark mode: auto-detected via `prefers-color-scheme` media query
-- Map styles switch between `light-v11` and `dark-v11`
-- Max width 430px, centered on desktop
-- iOS system font stack
+The website root `/` returns a plain-text notice that Departs is now an iOS app. It performs no provider calls. React remains a Next.js runtime dependency, but no React pages, browser maps, geolocation hooks, or browser test suite remain.
 
-## Data Flow
+## Development and verification
 
-```
-Browser Geolocation → useGeolocation hook
-    ↓
-/api/stops/nearby → HERE /v8/stations → transformStations → useNearbyStops
-    ↓ (user taps stop)
-/api/departures → HERE /v8/departures → transformDepartures → useDepartures
-/api/directions → Mapbox Directions → flat {geometry, duration, distance} → useDepartures
-```
+Use the commands in [AGENTS.md](AGENTS.md). The backend uses Vitest in Node with MSW intercepting external providers. Native tests live in `ios/Departs/DepartsTests/`. Mocked tests require no real keys; live backend calls require `HERE_API_KEY` and `MAPBOX_SECRET_TOKEN`.
 
-## iOS App
+Running the backend locally does not redirect `APIService`: the iOS app still uses the production host. Verify local HTTP responses separately and run native integration checks against the intended backend before distribution. Keep credentials out of test output.
 
-Native SwiftUI companion app that reuses the Vercel backend (no API keys on device). Zero third-party dependencies — MapKit for maps, CoreLocation for location, URLSession for networking.
+Vercel deploys the backend from `main`. An iOS release is a separate Xcode/TestFlight/App Store operation. Deploying the backend does not update installed Swift code.
 
-- `NavigationStack` with `.navigationDestination(item:)` for native push/pop transitions and swipe-back gesture
-- Same 2-screen flow as web app: nearby stops → departure detail
-- Inline "Departs" navigation title on both screens
-- Content cards with `UnevenRoundedRectangle` rounded top corners and subtle shadow separating map from list
-- Pull-to-refresh on stops list to re-request location and reload stops
-- Edge-to-edge 5:4 aspect ratio maps on both screens
-- MapKit `.mutedStandard` with automatic dark mode
-- `UIViewRepresentable` MKMapView for custom annotations (30pt colored pins, pulsing user dot, dashed route)
-- Detail map uses `MapContainerView` (UIView wrapper) to defer `setRegion` in `layoutSubviews` — solves zero-frame timing during NavigationStack transitions
-- Detail map loads route and departures in parallel — map shows user + stop immediately
-- Per-stop pastel colors (same 10-color palette as web)
-- `APIService` actor with 3 async methods calling `departs.vercel.app/api/*`
-- Time formatting uses device locale (respects 12h/24h setting)
-- Relative departure times ("Now", "in 3 min") via `TimeFormatter.relativeTime(_:)`
-- `Departure.id` uses UUID (not time string) to avoid duplicate identity warnings
-- App icon included (dark charcoal with app name and transit line motif)
-- Bundle ID: `app.departs.Departs`, iPhone-only target
+## Current priorities
 
-## Current Status
-
-- Core functionality working: geolocation, nearby stops, departure fetching, walking directions
-- Design system fully implemented with light/dark mode
-- Custom map markers rendering (blue dot, stop pins with letters, walking route)
-- iOS design polish complete: NavigationStack navigation, content cards, relative times, skeleton loading, haptic feedback
-- 129 web unit tests passing, 8 iOS unit tests passing, production build succeeds
-- Deployed to Vercel at https://departs.vercel.app
-- iOS app ready for TestFlight (archive builds, app icon, signed)
-
-## Known Considerations
-
-- HERE API free tier: 5,000 transactions/month
-- Mapbox free tier: 50,000 map loads/month, 100,000 direction requests/month
-- Departures endpoint may return 500 for some stop ID formats — IDs are now URL-encoded
-- `useDepartures` resets state (departures, walkingRoute, error) when navigating back (stopId → null)
-- E2e tests exist in `e2e/` but require browser setup via Playwright
+See [the iOS roadmap](docs/ios-roadmap.md). The [dated audit](docs/reviews/2026-11-15-project-audit.md) records the state before the iOS-only decision. Designs under `docs/archive/web/` are historical and are not implementation requirements.
