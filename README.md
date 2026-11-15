@@ -2,6 +2,8 @@
 
 Departs is a native iOS app for finding nearby public transport, checking the next departures, and walking to the stop. It uses SwiftUI and MapKit on iOS 17 and later, with no accounts or third-party iOS dependencies.
 
+The opening screen shows the next two departures for nearby lines, walking time, and conservative leave-time guidance. Saved results appear immediately while location and transit data refresh. Pin a stop and direction for repeat trips, open it through App Shortcuts, or choose an area when location is unavailable. Maps are available on demand.
+
 Development focuses exclusively on iOS. The browser app is retired; this repository retains the Next.js API backend that the iOS app needs. The website root returns a short retirement notice.
 
 ## Project layout
@@ -22,7 +24,9 @@ Open `ios/Departs/Departs.xcodeproj` in Xcode and select the Departs scheme. Bui
 xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
 ```
 
-`APIService` calls `https://departs.vercel.app/api/`. Running the local backend does not redirect the app automatically. API keys stay on the server.
+`APIService` calls `https://departs.vercel.app/api/`. In a Debug scheme, set `DEPARTS_API_BASE_URL=http://localhost:3000` to test a local backend; release builds ignore this environment override. API keys stay on the server.
+
+The scheme runs unit tests and UI tests. UI tests serve their own local transit fixtures, simulate location, and use isolated preferences; they do not require provider keys. Screenshots are attached to the Xcode test report. See [native behavior and verification](docs/ios-fast-answers.md) for cache, refresh, Shortcuts, and release details.
 
 ## Backend development
 

@@ -6,5 +6,21 @@
 	<string>AppIcon</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Departs needs your location to find nearby transit stops and show walking directions.</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>app.departs.pinned-route</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>departs</string>
+			</array>
+		</dict>
+	</array>
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 </dict>
 </plist>

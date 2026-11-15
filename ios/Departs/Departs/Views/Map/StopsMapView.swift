@@ -5,11 +5,12 @@ struct StopsMapView: UIViewRepresentable {
     let userCoordinate: CLLocationCoordinate2D
     let stops: [NearbyStop]
     let stopColors: [String: Color]
+    var radius: Int = 400
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
-        map.isScrollEnabled = false
-        map.isZoomEnabled = false
+        map.isScrollEnabled = true
+        map.isZoomEnabled = true
         map.isRotateEnabled = false
         map.isPitchEnabled = false
         map.showsUserLocation = true
@@ -21,14 +22,15 @@ struct StopsMapView: UIViewRepresentable {
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.stopColors = stopColors
 
-        if !Self.coordinatesEqual(context.coordinator.regionCenter, userCoordinate) {
+        if !Self.coordinatesEqual(context.coordinator.regionCenter, userCoordinate) || context.coordinator.radius != radius {
             let region = MKCoordinateRegion(
                 center: userCoordinate,
-                latitudinalMeters: 800,
-                longitudinalMeters: 800
+                latitudinalMeters: Double(radius) * 2.4,
+                longitudinalMeters: Double(radius) * 2.4
             )
             map.setRegion(region, animated: false)
             context.coordinator.regionCenter = userCoordinate
+            context.coordinator.radius = radius
         }
 
         Self.syncStopAnnotations(on: map, stops: stops)
@@ -101,6 +103,7 @@ struct StopsMapView: UIViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate {
         var stopColors: [String: Color]
         var regionCenter: CLLocationCoordinate2D?
+        var radius: Int?
 
         init(stopColors: [String: Color]) {
             self.stopColors = stopColors

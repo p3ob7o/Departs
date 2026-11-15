@@ -1,146 +1,141 @@
 import SwiftUI
 
 struct NearbyStopsView: View {
-    let userCoordinate: Coordinate
-    let stops: [NearbyStop]
-    let stopColors: [String: Color]
-    var isLoading: Bool = false
-    let onSelectStopLine: (StopLineSelection) -> Void
-    var onRefresh: (() async -> Void)?
+    @Bindable var store: TransitStore
+    let locationState: LocationService.State
+    let onSelect: (StopLineSelection) -> Void
+    let onSearch: () -> Void
+    let onLocate: () -> Void
+    let onRefresh: () async -> Void
+    @State private var showingMap = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Map (5:4 aspect ratio)
-            StopsMapView(
-                userCoordinate: userCoordinate.clLocationCoordinate2D,
-                stops: stops,
-                stopColors: stopColors
-            )
-            .aspectRatio(5.0 / 4.0, contentMode: .fit)
-            .frame(maxWidth: .infinity)
-            .clipped()
-            .ignoresSafeArea(edges: .horizontal)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 16) {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("What’s leaving?").font(.largeTitle.bold())
+                    Text(areaLabel).font(.subheadline).foregroundStyle(.secondary)
+                }
+                .accessibilityElement(children: .combine)
 
-            // Content card
-            Group {
-                if isLoading && stops.isEmpty {
-                    VStack(spacing: 0) {
-                        sectionHeader
-
-                        ForEach(0..<5, id: \.self) { _ in
-                            SkeletonRowView()
-                            Divider()
-                                .padding(.leading, 52)
-                        }
-                    }
-                    .padding(.horizontal, 16)
-                } else if stops.isEmpty {
-                    VStack(spacing: 8) {
-                        Text("No public transit stops nearby")
-                            .font(.system(size: 17, weight: .semibold))
-                            .foregroundStyle(Color(.label))
-
-                        Text("We couldn't find any stops nearby. Try moving to a different area.")
-                            .font(.system(size: 15))
-                            .foregroundStyle(Color(.secondaryLabel))
-                            .multilineTextAlignment(.center)
-                    }
-                    .padding(32)
-                    .frame(maxHeight: .infinity)
-                } else {
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            sectionHeader
-
-                            ForEach(lineSelections) { selection in
-                                Button {
-                                    UIImpactFeedbackGenerator(style: .light).impactOccurred()
-                                    onSelectStopLine(selection)
-                                } label: {
-                                    StopRowView(
-                                        stop: selection.stop,
-                                        line: selection.line,
-                                        color: stopColors[selection.stop.id] ?? Color(.systemGray)
-                                    )
-                                }
-                                .buttonStyle(HighlightButtonStyle())
-
-                                Divider()
-                                    .padding(.leading, 52)
-                            }
-                        }
-                        .padding(.horizontal, 16)
-                    }
-                    .refreshable {
-                        await onRefresh?()
+                HStack(spacing: 12) {
+                    Button(action: onSearch) { Label("Choose area", systemImage: "magnifyingglass").frame(minHeight: 44) }
+                        .accessibilityIdentifier("choose-area")
+                    Spacer()
+                    Button(action: onLocate) { Image(systemName: "location.fill").frame(width: 44, height: 44) }
+                        .accessibilityLabel("Use my location")
+                    if store.area != nil {
+                        Button { showingMap = true } label: { Image(systemName: "map").frame(width: 44, height: 44) }
+                            .accessibilityLabel("Show nearby map")
                     }
                 }
+
+                Picker("Routes", selection: $store.favoritesOnly) {
+                    Text("Nearby").tag(false)
+                    Text("Pinned (\(store.pins.count))").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .accessibilityIdentifier("route-filter")
+
+                if let message = statusMessage {
+                    Label(message, systemImage: "info.circle")
+                        .font(.subheadline).foregroundStyle(.secondary)
+                        .accessibilityIdentifier("location-status")
+                }
+                if let error = store.stopsError, !store.favoritesOnly {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(error).font(.subheadline)
+                        Button("Try again") { Task { await onRefresh() } }.frame(minHeight: 44)
+                    }.padding().background(.background, in: RoundedRectangle(cornerRadius: 16))
+                }
+
+                if store.visibleSelections.isEmpty {
+                    emptyContent
+                } else {
+                    TimelineView(.periodic(from: .now, by: 15)) { timeline in
+                        LazyVStack(spacing: 12) {
+                            ForEach(store.visibleSelections) { selection in
+                                StopRowView(selection: selection,
+                                            board: store.boards[selection.id],
+                                            walk: store.walk(for: selection.stop, at: timeline.date),
+                                            advice: store.advice(for: selection, at: timeline.date),
+                                            loading: store.loadingBoards.contains(selection.id),
+                                            failed: store.boardErrors.contains(selection.id),
+                                            fresh: store.isBoardFresh(for: selection, at: timeline.date),
+                                            fromCurrentLocation: store.location?.isUsable(at: timeline.date) == true,
+                                            pinned: store.isPinned(selection), now: timeline.date,
+                                            onOpen: { onSelect(selection) },
+                                            onPin: { store.togglePin(selection) })
+                            }
+                        }
+                    }
+                    if store.selections.count > store.visibleLimit {
+                        Button("More nearby options") { store.showMore() }
+                            .frame(maxWidth: .infinity, minHeight: 48)
+                    }
+                    if store.favoritesOnly {
+                        Text("Your pinned routes are also available in the Shortcuts app.")
+                            .font(.footnote).foregroundStyle(.secondary)
+                    }
+                }
+                if store.canSearchFarther && !store.favoritesOnly {
+                    Button("Search farther · \(store.radius == 400 ? "800 m" : "1.6 km")") {
+                        Task { await store.searchFarther() }
+                    }
+                    .buttonStyle(.bordered).frame(maxWidth: .infinity, minHeight: 48)
+                    .disabled(store.isLoadingStops)
+                    .accessibilityIdentifier("search-farther")
+                }
             }
-            .frame(maxHeight: .infinity)
-            .background(Color(.systemBackground))
-            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 12, topTrailingRadius: 12))
-            .shadow(color: .black.opacity(0.1), radius: 3, y: -1)
+            .padding(16)
         }
         .background(Color(.systemGroupedBackground))
-        .navigationTitle("Departs")
-        .navigationBarTitleDisplayMode(.inline)
-    }
-
-    private var lineSelections: [StopLineSelection] {
-        stops.flatMap(\.lineSelections)
-    }
-
-    private var sectionHeader: some View {
-        Text("NEARBY STOPS")
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(Color(.secondaryLabel))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 16)
-            .padding(.bottom, 8)
-    }
-}
-
-private struct SkeletonRowView: View {
-    var body: some View {
-        HStack(spacing: 12) {
-            Circle()
-                .fill(Color(.systemGray5))
-                .frame(width: 36, height: 36)
-
-            VStack(alignment: .leading, spacing: 6) {
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(.systemGray5))
-                    .frame(width: 120, height: 14)
-
-                RoundedRectangle(cornerRadius: 4)
-                    .fill(Color(.systemGray6))
-                    .frame(width: 180, height: 12)
+        .refreshable { await onRefresh() }
+        .navigationTitle("Departs").navigationBarTitleDisplayMode(.inline)
+        .sheet(isPresented: $showingMap) {
+            if let area = store.area {
+                NavigationStack {
+                    StopsMapView(userCoordinate: area.coordinate.clLocationCoordinate2D,
+                                 stops: store.stops,
+                                 stopColors: Dictionary(uniqueKeysWithValues: store.stops.enumerated().map { ($0.element.id, StopPalette.color(at: $0.offset)) }), radius: store.radius)
+                    .navigationTitle("Nearby stops").navigationBarTitleDisplayMode(.inline)
+                    .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { showingMap = false } } }
+                }
             }
-
-            Spacer()
         }
-        .padding(.vertical, 16)
     }
-}
 
-private struct HighlightButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .background(configuration.isPressed ? Color(.systemGray5) : .clear)
+    private var areaLabel: String {
+        guard let area = store.area else { return "Find a departure. Know when to leave." }
+        let title = area.source == .chosen ? "Near \(area.name)" : (store.location == nil ? "Last searched area" : "Near you")
+        return "\(title) · within \(store.radius < 1000 ? "\(store.radius) m" : "1.6 km")"
     }
-}
 
-#if DEBUG
-#Preview {
-    NavigationStack {
-        NearbyStopsView(
-            userCoordinate: PreviewData.userCoordinate,
-            stops: PreviewData.stops,
-            stopColors: Dictionary(uniqueKeysWithValues: PreviewData.stops.enumerated().map {
-                ($0.element.id, StopPalette.color(at: $0.offset))
-            }),
-            onSelectStopLine: { _ in }
-        )
+    private var statusMessage: String? {
+        switch locationState {
+        case .requesting: return store.area == nil ? "Finding your location… You can choose an area now." : "Updating your location…"
+        case .denied: return "Location is off. Choose an area or use a pinned route."
+        case .failed: return "Couldn't find your location. Choose an area to continue."
+        default:
+            if store.area?.source == .chosen { return "Stops are near your chosen area. Walking advice uses your current location when available." }
+            if store.location == nil, store.area != nil { return "Showing your last area while location updates." }
+            return nil
+        }
+    }
+
+    @ViewBuilder private var emptyContent: some View {
+        if store.favoritesOnly {
+            ContentUnavailableView("Your regular routes, one tap away", systemImage: "pin",
+                                   description: Text("Tap the pin on a nearby line to save this stop and direction. No account needed."))
+        } else if store.isLoadingStops {
+            HStack { ProgressView(); Text("Finding nearby options…").foregroundStyle(.secondary) }
+                .frame(maxWidth: .infinity, minHeight: 80)
+        } else if store.area != nil {
+            ContentUnavailableView("No stops in this area", systemImage: "tram",
+                                   description: Text("Search farther or choose a different area."))
+        } else {
+            ContentUnavailableView("Where are you heading from?", systemImage: "location.magnifyingglass",
+                                   description: Text("Use your location or search for a stop, address, or place."))
+        }
     }
 }
-#endif

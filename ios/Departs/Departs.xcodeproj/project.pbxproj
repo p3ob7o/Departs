@@ -17,15 +17,10 @@
 		F1000008 /* WalkingRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000008 /* WalkingRoute.swift */; };
 		F1000009 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000009 /* APIService.swift */; };
 		F100000A /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000A /* LocationService.swift */; };
-		F100000B /* NearbyStopsViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000B /* NearbyStopsViewModel.swift */; };
-		F100000C /* DepartureDetailViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000C /* DepartureDetailViewModel.swift */; };
 		F100000D /* NearbyStopsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000D /* NearbyStopsView.swift */; };
 		F100000E /* DepartureDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000E /* DepartureDetailView.swift */; };
 		F100000F /* StopRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000F /* StopRowView.swift */; };
-		F1000010 /* DepartureRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000010 /* DepartureRowView.swift */; };
 		F1000011 /* TransportIconView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000011 /* TransportIconView.swift */; };
-		F1000012 /* LoadingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000012 /* LoadingView.swift */; };
-		F1000013 /* ErrorView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000013 /* ErrorView.swift */; };
 		F1000014 /* StopsMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000014 /* StopsMapView.swift */; };
 		F1000015 /* RouteMapView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000015 /* RouteMapView.swift */; };
 		F1000016 /* StopPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000016 /* StopPalette.swift */; };
@@ -33,6 +28,13 @@
 		F1000018 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000018 /* Color+Hex.swift */; };
 		F1000019 /* PreviewData.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000019 /* PreviewData.swift */; };
 		F100001A /* DepartsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100001A /* DepartsTests.swift */; };
+		F1000020 /* TransitState.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000020 /* TransitState.swift */; };
+		F1000021 /* TransitPersistence.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000021 /* TransitPersistence.swift */; };
+		F1000022 /* TransitStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000022 /* TransitStore.swift */; };
+		F1000023 /* AreaSearchView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000023 /* AreaSearchView.swift */; };
+		F1000024 /* PinnedRouteShortcuts.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000024 /* PinnedRouteShortcuts.swift */; };
+		F1000025 /* FastDepartureTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000025 /* FastDepartureTests.swift */; };
+		F1000026 /* DepartsUITests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000026 /* DepartsUITests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -56,15 +58,10 @@
 		E1000008 /* WalkingRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalkingRoute.swift; sourceTree = "<group>"; };
 		E1000009 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
 		E100000A /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
-		E100000B /* NearbyStopsViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearbyStopsViewModel.swift; sourceTree = "<group>"; };
-		E100000C /* DepartureDetailViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepartureDetailViewModel.swift; sourceTree = "<group>"; };
 		E100000D /* NearbyStopsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearbyStopsView.swift; sourceTree = "<group>"; };
 		E100000E /* DepartureDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepartureDetailView.swift; sourceTree = "<group>"; };
 		E100000F /* StopRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopRowView.swift; sourceTree = "<group>"; };
-		E1000010 /* DepartureRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepartureRowView.swift; sourceTree = "<group>"; };
 		E1000011 /* TransportIconView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransportIconView.swift; sourceTree = "<group>"; };
-		E1000012 /* LoadingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoadingView.swift; sourceTree = "<group>"; };
-		E1000013 /* ErrorView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ErrorView.swift; sourceTree = "<group>"; };
 		E1000014 /* StopsMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopsMapView.swift; sourceTree = "<group>"; };
 		E1000015 /* RouteMapView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RouteMapView.swift; sourceTree = "<group>"; };
 		E1000016 /* StopPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopPalette.swift; sourceTree = "<group>"; };
@@ -75,6 +72,14 @@
 		E100001B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		E100001C /* Departs.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Departs.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		E100001D /* DepartsTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DepartsTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		E1000020 /* TransitState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitState.swift; sourceTree = "<group>"; };
+		E1000021 /* TransitPersistence.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitPersistence.swift; sourceTree = "<group>"; };
+		E1000022 /* TransitStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TransitStore.swift; sourceTree = "<group>"; };
+		E1000023 /* AreaSearchView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AreaSearchView.swift; sourceTree = "<group>"; };
+		E1000024 /* PinnedRouteShortcuts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PinnedRouteShortcuts.swift; sourceTree = "<group>"; };
+		E1000025 /* FastDepartureTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FastDepartureTests.swift; sourceTree = "<group>"; };
+		E1000026 /* DepartsUITests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepartsUITests.swift; sourceTree = "<group>"; };
+		E1000027 /* DepartsUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = DepartsUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -92,6 +97,7 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		B2000003 /* Frameworks */ = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
@@ -100,6 +106,7 @@
 			children = (
 				G1000002 /* Departs */,
 				G100000B /* DepartsTests */,
+				G100000D /* DepartsUITests */,
 				G100000C /* Products */,
 			);
 			sourceTree = "<group>";
@@ -123,6 +130,7 @@
 		G1000003 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				E1000020 /* TransitState.swift */,
 				E1000004 /* TransportType.swift */,
 				E1000005 /* LineInfo.swift */,
 				E1000006 /* NearbyStop.swift */,
@@ -135,6 +143,8 @@
 		G1000004 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				E1000024 /* PinnedRouteShortcuts.swift */,
+				E1000021 /* TransitPersistence.swift */,
 				E1000009 /* APIService.swift */,
 				E100000A /* LocationService.swift */,
 			);
@@ -144,8 +154,7 @@
 		G1000005 /* ViewModels */ = {
 			isa = PBXGroup;
 			children = (
-				E100000B /* NearbyStopsViewModel.swift */,
-				E100000C /* DepartureDetailViewModel.swift */,
+				E1000022 /* TransitStore.swift */,
 			);
 			path = ViewModels;
 			sourceTree = "<group>";
@@ -153,14 +162,12 @@
 		G1000006 /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				E1000023 /* AreaSearchView.swift */,
 				E1000002 /* ContentView.swift */,
 				E100000D /* NearbyStopsView.swift */,
 				E100000E /* DepartureDetailView.swift */,
 				E100000F /* StopRowView.swift */,
-				E1000010 /* DepartureRowView.swift */,
 				E1000011 /* TransportIconView.swift */,
-				E1000012 /* LoadingView.swift */,
-				E1000013 /* ErrorView.swift */,
 				G1000007 /* Map */,
 			);
 			path = Views;
@@ -196,6 +203,7 @@
 		G100000B /* DepartsTests */ = {
 			isa = PBXGroup;
 			children = (
+				E1000025 /* FastDepartureTests.swift */,
 				E100001A /* DepartsTests.swift */,
 			);
 			path = DepartsTests;
@@ -206,10 +214,12 @@
 			children = (
 				E100001C /* Departs.app */,
 				E100001D /* DepartsTests.xctest */,
+				E1000027 /* DepartsUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
+		G100000D /* DepartsUITests */ = {isa = PBXGroup; children = (E1000026 /* DepartsUITests.swift */,); path = DepartsUITests; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -247,6 +257,17 @@
 			productReference = E100001D /* DepartsTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
 		};
+		D1000003 /* DepartsUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = X1000007 /* Build configuration list for PBXNativeTarget "DepartsUITests" */;
+			buildPhases = (S1000003 /* Sources */, B2000003 /* Frameworks */,);
+			buildRules = ();
+			dependencies = (DEP00001 /* PBXTargetDependency */,);
+			name = DepartsUITests;
+			productName = DepartsUITests;
+			productReference = E1000027 /* DepartsUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
+		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -257,6 +278,7 @@
 				LastSwiftUpdateCheck = 1600;
 				LastUpgradeCheck = 1600;
 				TargetAttributes = {
+					D1000003 = { CreatedOnToolsVersion = 16.0; TestTargetID = D1000001; };
 					D1000001 = {
 						CreatedOnToolsVersion = 16.0;
 					};
@@ -281,6 +303,7 @@
 			targets = (
 				D1000001 /* Departs */,
 				D1000002 /* DepartsTests */,
+				D1000003 /* DepartsUITests */,
 			);
 		};
 /* End PBXProject section */
@@ -301,6 +324,11 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F1000024 /* PinnedRouteShortcuts.swift in Sources */,
+				F1000023 /* AreaSearchView.swift in Sources */,
+				F1000022 /* TransitStore.swift in Sources */,
+				F1000021 /* TransitPersistence.swift in Sources */,
+				F1000020 /* TransitState.swift in Sources */,
 				F1000001 /* DepartsApp.swift in Sources */,
 				F1000002 /* ContentView.swift in Sources */,
 				F1000004 /* TransportType.swift in Sources */,
@@ -310,15 +338,10 @@
 				F1000008 /* WalkingRoute.swift in Sources */,
 				F1000009 /* APIService.swift in Sources */,
 				F100000A /* LocationService.swift in Sources */,
-				F100000B /* NearbyStopsViewModel.swift in Sources */,
-				F100000C /* DepartureDetailViewModel.swift in Sources */,
 				F100000D /* NearbyStopsView.swift in Sources */,
 				F100000E /* DepartureDetailView.swift in Sources */,
 				F100000F /* StopRowView.swift in Sources */,
-				F1000010 /* DepartureRowView.swift in Sources */,
 				F1000011 /* TransportIconView.swift in Sources */,
-				F1000012 /* LoadingView.swift in Sources */,
-				F1000013 /* ErrorView.swift in Sources */,
 				F1000014 /* StopsMapView.swift in Sources */,
 				F1000015 /* RouteMapView.swift in Sources */,
 				F1000016 /* StopPalette.swift in Sources */,
@@ -332,10 +355,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				F1000025 /* FastDepartureTests.swift in Sources */,
 				F100001A /* DepartsTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		S1000003 /* Sources */ = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (F1000026 /* DepartsUITests.swift in Sources */,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
@@ -578,6 +603,34 @@
 			};
 			name = Release;
 		};
+		X2000007 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.departs.DepartsUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Departs;
+			};
+			name = Debug;
+		};
+		X2000008 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				PRODUCT_BUNDLE_IDENTIFIER = app.departs.DepartsUITests;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = Departs;
+			};
+			name = Release;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -608,6 +661,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
+		X1000007 /* Build configuration list for PBXNativeTarget "DepartsUITests" */ = {isa = XCConfigurationList; buildConfigurations = (X2000007 /* Debug */, X2000008 /* Release */,); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
 /* End XCConfigurationList section */
 	};
 	rootObject = A1000001 /* Project object */;

@@ -8,6 +8,14 @@ struct Coordinate: Codable, Hashable {
     var clLocationCoordinate2D: CLLocationCoordinate2D {
         CLLocationCoordinate2D(latitude: lat, longitude: lon)
     }
+
+    func distance(to other: Coordinate) -> Double {
+        CLLocation(latitude: lat, longitude: lon).distance(from: CLLocation(latitude: other.lat, longitude: other.lon))
+    }
+
+    var isValid: Bool {
+        lat.isFinite && lon.isFinite && (-90...90).contains(lat) && (-180...180).contains(lon)
+    }
 }
 
 struct NearbyStop: Codable, Identifiable, Hashable {
@@ -19,20 +27,23 @@ struct NearbyStop: Codable, Identifiable, Hashable {
     let distance: Int?
 }
 
-struct StopLineSelection: Identifiable, Hashable {
+struct StopLineSelection: Codable, Identifiable, Hashable {
     let stop: NearbyStop
     let line: LineInfo
     let lineIndex: Int
 
     var id: String {
-        "\(stop.id)::\(lineIndex)::\(line.id)"
+        // Provider ordering can change between refreshes. Pins identify the service, not its array index.
+        [stop.id, line.type.rawValue, line.name, line.direction]
+            .map { "\($0.utf8.count):\($0)" }.joined()
     }
 }
 
 extension NearbyStop {
     var lineSelections: [StopLineSelection] {
-        lines.enumerated().map { index, line in
+        var seen = Set<String>()
+        return lines.enumerated().map { index, line in
             StopLineSelection(stop: self, line: line, lineIndex: index)
-        }
+        }.filter { seen.insert($0.id).inserted }
     }
 }
