@@ -2,7 +2,7 @@
 
 ## Overview
 
-Departs is a mobile-first web app that shows nearby public transit stops and real-time departure times. It uses the browser's geolocation to find stops within 250m, displays them on a map, and shows upcoming departures when a stop is selected.
+Departs is a mobile-first web app that shows nearby public transit stops and real-time departure times. It uses the browser's geolocation to find stops within 400m, displays them on a map, and shows upcoming departures when a stop is selected.
 
 ## Tech Stack
 
@@ -23,7 +23,7 @@ Departs is a mobile-first web app that shows nearby public transit stops and rea
 ```
 app/
 ├── api/
-│   ├── departures/route.ts      # Proxy → HERE /v8/boards
+│   ├── departures/route.ts      # Proxy → HERE /v8/departures
 │   ├── directions/route.ts      # Proxy → Mapbox Directions
 │   └── stops/nearby/route.ts    # Proxy → HERE /v8/stations
 ├── components/
@@ -99,7 +99,7 @@ Browser Geolocation → useGeolocation hook
     ↓
 /api/stops/nearby → HERE /v8/stations → transformStations → useNearbyStops
     ↓ (user taps stop)
-/api/departures → HERE /v8/boards → transformDepartures → useDepartures
+/api/departures → HERE /v8/departures → transformDepartures → useDepartures
 /api/directions → Mapbox Directions → flat {geometry, duration, distance} → useDepartures
 ```
 

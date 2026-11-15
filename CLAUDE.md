@@ -63,7 +63,7 @@ HERE_API_KEY=*                   # Server-side transit data
 
 ## External APIs
 
-- **HERE Transit v8**: `/v8/stations` (nearby stops), `/v8/boards` (departures). Stop IDs must be URL-encoded.
+- **HERE Transit v8**: `/v8/stations` (nearby stops), `/v8/departures` (departures). Stop IDs must be URL-encoded.
 - **Mapbox Directions**: Walking profile. API route unwraps `routes[0]` before returning to client.
 - **Mapbox GL JS**: `light-v11` / `dark-v11` styles via `react-map-gl`
 
