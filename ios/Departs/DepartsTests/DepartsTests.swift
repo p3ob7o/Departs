@@ -153,102 +153,16 @@ final class DepartsTests: XCTestCase {
         XCTAssertEqual(queryItems?.first { $0.name == "direction" }?.value, "Hässelby strand")
     }
 
-    // MARK: - ViewModels
-
-    @MainActor
-    func testNearbyStopsViewModelCachesStopColorsWhenStopsChange() async throws {
-        let viewModel = NearbyStopsViewModel()
-        let stops = [
-            NearbyStop(
-                id: "stop-1",
-                name: "Central Station",
-                type: .subway,
-                lines: [LineInfo(name: "U2", direction: "Pankow", type: .subway)],
-                location: Coordinate(lat: 52.52, lon: 13.405),
-                distance: 120
-            ),
-            NearbyStop(
-                id: "stop-2",
-                name: "Market Square",
-                type: .tram,
-                lines: [LineInfo(name: "M1", direction: "Rosenthal", type: .tram)],
-                location: Coordinate(lat: 52.521, lon: 13.406),
-                distance: 85
-            )
-        ]
-
-        await viewModel.loadStops(near: Coordinate(lat: 52.52, lon: 13.405)) { _, _ in stops }
-
-        XCTAssertEqual(viewModel.stopColors["stop-1"], StopPalette.color(at: 0))
-        XCTAssertEqual(viewModel.stopColors["stop-2"], StopPalette.color(at: 1))
+    func testRelativeTimeAdvancesWithTheClock() {
+        let departure = "2026-11-15T10:02:00Z"
+        XCTAssertEqual(TimeFormatter.relativeTime(departure, now: TimeFormatter.parseISO("2026-11-15T10:00:00Z")!), "in 2 min")
+        XCTAssertEqual(TimeFormatter.relativeTime(departure, now: TimeFormatter.parseISO("2026-11-15T10:01:00Z")!), "in 1 min")
+        XCTAssertEqual(TimeFormatter.relativeTime(departure, now: TimeFormatter.parseISO(departure)!), "Now")
+        XCTAssertEqual(TimeFormatter.relativeTime(departure, now: TimeFormatter.parseISO("2026-11-15T10:03:00Z")!), "Departed")
     }
 
-    @MainActor
-    func testDepartureDetailViewModelKeepsDeparturesWhenRouteFails() async {
-        let viewModel = DepartureDetailViewModel()
-        let line = LineInfo(name: "U2", direction: "Pankow", type: .subway)
-        let expectedDepartures = [
-            Departure(
-                time: "2026-02-17T14:45:00+02:00",
-                realTime: true,
-                delay: 120,
-                line: line
-            )
-        ]
-
-        await viewModel.load(
-            stopId: "stop-1",
-            line: line,
-            from: Coordinate(lat: 52.52, lon: 13.405),
-            to: Coordinate(lat: 52.521, lon: 13.406),
-            fetchDepartures: { _, _ in expectedDepartures },
-            fetchDirections: { _, _ in throw APIError.requestFailed }
-        )
-
-        XCTAssertEqual(viewModel.departures.count, 1)
-        XCTAssertNil(viewModel.walkingRoute)
-        XCTAssertNil(viewModel.error)
-        XCTAssertFalse(viewModel.isLoading)
-    }
-
-    @MainActor
-    func testDepartureDetailViewModelShowsDeparturesBeforeSlowRouteFinishes() async {
-        let viewModel = DepartureDetailViewModel()
-        let line = LineInfo(name: "U2", direction: "Pankow", type: .subway)
-        let expectedDepartures = [
-            Departure(time: "2026-02-17T14:45:00+02:00", realTime: true, delay: nil, line: line)
-        ]
-        let route = WalkingRoute(
-            geometry: GeoJSONLineString(
-                type: "LineString",
-                coordinates: [[13.405, 52.52], [13.406, 52.521]]
-            ),
-            duration: 120,
-            distance: 180
-        )
-
-        let loadTask = Task { @MainActor in
-            await viewModel.load(
-                stopId: "stop-1",
-                line: line,
-                from: Coordinate(lat: 52.52, lon: 13.405),
-                to: Coordinate(lat: 52.521, lon: 13.406),
-                fetchDepartures: { _, _ in expectedDepartures },
-                fetchDirections: { _, _ in
-                    try await Task.sleep(nanoseconds: 200_000_000)
-                    return route
-                }
-            )
-        }
-
-        await Task.yield()
-
-        XCTAssertEqual(viewModel.departures.count, 1)
-        XCTAssertFalse(viewModel.isLoading)
-        XCTAssertNil(viewModel.walkingRoute)
-
-        await loadTask.value
-        XCTAssertNotNil(viewModel.walkingRoute)
+    func testRelativeTimeDoesNotCallAnOldDepartureNow() {
+        XCTAssertEqual(TimeFormatter.relativeTime("2024-01-15T10:00:00Z"), "Departed")
     }
 
     // MARK: - StopPalette

@@ -1,79 +1,96 @@
 import SwiftUI
 
 struct ContentView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var locationService = LocationService()
-    @State private var stopsViewModel = NearbyStopsViewModel()
-    @State private var selectedStopLine: StopLineSelection?
+    @State private var store = TransitStore()
+    @State private var selected: StopLineSelection?
+    @State private var searching = false
+    @State private var areaTask: Task<Void, Never>?
+    @State private var locationTask: Task<Void, Never>?
+    @State private var navigation = RouteNavigation.shared
+
+    private var refreshKey: String {
+        "\(scenePhase == .active)-\(selected?.id ?? "nearby")-\(store.visibleLimit)-\(store.favoritesOnly)"
+    }
 
     var body: some View {
-        Group {
-            switch locationService.state {
-            case .idle, .requesting:
-                LoadingView()
-
-            case .denied:
-                ErrorView(type: .permission) {
-                    locationService.requestLocation()
+        NavigationStack {
+            NearbyStopsView(store: store, locationState: locationService.state,
+                            onSelect: { selected = $0 }, onSearch: { searching = true },
+                            onLocate: locate, onRefresh: refresh)
+                .navigationDestination(item: $selected) { selection in
+                    DepartureDetailView(selection: selection, store: store)
                 }
-
-            case .failed:
-                ErrorView(type: .network) {
-                    locationService.requestLocation()
-                }
-
-            case .located(let coordinate):
-                if stopsViewModel.error != nil {
-                    ErrorView(type: .network) {
-                        Task {
-                            await stopsViewModel.loadStops(near: coordinate)
-                        }
-                    }
-                } else {
-                    NavigationStack {
-                        NearbyStopsView(
-                            userCoordinate: coordinate,
-                            stops: stopsViewModel.stops,
-                            stopColors: stopsViewModel.stopColors,
-                            isLoading: stopsViewModel.isLoading,
-                            onSelectStopLine: { selection in
-                                selectedStopLine = selection
-                            },
-                            onRefresh: {
-                                locationService.requestLocation()
-                                for _ in 0..<100 {
-                                    try? await Task.sleep(for: .milliseconds(100))
-                                    if case .located = locationService.state { break }
-                                }
-                                if case .located(let coord) = locationService.state {
-                                    await stopsViewModel.loadStops(near: coord)
-                                }
-                            }
-                        )
-                        .navigationDestination(item: $selectedStopLine) { selection in
-                            DepartureDetailView(
-                                stop: selection.stop,
-                                line: selection.line,
-                                stopColor: stopsViewModel.stopColors[selection.stop.id] ?? Color(.systemGray),
-                                userCoordinate: coordinate
-                            )
-                        }
-                    }
-                }
+        }
+        .sheet(isPresented: $searching) {
+            AreaSearchView(near: store.area?.coordinate) { area in
+                searching = false
+                selected = nil
+                store.favoritesOnly = false
+                locationTask?.cancel()
+                areaTask?.cancel()
+                areaTask = Task { await store.loadArea(area) }
             }
         }
-        .onAppear {
-            locationService.requestLocation()
+        .onChange(of: locationService.state) { _, state in
+            guard scenePhase == .active, case .located = state, let fix = locationService.fix else { return }
+            locationTask?.cancel()
+            locationTask = Task { await store.updateLocation(fix, showing: selected) }
         }
-        .onChange(of: locationService.state) { _, newState in
-            if case .located(let coordinate) = newState {
-                Task {
-                    await stopsViewModel.loadStops(near: coordinate)
-                }
+        .onChange(of: scenePhase) { _, phase in
+            if phase != .active { areaTask?.cancel(); locationTask?.cancel() }
+        }
+        .onChange(of: navigation.pinnedRouteID) { _, _ in openRequestedPin() }
+        .onChange(of: store.pins) { _, _ in DepartsShortcuts.updateAppShortcutParameters() }
+        .onOpenURL { url in
+            guard let key = RouteNavigation.pinID(from: url) else { return }
+            navigation.pinnedRouteID = key
+        }
+        .task(id: refreshKey) {
+            guard scenePhase == .active else { return }
+            openRequestedPin()
+            if store.location?.capturedAt.isRecent(at: .now, within: 45) != true { locationService.requestLocation() }
+            await refreshVisibleAnswers()
+            while !Task.isCancelled {
+                do { try await Task.sleep(for: .seconds(30)) } catch { break }
+                if store.location?.capturedAt.isRecent(at: .now, within: 45) != true { locationService.requestLocation() }
+                await refreshVisibleAnswers()
             }
         }
     }
+
+    private func openRequestedPin() {
+        guard let key = navigation.pinnedRouteID else { return }
+        selected = store.pins.first { $0.id == key }
+        navigation.pinnedRouteID = nil
+    }
+
+    private func refreshVisibleAnswers() async {
+        // A fix may arrive while a permission sheet temporarily makes the scene inactive.
+        if let fix = locationService.fix, fix.isUsable(at: .now) {
+            await store.updateLocation(fix, showing: selected, force: true)
+        } else if let selected { await store.refreshSelection(selected, force: true) }
+        else if let fix = store.location, fix.isUsable(at: .now) {
+            await store.updateLocation(fix, force: true)
+        } else { await store.refreshAnswers(force: true) }
+    }
+
+    private func locate() {
+        store.followsLocation = true
+        locationService.requestLocation()
+        if let fix = locationService.fix, fix.isUsable(at: .now) {
+            areaTask?.cancel()
+            locationTask?.cancel()
+            locationTask = Task { await store.updateLocation(fix) }
+        }
+    }
+
+    private func refresh() async {
+        if store.followsLocation { locationService.requestLocation() }
+        if let area = store.area { await store.loadArea(area, radius: store.radius, forceRefresh: true) }
+        else { await store.refreshAnswers(force: true) }
+    }
 }
 
-#Preview {
-    ContentView()
-}
+#Preview { ContentView() }

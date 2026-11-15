@@ -8,10 +8,13 @@ Departs answers “What is leaving near me?” in a native iOS app. The browser 
 
 The flow is:
 
-1. Request the device's location and load stops within 400 metres.
-2. Show nearby stops and their available lines/directions.
-3. Select a stop and line, then request its departures and walking route in parallel.
-4. Display up to four departures. A route failure does not hide an available departure board.
+1. Restore saved stops, boards, and pinned directions synchronously, then request location without blocking navigation.
+2. Find stops within 400 metres and load answers for the first six line/direction options. Departures and walking routes update independently, in batches of three each.
+3. Show the next two times, live/scheduled labels, walking time, and leave-time advice when the board, location, and route are fresh enough.
+4. Open a line for up to four departures and walking navigation. Both screens share one `TransitStore`, so opening a board reuses the answer already shown.
+5. Refresh the visible screen on foreground return and every 30 seconds after the previous refresh completes. Pull-to-refresh remains available. Saved times remain visible after failure, with an explicit saved-data label.
+
+Users can pin a stop plus direction, open it via App Shortcuts, choose a place using MapKit search, or expand the nearby radius to 800 then 1600 metres. A map is created only when requested. See [the native behavior guide](docs/ios-fast-answers.md) for freshness rules and verification.
 
 The API host is compiled into `Services/APIService.swift`. `URLComponents` encodes station IDs and line/direction parameters. The native `NearbyStop.distance` is optional and `LineInfo.id` is computed from the line name and direction. Previews using `PreviewData` must stay within `#if DEBUG`.
 
@@ -21,7 +24,7 @@ Next.js route handlers proxy to HERE and Mapbox and normalize their data. Provid
 
 | Endpoint | Query | Response | Provider |
 | --- | --- | --- | --- |
-| `/api/stops/nearby` | `lat`, `lon` | Array of stops with `id`, `name`, `type`, `lines`, `location` and optional `distance` | HERE `/v8/stations` |
+| `/api/stops/nearby` | `lat`, `lon`; optional `radius` in metres (100–2000, default 400, backend PR #9) | Array of stops with `id`, `name`, `type`, `lines`, `location` and optional `distance` | HERE `/v8/stations` |
 | `/api/departures` | `stopId`; optional paired `lineName`, `direction` | Array of departures with `time`, `realTime`, `delay` and optional line metadata | HERE `/v8/departures` |
 | `/api/directions` | `from=lat,lon`, `to=lat,lon` | `{geometry, duration, distance}`; GeoJSON LineString, seconds, metres | Mapbox walking directions |
 
@@ -33,7 +36,7 @@ The website root `/` returns a plain-text notice that Departs is now an iOS app.
 
 Use the commands in [AGENTS.md](AGENTS.md). The backend uses Vitest in Node with MSW intercepting external providers. Native tests live in `ios/Departs/DepartsTests/`. Mocked tests require no real keys; live backend calls require `HERE_API_KEY` and `MAPBOX_SECRET_TOKEN`.
 
-Running the backend locally does not redirect `APIService`: the iOS app still uses the production host. Verify local HTTP responses separately and run native integration checks against the intended backend before distribution. Keep credentials out of test output.
+Running the backend locally does not automatically redirect `APIService`. Set `DEPARTS_API_BASE_URL` in a Debug scheme for integration checks; release builds always use the production host unless an instance is explicitly constructed with a different base URL in code. `DEPARTS_DEFAULTS_SUITE` provides isolated preferences for Debug UI tests. Neither environment override is compiled into release builds. Keep credentials out of test output.
 
 Vercel deploys the backend from `main`. An iOS release is a separate Xcode/TestFlight/App Store operation. Deploying the backend does not update installed Swift code.
 

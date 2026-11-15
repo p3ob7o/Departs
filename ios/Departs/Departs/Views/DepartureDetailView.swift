@@ -1,113 +1,124 @@
 import SwiftUI
+import MapKit
 
 struct DepartureDetailView: View {
-    let stop: NearbyStop
-    let line: LineInfo
-    let stopColor: Color
-    let userCoordinate: Coordinate
-
-    @State private var viewModel = DepartureDetailViewModel()
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let selection: StopLineSelection
+    @Bindable var store: TransitStore
+    @State private var showingMap = false
 
     var body: some View {
-        VStack(spacing: 0) {
-            // Route map (5:4 aspect ratio)
-            RouteMapView(
-                userCoordinate: userCoordinate.clLocationCoordinate2D,
-                stop: stop,
-                stopColor: stopColor,
-                walkingRoute: viewModel.walkingRoute
-            )
-            .aspectRatio(5.0 / 4.0, contentMode: .fit)
-            .frame(maxWidth: .infinity)
-            .clipped()
-            .ignoresSafeArea(edges: .horizontal)
-
-            // Content card
+        TimelineView(.periodic(from: .now, by: 15)) { timeline in
+            let board = store.boards[selection.id]
+            let fresh = store.isBoardFresh(for: selection, at: timeline.date)
+            let advice = store.advice(for: selection, at: timeline.date)
+            let walk = store.walk(for: selection.stop, at: timeline.date)
             ScrollView {
-                VStack(alignment: .leading, spacing: 0) {
-                    // Line info (primary)
-                    Text("\(line.type.displayName) \(line.name) \u{2192} \(line.direction)")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundStyle(Color(.label))
-                        .lineLimit(2)
-
-                    // Walking time
-                    if let route = viewModel.walkingRoute {
-                        Text("\(max(1, route.walkingMinutes)) min walk")
-                            .font(.system(size: 15))
-                            .foregroundStyle(Color(.secondaryLabel))
-                            .padding(.top, 4)
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("\(selection.line.name) → \(selection.line.direction)")
+                            .font(.largeTitle.bold()).fixedSize(horizontal: false, vertical: true)
+                        Text(selection.stop.name).font(.title3).foregroundStyle(.secondary)
                     }
-
-                    // Departures section
-                    Text("DEPARTURES")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color(.secondaryLabel))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .padding(.top, 20)
-                        .padding(.bottom, 8)
-
-                    VStack(spacing: 0) {
-                        if viewModel.isLoading {
-                            HStack {
-                                ProgressView()
-                                Text("Loading departures...")
-                                    .font(.system(size: 15))
-                                    .foregroundStyle(Color(.secondaryLabel))
-                            }
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 24)
-                        } else if viewModel.error != nil {
-                            Text("Couldn't load departure times.")
-                                .font(.system(size: 15))
-                                .foregroundStyle(Color(.secondaryLabel))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 24)
-                        } else if viewModel.departures.isEmpty {
-                            Text("No upcoming departures found.")
-                                .font(.system(size: 15))
-                                .foregroundStyle(Color(.secondaryLabel))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 24)
-                        } else {
-                            ForEach(viewModel.departures) { departure in
-                                DepartureRowView(departure: departure)
-                                Divider()
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(advice.title).font(.title2.bold())
+                        Text(advice.detail).font(.subheadline).foregroundStyle(.secondary)
+                        if let walk {
+                            Label("\(max(1, walk.route.walkingMinutes)) min walk · \(Int(walk.route.distance)) m", systemImage: "figure.walk")
+                                .font(.headline)
+                            if store.location?.isUsable(at: timeline.date) != true {
+                                Text("Walking time is from the searched area, not a confirmed current location.")
+                                    .font(.caption).foregroundStyle(.secondary)
                             }
                         }
                     }
-                }
-                .padding(.horizontal, 16)
-                .padding(.top, 28)
-                .padding(.bottom, 16)
-            }
-            .background(Color(.systemBackground))
-            .clipShape(UnevenRoundedRectangle(topLeadingRadius: 12, topTrailingRadius: 12))
-            .shadow(color: .black.opacity(0.1), radius: 3, y: -1)
-        }
-        .background(Color(.systemGroupedBackground))
-        .navigationTitle("Departs")
-        .navigationBarTitleDisplayMode(.inline)
-        .task {
-            await viewModel.load(
-                stopId: stop.id,
-                line: line,
-                from: userCoordinate,
-                to: stop.location
-            )
-        }
-    }
-}
+                    .frame(maxWidth: .infinity, alignment: .leading).padding(18)
+                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
 
-#if DEBUG
-#Preview {
-    NavigationStack {
-        DepartureDetailView(
-            stop: PreviewData.stops[0],
-            line: PreviewData.stops[0].lines[0],
-            stopColor: StopPalette.colors[0],
-            userCoordinate: PreviewData.userCoordinate
-        )
+                    VStack(alignment: .leading, spacing: 12) {
+                        HStack {
+                            Text("Next departures").font(.headline)
+                            Spacer()
+                            if store.loadingBoards.contains(selection.id) { ProgressView().controlSize(.small) }
+                            Button { Task { await store.refreshSelection(selection, force: true) } } label: {
+                                Image(systemName: "arrow.clockwise").frame(width: 44, height: 44)
+                            }.accessibilityLabel("Refresh departures")
+                        }
+                        if let board {
+                            Text("\(fresh ? "Updated" : "Saved information · updated") \(board.checkedAt, style: .relative) ago")
+                            .font(.caption).foregroundStyle(fresh ? Color.secondary : Color.orange)
+                            .fixedSize(horizontal: false, vertical: true)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("board-status")
+                            let departures = board.upcoming(at: timeline.date)
+                            if departures.isEmpty {
+                                Text(fresh ? "No upcoming departures found." : "Refresh to see current departure times.")
+                                    .foregroundStyle(.secondary)
+                            }
+                            ForEach(departures) { departure in
+                                let layout = dynamicTypeSize.isAccessibilitySize
+                                    ? AnyLayout(VStackLayout(alignment: .leading, spacing: 8))
+                                    : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
+                                layout {
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(fresh ? (TimeFormatter.relativeTime(departure.time, now: timeline.date) ?? TimeFormatter.formatTime(departure.time)) : TimeFormatter.formatTime(departure.time))
+                                            .font(.title2.bold()).monospacedDigit()
+                                        if fresh, TimeFormatter.relativeTime(departure.time, now: timeline.date) != nil {
+                                            Text(TimeFormatter.formatTime(departure.time)).font(.subheadline).foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    if !dynamicTypeSize.isAccessibilitySize { Spacer() }
+                                    VStack(alignment: dynamicTypeSize.isAccessibilitySize ? .leading : .trailing, spacing: 3) {
+                                        Text(departure.realTime ? (fresh ? "Live estimate" : "Saved prediction") : "Scheduled").font(.subheadline)
+                                        if let delay = departure.delay, delay >= 60 {
+                                            Text("\(Int(ceil(delay / 60))) min late").font(.caption).foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    .fixedSize(horizontal: false, vertical: true)
+                                }.padding(.vertical, 8)
+                                Divider()
+                            }
+                        } else if store.boardErrors.contains(selection.id) {
+                            Text("Couldn't load departure times. Try refreshing.").foregroundStyle(.secondary)
+                        } else {
+                            Text("Checking departures…").foregroundStyle(.secondary)
+                        }
+                    }
+                    Button { showingMap.toggle() } label: {
+                        Label(showingMap ? "Hide route map" : "Show route map", systemImage: "map")
+                            .frame(minHeight: 44)
+                    }
+                    if showingMap, let origin = store.walkingOrigin {
+                        RouteMapView(userCoordinate: origin.clLocationCoordinate2D, stop: selection.stop,
+                                     stopColor: .accentColor, walkingRoute: walk?.route)
+                            .frame(height: 250).clipShape(RoundedRectangle(cornerRadius: 18))
+                    }
+                }.padding(16)
+            }
+            .background(Color(.systemGroupedBackground))
+            .refreshable { await store.refreshSelection(selection, force: true) }
+        }
+        .navigationTitle(selection.stop.name).navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button { store.togglePin(selection) } label: {
+                    Image(systemName: store.isPinned(selection) ? "pin.fill" : "pin").frame(width: 44, height: 44)
+                }.accessibilityLabel(store.isPinned(selection) ? "Unpin this direction" : "Pin this direction")
+            }
+        }
+        .safeAreaInset(edge: .bottom) {
+            Button {
+                let destination = MKMapItem(placemark: MKPlacemark(coordinate: selection.stop.location.clLocationCoordinate2D))
+                destination.name = selection.stop.name
+                destination.openInMaps(launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
+            } label: {
+                Label("Walking directions", systemImage: "figure.walk")
+                    .font(.headline).frame(maxWidth: .infinity, minHeight: 48)
+            }
+            .buttonStyle(.borderedProminent).padding(.horizontal, 16).padding(.vertical, 8)
+            .background(.bar)
+            .accessibilityIdentifier("walking-directions")
+        }
+        .task(id: selection.id) { await store.refreshSelection(selection) }
     }
 }
-#endif

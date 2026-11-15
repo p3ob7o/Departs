@@ -6,7 +6,11 @@ struct GeoJSONLineString: Codable, Hashable {
     let coordinates: [[Double]]
 
     var clCoordinates: [CLLocationCoordinate2D] {
-        coordinates.map { CLLocationCoordinate2D(latitude: $0[1], longitude: $0[0]) }
+        coordinates.compactMap {
+            guard $0.count >= 2 else { return nil }
+            let coordinate = Coordinate(lat: $0[1], lon: $0[0])
+            return coordinate.isValid ? coordinate.clLocationCoordinate2D : nil
+        }
     }
 }
 
@@ -16,6 +20,7 @@ struct WalkingRoute: Codable, Hashable {
     let distance: Double
 
     var walkingMinutes: Int {
-        Int((duration / 60).rounded())
+        guard duration.isFinite, duration >= 0 else { return 0 }
+        return Int(ceil(duration / 60))
     }
 }

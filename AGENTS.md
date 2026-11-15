@@ -37,7 +37,9 @@ The native MapKit map does not use a public Mapbox token. Local backend startup 
 
 - SwiftUI with `@Observable` view models, iOS 17+, zero third-party iOS dependencies.
 - MapKit through `UIViewRepresentable` wrappers, system light/dark appearance.
-- `ContentView` switches between nearby stops and a selected stop/line departure board.
+- `ContentView` owns foreground refresh and location/search navigation. One `TransitStore` supplies list and detail, restores cached boards and pins, and rejects stale area/route responses.
+- Opening answers are limited to six service options, with independently batched departures and walking routes. MapKit maps load on request.
+- App Intents expose pinned stop/direction entities through Shortcuts. Keep their stable identities independent of provider ordering.
 - `APIService` is an actor using URLSession async/await.
 - iOS structure: `Models/`, `Services/`, `ViewModels/`, `Views/`, `Utilities/`, `Preview Content/`.
 - iOS `NearbyStop.distance` is optional; `LineInfo.id` is computed from `name::direction` because provider IDs are not consistently present.
@@ -48,7 +50,7 @@ The native MapKit map does not use a public Mapbox token. Local backend startup 
 ## Testing and workflow
 
 - Backend: Vitest in Node, MSW mocks only external HERE and Mapbox calls, fixtures in `app/__tests__/fixtures/`.
-- Native: XCTest in `ios/Departs/DepartsTests/`; use a simulator for native build/test validation.
+- Native: unit XCTest in `ios/Departs/DepartsTests/`, UI flows with an in-process fixture HTTP server in `ios/Departs/DepartsUITests/`. The shared scheme runs both. Use normal simulator signing so App Intents can register correctly.
 - Run backend tests, lint and a production build for backend changes; check the affected JSON endpoints over HTTP.
 - Run native tests/build for native changes. Validate live data against the production API after deployment; test UI behavior in the iOS app.
 - After implementing a change, commit, push and open or update its PR. Record which checks ran and distinguish local/preview verification from production verification.
@@ -57,7 +59,7 @@ The native MapKit map does not use a public Mapbox token. Local backend startup 
 ## External APIs
 
 - HERE Transit v8: `/v8/stations` for nearby stops and `/v8/departures` for departures. Encode stop IDs using URL query parameters.
-- Search radius: 400 metres, up to 50 stops. Departure API supports `stopId`, plus optional paired `lineName` and `direction` filters, and returns up to four departures.
+- Search radius: 400 metres by default, up to 50 stops. Backend PR #9 adds an optional 100–2000 metre radius; native recovery steps are 400/800/1600. Departure API supports `stopId`, plus optional paired `lineName` and `direction` filters, and returns up to four departures.
 - Mapbox Directions: walking profile. The route returns the unwrapped first route as `{geometry, duration, distance}`.
 - Cache headers do not make the native client refresh automatically.
 

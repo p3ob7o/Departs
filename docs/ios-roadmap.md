@@ -1,42 +1,36 @@
 # Departs iOS roadmap
 
-## Product decision — 15 November 2026
+## Product direction
 
-The owner chose to drop the web app and focus all development on the iOS version. iOS is the sole product client. The Vercel API remains required infrastructure for transit data and walking directions. Web/iOS feature parity is no longer a goal.
+Departs is used in a pinch, on the go. Prioritize the time it takes to find a useful departure over maps, configuration, or additional screens. The owner retired the browser client on 15 November 2026; iOS is the sole product client. The Vercel API remains required infrastructure at the existing host.
 
-The retirement removes browser components, map rendering, geolocation hooks, client fetch helpers, browser tests and their dependencies. The root URL becomes a plain-text notice; `/api/stops/nearby`, `/api/departures` and `/api/directions` keep their existing contract. The old client and designs remain recoverable in Git history and `docs/archive/web/`.
+The web retirement and runtime dependency patches are merged. Historical designs and the original review remain in `docs/archive/web/` and `docs/reviews/2026-11-15-project-audit.md`.
 
-## Finish reliability work first
+## Seven improvements in the native fast-answer implementation
 
-- Keep [#9](https://github.com/p3ob7o/Departs/pull/9): predicted departure times, all platform boards, input validation and upstream timeouts. Its scope is now backend-only.
-- Keep [#10](https://github.com/p3ob7o/Departs/pull/10): prevent stale native refresh results, deduplicate nearby requests, tick countdown labels and add departure pull-to-refresh.
-- Keep [#11](https://github.com/p3ob7o/Departs/pull/11): runtime dependency patches. The retirement branch is based on it; merge it first, then retarget the retirement PR to `main`.
-- Keep [#7](https://github.com/p3ob7o/Departs/pull/7) as iOS build-number bookkeeping, subject to confirming the current TestFlight build before another upload.
-- Retire web-only [#8](https://github.com/p3ob7o/Departs/pull/8). Its browser improvements are no longer needed.
-- The retirement PR incorporates the report from [#12](https://github.com/p3ob7o/Departs/pull/12), which it supersedes. Preserve the audit as a dated historical record.
+1. **Answers on the opening screen.** Next two departure times, line, direction, stop, and walking time. Maps are secondary and created on demand.
+2. **Conservative leave guidance.** Subtract walking time and a two-minute buffer from the first reachable departure. Explain when an earlier service looks too tight; withhold advice when data or location cannot support it.
+3. **Useful content immediately.** Restore the last area, boards, and pins before networking. Keep results visible while location and fresh times arrive.
+4. **Automatic freshness.** Refresh visible answers on foreground return and periodically while active. Keep rows stable, coalesce duplicate loads, and label saved information.
+5. **Pinned stop and direction.** Local favorites, one-tap boards, and an App Shortcut that opens the selected pin directly. No account, widget extension, or notification permission required.
+6. **Recovery on the go.** Manual place/address/stop search without location permission, explicit 400 → 800 → 1600 metre search expansion, retry actions, and saved boards after failed refreshes.
+7. **Clear boarding and walking information.** Prominent stop and direction, clear live/scheduled labels, and a persistent walking-directions action to the exact stop coordinate. Do not invent platform or entrance data the provider does not supply.
 
-These fixes and the retirement are proposed changes until their PRs merge. Backend deployment and native app distribution are separate steps.
+See [implementation behavior and checks](ios-fast-answers.md). These features require a new native binary; a merged PR does not update installed apps.
 
-## Five native product priorities
+## Release order
 
-These are proposals, not implemented features. Validate them with a small TestFlight cohort before expanding scope.
+1. Merge and deploy [backend PR #9](https://github.com/p3ob7o/Departs/pull/9): predicted times, all boards, validation, upstream timeouts, and the bounded radius parameter. Verify the three API routes over HTTP.
+2. Merge the native fast-answer PR into `main`. It incorporates and supersedes [native refresh PR #10](https://github.com/p3ob7o/Departs/pull/10).
+3. Confirm the latest uploaded TestFlight build before deciding whether [build-number PR #7](https://github.com/p3ob7o/Departs/pull/7) is still needed. Increment the native build number before distribution.
+4. Run device acceptance and distribute through TestFlight before public release.
 
-1. **Show the next catchable departure on the nearby screen.** Include the line, direction, departure countdown and walking allowance. Distinguish scheduled data from live predictions. Limit extra requests to visible, useful options. Success: a new user finds a reachable departure quickly, without opening several boards.
+## Adoption work after validation
 
-2. **Keep departure boards fresh and useful offline.** Refresh while a board is visible and on foreground return, deduplicate requests, display the last update, and mark stale data. Refresh departures independently of walking directions. Success: users can wait at a stop without manually reopening the app or mistaking expired data for live information.
+- Recruit a small TestFlight cohort around stops with verified realtime coverage. Observe whether users can find a reachable departure without opening multiple boards.
+- Measure cold and warm time to first useful answer on a physical phone and ordinary mobile data. Three seconds is a target, not a measured promise from simulator fixtures.
+- Verify accessibility text sizes, VoiceOver order, reduced location accuracy, foreground return, and poor connectivity on device.
+- Add native sharing and an installation fallback once there is a public distribution URL. Keep the destination small; a browser transit app is outside scope.
+- Establish provider usage alerts and request limits before wider distribution. Add CI once the simulator/runtime and signing setup are selected.
 
-3. **Pin recurring stops and directions.** Store a few favorites locally without an account. Start with one-tap access in the app; add a WidgetKit shortcut to a favorite board once repeated use supports it. Success: commuters return and reach their regular board faster.
-
-4. **Recover when location or nearby coverage fails.** Offer manual stop/place search and an explicit search-farther action. Explain permission and provider coverage limits. Success: denied-location and empty-result sessions still reach a useful board.
-
-5. **Make a useful board easy to share and invite people to the app.** Use the native share sheet for a stop and direction. Plan deep links that open the corresponding native screen; provide an honest installation fallback once a public distribution URL exists. Before launch, recruit a small TestFlight cohort around well-covered stops and collect feedback. A small link destination or association file can support this without rebuilding a browser transit app. Success: invited users open a useful board and return.
-
-## Release gates
-
-- Native tests and a release build pass; verify location denial, poor connectivity, foreground return and the selected-line board on device or simulator.
-- API tests, lint, production build and HTTP checks pass. Keep the existing host and JSON contract for installed builds.
-- Verify realtime coverage for the initial operators and display scheduled data honestly.
-- Establish provider usage alerts and request limits before wider distribution.
-- Add CI for native and backend checks. No browser test or PWA work is required.
-
-The first priorities are correctness and freshness, then catchable departures and favorites. Measure first useful board and repeat use only after defining the smallest appropriate measurement approach; no new analytics integration is part of this transition.
+No analytics SDK or tracking service is added by this implementation.
