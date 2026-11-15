@@ -12,7 +12,6 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    environmentMatchGlobs: [["app/api/**/*.test.ts", "node"]],
     exclude: ["e2e/**", "node_modules/**"],
     setupFiles: ["app/__tests__/setup.ts"],
     coverage: {
