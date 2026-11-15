@@ -32,12 +32,9 @@ struct NearbyStopsView: View {
                     }
                 }
 
-                Picker("Routes", selection: $store.favoritesOnly) {
-                    Text("Nearby").tag(false)
-                    Text("Pinned (\(store.pins.count))").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .accessibilityIdentifier("route-filter")
+                RouteFilter(pinned: $store.favoritesOnly, count: store.pins.count)
+                    .frame(height: 44)
+
 
                 if let message = statusMessage {
                     Label(message, systemImage: "info.circle")
@@ -147,5 +144,31 @@ struct NearbyStopsView: View {
             ContentUnavailableView("Where are you heading from?", systemImage: "location.magnifyingglass",
                                    description: Text("Use your location or search for a stop, address, or place."))
         }
+    }
+}
+
+private struct RouteFilter: View {
+    @Binding var pinned: Bool
+    let count: Int
+
+    var body: some View {
+        HStack(spacing: 0) {
+            segment("Nearby", selected: !pinned) { pinned = false }
+            segment("Pinned (\(count))", selected: pinned) { pinned = true }
+        }
+        .background(Color(.tertiarySystemFill), in: Capsule())
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("route-filter")
+    }
+
+    private func segment(_ title: String, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Text(title).font(.subheadline.weight(selected ? .semibold : .regular))
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(selected ? Color(.secondarySystemGroupedBackground) : .clear, in: Capsule())
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
     }
 }
