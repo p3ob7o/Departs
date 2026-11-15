@@ -89,19 +89,10 @@ struct StopRowView: View {
         }
     }
     private var modeSymbol: String {
-        switch selection.line.type {
-        case .bus: "bus"
-        case .tram: "tram"
-        case .subway, .rail: "train.side.front.car"
-        }
+        selection.line.type.symbol
     }
     private var modeColor: Color {
-        switch selection.line.type {
-        case .tram: Color(hex: "3A6C9E")
-        case .bus: Color(hex: "A8553F")
-        case .rail: Color(hex: "3B7A47")
-        case .subway: Color(hex: scheme == .dark ? "8065B8" : "6B52A6")
-        }
+        StopPalette.modeColor(selection.line.type)
     }
     private var pinAction: some View {
         Button(action: onPin) { Label(pinned ? "Unpin route" : "Pin route", systemImage: pinned ? "pin.slash" : "pin") }

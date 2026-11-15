@@ -19,6 +19,7 @@ struct TransitClient {
 @MainActor
 @Observable
 final class TransitStore {
+    private(set) var recentAreas: [SearchArea] = []
     private(set) var area: SearchArea?
     private(set) var location: LocationFix?
     private(set) var radius = 400
@@ -63,6 +64,7 @@ final class TransitStore {
         self.client = client
         self.persistence = persistence
         self.now = now
+        recentAreas = persistence.loadRecentAreas()
         pins = persistence.loadPins()
         boards = persistence.loadBoards().filter { $0.value.checkedAt.isRecent(at: now(), within: 86_400) }
         restoredBoards = Set(boards.keys)
@@ -276,6 +278,12 @@ final class TransitStore {
             demandedWalks = []
         }
         area = newArea
+        if newArea.source == .chosen {
+            recentAreas.removeAll { $0.coordinate.distance(to: newArea.coordinate) < 40 && $0.name == newArea.name }
+            recentAreas.insert(newArea, at: 0)
+            recentAreas = Array(recentAreas.prefix(5))
+            persistence.saveRecentAreas(recentAreas)
+        }
         followsLocation = newArea.source == .location
         radius = newRadius
         isLoadingStops = true

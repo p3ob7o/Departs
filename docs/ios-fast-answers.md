@@ -8,7 +8,9 @@ Stop sections retain the provider's nearest-first order. At board arrival, servi
 
 The provider limits each platform board to 50 departures. `complete` checks those boards before flattening. For an omitted line, the app records the latest valid time in the grouped response and says "No departure listed before [time]". The bound describes returned timetable coverage; it does not promise a live departure or reveal later times. That limit already affects production's filtered calls. Extending coverage needs a server-side change verified with HERE credentials. The optional coverage field preserves decoding of older saved boards, and a subsequent complete response replaces it.
 
-The detail screen reuses the same board and shows up to four departures. Walking directions open Apple Maps at the stop coordinate. The line's direction stays visible so the user can check the service before boarding. Maps are optional and do not start loading on the main answer path.
+The detail screen reuses the same board and shows up to four departures, with the line and direction in the title and the stop named once. Saved advice includes Refresh now. A route preview opens an interactive map sheet; other lines at the same physical stop show their next two times and open their board. The standard walking-directions toolbar button opens Apple Maps at the stop coordinate. Maps are optional and do not start loading on the main answer path.
+
+Search starts with Current location and the five most recently chosen areas, stored locally and also listed in the title menu. Results identified by MapKit as public transport precede other categories without changing order within each category. Stops-map badges can be selected to reveal a stop card and return to its list section. Both maps remain MapKit wrappers; their sheets fill the available container and show the search radius or walking route.
 
 ## Freshness and leave guidance
 
@@ -29,6 +31,8 @@ These rules are estimates, not guarantees of boarding. No platform or station-en
 UserDefaults stores pins, the last successful nearby snapshot, and the 40 newest boards. The in-memory cache retains all boards browsed during the session, including dense areas with more than 80 services. Boards older than one day are discarded on launch. Walks remain in memory only. Pins use length-prefixed service identities, so provider ordering and embedded punctuation do not break them. Area revisions reject older searches; route results are checked against the current walking origin. A failed refresh keeps the last useful answer.
 
 The wider-search feature requires backend PR #9. Its optional radius is bounded from 100 to 2000 metres; native search steps are 400, 800, and 1600. The existing response shape and production host are unchanged.
+
+Before distributing the grouped-list client, merge the design stack in order and verify the optional grouped handler on production after Vercel deploys from `main`. Native distribution is a separate step. Legacy fallback preserves compatibility but increases requests for complete visible stop sections; a TestFlight build from a phase branch must not precede the grouped backend deployment. PR #21 records live-provider checks on its preview, which do not verify the production handler.
 
 ## Shortcuts
 

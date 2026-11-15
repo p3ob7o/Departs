@@ -6,6 +6,8 @@ struct StopsMapView: UIViewRepresentable {
     let stops: [NearbyStop]
     let stopColors: [String: Color]
     var radius: Int = 400
+    var selectedStopID: String? = nil
+    var onSelect: (String) -> Void = { _ in }
 
     func makeUIView(context: Context) -> MKMapView {
         let map = MKMapView()
@@ -21,6 +23,7 @@ struct StopsMapView: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.stopColors = stopColors
+        context.coordinator.onSelect = onSelect
 
         if !Self.coordinatesEqual(context.coordinator.regionCenter, userCoordinate) || context.coordinator.radius != radius {
             let region = MKCoordinateRegion(
@@ -31,9 +34,17 @@ struct StopsMapView: UIViewRepresentable {
             map.setRegion(region, animated: false)
             context.coordinator.regionCenter = userCoordinate
             context.coordinator.radius = radius
+            map.removeOverlays(map.overlays)
+            map.addOverlay(MKCircle(center: userCoordinate, radius: CLLocationDistance(radius)))
         }
 
         Self.syncStopAnnotations(on: map, stops: stops)
+        if let selected = map.annotations.compactMap({ $0 as? StopAnnotation }).first(where: { $0.stopId == selectedStopID }),
+           !map.selectedAnnotations.contains(where: { ($0 as? StopAnnotation)?.stopId == selected.stopId }) {
+            context.coordinator.restoringSelection = true
+            map.selectAnnotation(selected, animated: false)
+            context.coordinator.restoringSelection = false
+        }
     }
 
     func makeCoordinator() -> Coordinator {
@@ -45,6 +56,7 @@ struct StopsMapView: UIViewRepresentable {
         let stopId: String
         let transportLabel: String
         var spokenLabel = ""
+        var mode: TransportType = .tram
         let isUser: Bool
 
         init(coordinate: CLLocationCoordinate2D, stopId: String, transportLabel: String, isUser: Bool) {
@@ -65,7 +77,7 @@ struct StopsMapView: UIViewRepresentable {
         for pin in existingPins {
             guard
                 let stop = stopsByID[pin.stopId],
-                pin.transportLabel == stop.type.label,
+                pin.transportLabel == (stop.lines.first?.name ?? stop.type.label),
                 coordinatesEqual(pin.coordinate, stop.location.clLocationCoordinate2D)
             else {
                 map.removeAnnotation(pin)
@@ -78,10 +90,11 @@ struct StopsMapView: UIViewRepresentable {
             let pin = StopAnnotation(
                 coordinate: stop.location.clLocationCoordinate2D,
                 stopId: stop.id,
-                transportLabel: stop.type.label,
+                transportLabel: stop.lines.first?.name ?? stop.type.label,
                 isUser: false
             )
             pin.spokenLabel = "\(stop.name), \(stop.type.displayName), \(stop.lines.map { $0.name + " toward " + $0.direction }.joined(separator: ", "))"
+            pin.mode = stop.type
             map.addAnnotation(pin)
         }
     }
@@ -103,9 +116,11 @@ struct StopsMapView: UIViewRepresentable {
     }
 
     final class Coordinator: NSObject, MKMapViewDelegate {
+        var onSelect: (String) -> Void = { _ in }
         var stopColors: [String: Color]
         var regionCenter: CLLocationCoordinate2D?
         var radius: Int?
+        var restoringSelection = false
 
         init(stopColors: [String: Color]) {
             self.stopColors = stopColors
@@ -121,6 +136,21 @@ struct StopsMapView: UIViewRepresentable {
             }
         }
 
+        func mapView(_ mapView: MKMapView, didSelect view: MKAnnotationView) {
+            if !restoringSelection, let pin = view.annotation as? StopAnnotation, !pin.isUser {
+                onSelect(pin.stopId)
+            }
+        }
+
+        func mapView(_ mapView: MKMapView, rendererFor overlay: any MKOverlay) -> MKOverlayRenderer {
+            guard let circle = overlay as? MKCircle else { return MKOverlayRenderer(overlay: overlay) }
+            let renderer = MKCircleRenderer(circle: circle)
+            renderer.strokeColor = .systemBlue
+            renderer.fillColor = UIColor.systemBlue.withAlphaComponent(0.08)
+            renderer.lineWidth = 2
+            return renderer
+        }
+
         private func userDotView(for annotation: StopAnnotation, in mapView: MKMapView) -> MKAnnotationView {
             let id = "UserDot"
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: id)
@@ -128,6 +158,8 @@ struct StopsMapView: UIViewRepresentable {
             view.annotation = annotation
             view.isAccessibilityElement = true
             view.accessibilityLabel = annotation.spokenLabel
+            view.accessibilityTraits = .button
+            view.accessibilityIdentifier = "stop-map-pin"
 
             let size: CGFloat = 24
             let dot = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
@@ -184,40 +216,51 @@ struct StopsMapView: UIViewRepresentable {
             view.annotation = annotation
             view.isAccessibilityElement = true
             view.accessibilityLabel = annotation.spokenLabel
+            view.accessibilityTraits = .button
+            view.accessibilityIdentifier = "stop-map-pin"
 
-            let size: CGFloat = 30
-            let circle = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
-
-            let uiColor: UIColor
-            if let color = stopColors[annotation.stopId] {
-                uiColor = UIColor(color)
-            } else {
-                uiColor = .systemGray
-            }
-
-            circle.backgroundColor = uiColor
-            circle.layer.cornerRadius = size / 2
-            circle.layer.borderColor = UIColor.white.cgColor
-            circle.layer.borderWidth = 2
-            circle.layer.shadowColor = UIColor.black.cgColor
-            circle.layer.shadowOpacity = 0.3
-            circle.layer.shadowOffset = CGSize(width: 0, height: 1)
-            circle.layer.shadowRadius = 1.5
-
-            let label = UILabel(frame: circle.bounds)
-            label.text = annotation.transportLabel
-            label.textAlignment = .center
-            label.font = .systemFont(ofSize: 13, weight: .bold)
-            label.textColor = .white
-            circle.addSubview(label)
+            let badge = MapLineBadge(name: annotation.transportLabel, type: annotation.mode,
+                                     color: stopColors[annotation.stopId] ?? StopPalette.modeColor(annotation.mode))
 
             view.subviews.forEach { $0.removeFromSuperview() }
-            view.addSubview(circle)
-            view.frame = CGRect(x: 0, y: 0, width: size, height: size)
+            view.addSubview(badge)
+            view.frame = badge.bounds
             view.centerOffset = .zero
             return view
         }
     }
+}
+
+/// Shared line-number and mode-symbol treatment for both MapKit wrappers.
+final class MapLineBadge: UIView {
+    init(name: String, type: TransportType, color: Color) {
+        let label = UILabel()
+        label.text = name
+        label.font = .preferredFont(forTextStyle: .headline)
+        label.textColor = .white
+        label.sizeToFit()
+        let symbolSize = UIFontMetrics(forTextStyle: .caption2).scaledValue(for: 13)
+        let width = max(44, label.bounds.width + symbolSize + 19)
+        let height = max(44, label.bounds.height + 8)
+        super.init(frame: CGRect(x: 0, y: 0, width: width, height: height))
+        backgroundColor = UIColor(color)
+        layer.cornerRadius = 6
+        layer.borderColor = UIColor.white.cgColor
+        layer.borderWidth = 2
+        layer.shadowColor = UIColor.black.cgColor
+        layer.shadowOpacity = 0.3
+        layer.shadowOffset = CGSize(width: 0, height: 1)
+        layer.shadowRadius = 1.5
+        let symbol = UIImageView(image: UIImage(systemName: type.symbol,
+            withConfiguration: UIImage.SymbolConfiguration(pointSize: symbolSize)))
+        symbol.tintColor = .white
+        symbol.contentMode = .scaleAspectFit
+        symbol.frame = CGRect(x: 6, y: 4, width: symbolSize, height: height - 8)
+        addSubview(symbol)
+        label.frame = CGRect(x: symbolSize + 10, y: 4, width: width - symbolSize - 16, height: height - 8)
+        addSubview(label)
+    }
+    required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
 }
 
 #if DEBUG

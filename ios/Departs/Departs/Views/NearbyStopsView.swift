@@ -7,14 +7,18 @@ struct NearbyStopsView: View {
     let onSearch: () -> Void
     let onLocate: () -> Void
     let onRefresh: () async -> Void
+    var onChooseArea: (SearchArea) -> Void = { _ in }
     @Environment(\.dynamicTypeSize) private var textSize
     @Environment(\.openURL) private var openURL
     @AppStorage("departs.pinHintSeen", store: TransitPersistence().defaults) private var hintSeen = false
     @State private var showingMap = false
+    @State private var selectedMapStop: String?
+    @State private var scrollTarget: String?
     @State private var showingDistantPins = false
     @State private var expandedIdle: Set<String> = []
 
     var body: some View {
+        ScrollViewReader { proxy in
         TimelineView(.periodic(from: .now, by: 15)) { timeline in
             // Board arrivals also redraw between ticks. Do not compare a new
             // check timestamp with an older timeline tick and call it saved.
@@ -89,6 +93,7 @@ struct NearbyStopsView: View {
                             }
                         }
                         .font(.subheadline).textCase(nil)
+                        .id(group.id)
                         .modifier(VisibleStops(store: store, stops: group.stops, token: "header-\(group.id)"))
                     }
                     if group.id == store.groups.first?.id, !hintSeen, store.pins.isEmpty {
@@ -125,6 +130,9 @@ struct NearbyStopsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarTitleMenu {
             Button("Current location", systemImage: "location", action: onLocate)
+            ForEach(Array(store.recentAreas.enumerated()), id: \.offset) { _, area in
+                Button(area.name, systemImage: "clock.arrow.circlepath") { onChooseArea(area) }
+            }
             Button("Search for a place…", systemImage: "magnifyingglass", action: onSearch)
         }
         .toolbar {
@@ -140,10 +148,33 @@ struct NearbyStopsView: View {
             if let area = store.area {
                 NavigationStack {
                     StopsMapView(userCoordinate: area.coordinate.clLocationCoordinate2D, stops: store.stops,
-                                 stopColors: Dictionary(uniqueKeysWithValues: store.stops.enumerated().map { ($0.element.id, StopPalette.color(at: $0.offset)) }), radius: store.radius)
+                                 stopColors: Dictionary(uniqueKeysWithValues: store.stops.map { ($0.id, StopPalette.modeColor($0.type)) }),
+                                 radius: store.radius, selectedStopID: selectedMapStop, onSelect: { selectedMapStop = $0 })
+                        .safeAreaInset(edge: .bottom) {
+                            if let stop = store.stops.first(where: { $0.id == selectedMapStop }) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text(stop.name).font(.headline)
+                                    Text(Array(Set(stop.lines.map(\.name))).sorted().joined(separator: " · ")).font(.subheadline)
+                                    Button {
+                                        scrollTarget = store.groups.first(where: { $0.stops.contains(where: { $0.id == stop.id }) })?.id
+                                        showingMap = false
+                                    } label: {
+                                        Label("Show in list", systemImage: "list.bullet").frame(minHeight: 44)
+                                    }
+                                }.padding().frame(maxWidth: .infinity, alignment: .leading).background(.regularMaterial)
+                            }
+                        }
                         .navigationTitle("Nearby stops")
-                        .toolbar { Button("Done") { showingMap = false } }
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar { Button("Done", systemImage: "checkmark") { showingMap = false } }
                 }
+                .presentationDetents(textSize.isAccessibilitySize ? [.large] : [.medium, .large])
+            }
+        }
+        .onChange(of: showingMap) { _, visible in
+            if !visible, let scrollTarget {
+                proxy.scrollTo(scrollTarget, anchor: .top)
+                self.scrollTarget = nil
             }
         }
         .sheet(isPresented: $showingDistantPins) {
@@ -154,8 +185,10 @@ struct NearbyStopsView: View {
                         onSelect(selection)
                     }
                 }.navigationTitle("Pinned elsewhere")
-                    .toolbar { Button("Done") { showingDistantPins = false } }
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar { Button("Done", systemImage: "checkmark") { showingDistantPins = false } }
             }
+        }
         }
     }
 

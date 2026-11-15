@@ -344,6 +344,35 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertEqual(NearbyStopsView.displayDirection("Paris Nord", among: directions + ["Lyon Centre"]), "Paris Nord")
     }
 
+    @MainActor func testRecentAreasKeepFiveUniqueChoicesAcrossRelaunch() async {
+        let storage = persistence()
+        let store = makeStore(persistence: storage)
+        for index in 0..<7 {
+            await store.loadArea(.init(coordinate: coordinate, name: "Place \(index)", source: .chosen))
+        }
+        await store.loadArea(.init(coordinate: coordinate, name: "Place 4", source: .chosen))
+        await store.loadArea(area)
+        let restored = makeStore(persistence: storage)
+        XCTAssertEqual(restored.recentAreas.map(\.name), ["Place 4", "Place 6", "Place 5", "Place 3", "Place 2"])
+    }
+
+    @MainActor func testSearchPromotesTransitWithoutReorderingEqualCategories() {
+        let places = [false, true, false, true].enumerated().map { index, transit in
+            PlaceResult(id: "\(index)", name: "Place \(index)", subtitle: "", coordinate: coordinate, transit: transit)
+        }
+        XCTAssertEqual(AreaSearchModel.transitFirst(places).map(\.id), ["1", "3", "0", "2"])
+    }
+
+    @MainActor func testChosenAreaRestoresWithoutFollowingDevice() async {
+        let storage = persistence()
+        let store = makeStore(persistence: storage)
+        let chosen = SearchArea(coordinate: coordinate, name: "Chosen place", source: .chosen)
+        await store.loadArea(chosen)
+        let restored = makeStore(persistence: storage)
+        XCTAssertEqual(restored.area, chosen)
+        XCTAssertFalse(restored.followsLocation)
+    }
+
     func testLeaveTimeSubtractsWalkingAndConservativeBuffer() {
         let board = DepartureBoard(departures: [departure(7)], checkedAt: instant)
         let walk = CachedWalk(origin: coordinate, route: route(), checkedAt: instant)
