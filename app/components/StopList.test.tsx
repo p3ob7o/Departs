@@ -15,11 +15,11 @@ describe("StopList", () => {
     expect(screen.getByText("Rail")).toBeInTheDocument();
   });
 
-  it("renders stops sorted by distance", () => {
+  it("renders every line at each stop", () => {
     render(<StopList stops={nearbyStops} onSelectStop={onSelectStop} />);
 
     const buttons = screen.getAllByRole("button");
-    expect(buttons).toHaveLength(3);
+    expect(buttons).toHaveLength(4);
   });
 
   it("calls onSelectStop when a stop is tapped", async () => {
@@ -28,7 +28,14 @@ describe("StopList", () => {
 
     await user.click(screen.getByText("Subway"));
 
-    expect(onSelectStop).toHaveBeenCalledWith(nearbyStops[0]);
+    expect(onSelectStop).toHaveBeenCalledWith(nearbyStops[0], nearbyStops[0].lines[0]);
+  });
+
+  it("selects a non-first line at a mixed-mode stop", async () => {
+    const user = userEvent.setup();
+    render(<StopList stops={nearbyStops} onSelectStop={onSelectStop} />);
+    await user.click(screen.getByRole("button", { name: /Bus 100 to Alexanderplatz/i }));
+    expect(onSelectStop).toHaveBeenCalledWith(nearbyStops[0], nearbyStops[0].lines[1]);
   });
 
   it("renders empty state when no stops provided", () => {

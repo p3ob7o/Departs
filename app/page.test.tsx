@@ -42,6 +42,7 @@ async function setupHooks(overrides: {
   vi.mocked(useNearbyStops).mockReturnValue({
     loading: false,
     stops: nearbyStops,
+    retry: vi.fn(),
     error: null,
     ...overrides.stops,
   });
@@ -50,6 +51,7 @@ async function setupHooks(overrides: {
   vi.mocked(useDepartures).mockReturnValue({
     loading: false,
     departures: departures,
+    retry: vi.fn(),
     walkingRoute: walkingRoute,
     error: null,
     ...overrides.deps,
@@ -95,6 +97,26 @@ describe("Home page", () => {
     });
   });
 
+  it("passes a selected non-first line to the departure request and header", async () => {
+    await setupHooks();
+    const user = userEvent.setup();
+    render(<Home />);
+    await user.click(screen.getByRole("button", { name: /Bus 100 to Alexanderplatz/ }));
+    const { useDepartures } = await import("@/app/hooks/useDepartures");
+    expect(useDepartures).toHaveBeenLastCalledWith("stop-1", expect.any(Object), nearbyStops[0].location, nearbyStops[0].lines[1]);
+    expect(screen.getByText("Bus Bus 100 to Alexanderplatz")).toBeInTheDocument();
+  });
+
+  it("retries stops without reacquiring location", async () => {
+    const retryStops = vi.fn();
+    const retryLocation = vi.fn();
+    await setupHooks({ geo: { retry: retryLocation }, stops: { error: "network", retry: retryStops } });
+    render(<Home />);
+    await userEvent.setup().click(screen.getByRole("button", { name: /retry/i }));
+    expect(retryStops).toHaveBeenCalledOnce();
+    expect(retryLocation).not.toHaveBeenCalled();
+  });
+
   it("shows error state when geolocation is denied", async () => {
     await setupHooks({
       geo: { loading: false, coords: null, error: "permission_denied" },
@@ -102,6 +124,13 @@ describe("Home page", () => {
     });
     render(<Home />);
     expect(screen.getByText(/location permission/i)).toBeInTheDocument();
+  });
+
+  it.each(["timeout", "position_unavailable"] as const)("recovers from %s without rendering a map with null coordinates", async (error) => {
+    await setupHooks({ geo: { loading: false, coords: null, error }, stops: { stops: [] } });
+    render(<Home />);
+    expect(screen.getByRole("button", { name: /retry/i })).toBeInTheDocument();
+    expect(screen.queryByTestId("map")).not.toBeInTheDocument();
   });
 
   it("shows error state when API fetch fails", async () => {

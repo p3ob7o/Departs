@@ -1,40 +1,29 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import type { NearbyStop } from "@/app/types";
 import { fetchNearbyStops } from "@/app/lib/api";
 
-export function useNearbyStops(
-  coords: { lat: number; lon: number } | null
-) {
-  const [loading, setLoading] = useState(coords !== null);
-  const [stops, setStops] = useState<NearbyStop[]>([]);
-  const [error, setError] = useState<string | null>(null);
+export function useNearbyStops(coords: { lat: number; lon: number } | null) {
+  const [attempt, setAttempt] = useState(0);
+  const retry = useCallback(() => setAttempt((value) => value + 1), []);
+  const lat = coords?.lat;
+  const lon = coords?.lon;
+  const key = JSON.stringify([lat, lon, attempt]);
+  const [result, setResult] = useState<{ key: string; stops: NearbyStop[]; error: string | null }>();
 
   useEffect(() => {
-    if (!coords) return;
-
-    let cancelled = false;
-    setLoading(true);
-    setError(null);
-
-    (async () => {
+    if (lat === undefined || lon === undefined) return;
+    const controller = new AbortController();
+    void (async () => {
       try {
-        const result = await fetchNearbyStops(coords.lat, coords.lon);
-        if (!cancelled) {
-          setStops(result);
-          setLoading(false);
-        }
+        const stops = await fetchNearbyStops(lat, lon, controller.signal);
+        if (!controller.signal.aborted) setResult({ key, stops, error: null });
       } catch {
-        if (!cancelled) {
-          setError("network");
-          setLoading(false);
-        }
+        if (!controller.signal.aborted) setResult({ key, stops: [], error: "network" });
       }
     })();
+    return () => controller.abort();
+  }, [lat, lon, key]);
 
-    return () => {
-      cancelled = true;
-    };
-  }, [coords?.lat, coords?.lon]);
-
-  return { loading, stops, error };
+  const current = coords && result?.key === key ? result : undefined;
+  return { loading: !!coords && !current, stops: current?.stops ?? [], error: current?.error ?? null, retry };
 }

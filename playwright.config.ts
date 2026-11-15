@@ -10,6 +10,7 @@ export default defineConfig({
   use: {
     baseURL: "http://localhost:3000",
     trace: "on-first-retry",
+    timezoneId: "Europe/Berlin",
   },
   projects: [
     {
@@ -23,6 +24,7 @@ export default defineConfig({
   ],
   webServer: {
     command: "npm run dev",
+    env: { NEXT_PUBLIC_MAPBOX_TOKEN: "pk.test-browser-token" },
     url: "http://localhost:3000",
     reuseExistingServer: !process.env.CI,
   },

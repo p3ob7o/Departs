@@ -1,29 +1,33 @@
-import type { NearbyStop } from "@/app/types";
+import type { LineInfo, NearbyStop } from "@/app/types";
 import { TransportIcon, getTransportName } from "./TransportIcon";
 
 export function StopRow({
   stop,
+  line = stop.lines[0],
   color,
   onTap,
 }: {
   stop: NearbyStop;
+  line?: LineInfo;
   color?: string;
-  onTap: (stop: NearbyStop) => void;
+  onTap: (stop: NearbyStop, line: LineInfo) => void;
 }) {
-  const firstLine = stop.lines[0];
+  const firstLine = line;
 
   return (
     <button
       className="w-full flex items-center gap-3 px-3 text-left"
       style={{
-        height: "64px",
+        minHeight: "88px",
+        paddingTop: "8px",
+        paddingBottom: "8px",
         borderBottom: "1px solid var(--color-bg-tertiary)",
         marginLeft: "0px",
         paddingLeft: "0px",
       }}
-      onClick={() => onTap(stop)}
+      onClick={() => firstLine && onTap(stop, firstLine)}
     >
-      <TransportIcon type={stop.type} color={color} />
+      <TransportIcon type={firstLine?.type ?? stop.type} color={color} />
       <div
         className="flex-1 min-w-0"
         style={{
@@ -34,8 +38,9 @@ export function StopRow({
           className="font-semibold"
           style={{ fontSize: "17px", lineHeight: "22px", color: "var(--color-text-primary)" }}
         >
-          {getTransportName(stop.type)}
+          {getTransportName(firstLine?.type ?? stop.type)}
         </div>
+        <div style={{ fontSize: "15px", color: "var(--color-text-secondary)" }}>{stop.name}</div>
         {firstLine && (
           <div
             style={{ fontSize: "15px", lineHeight: "20px", color: "var(--color-text-secondary)" }}

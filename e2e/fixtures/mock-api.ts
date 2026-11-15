@@ -1,3 +1,4 @@
+import { transformStations, transformDepartures } from "../../app/lib/transitProvider";
 import type { Page } from "@playwright/test";
 
 const hereStationsResponse = {
@@ -82,11 +83,15 @@ const mapboxDirectionsResponse = {
 };
 
 export async function mockAPIs(page: Page) {
+  await page.route("https://api.mapbox.com/**", (route) => route.fulfill({
+    contentType: "application/json", body: JSON.stringify({ version: 8, sources: {}, layers: [] }),
+  }));
+  await page.route("https://events.mapbox.com/**", (route) => route.fulfill({ status: 204 }));
   await page.route("**/api/stops/nearby*", (route) =>
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(hereStationsResponse),
+      body: JSON.stringify(transformStations(hereStationsResponse)),
     })
   );
 
@@ -94,7 +99,7 @@ export async function mockAPIs(page: Page) {
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(hereBoardsResponse),
+      body: JSON.stringify(transformDepartures(hereBoardsResponse)),
     })
   );
 
@@ -102,7 +107,7 @@ export async function mockAPIs(page: Page) {
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify(mapboxDirectionsResponse),
+      body: JSON.stringify(mapboxDirectionsResponse.routes[0]),
     })
   );
 }
@@ -116,7 +121,9 @@ export async function mockGeolocation(
 }
 
 export async function mockGeolocationDenied(page: Page) {
-  await page.context().clearPermissions();
+  await page.addInitScript(() => {
+    navigator.geolocation.getCurrentPosition = (_success, error) => error?.({ code: 1, message: "Denied" } as GeolocationPositionError);
+  });
 }
 
 export async function mockNetworkError(page: Page) {
@@ -130,7 +137,7 @@ export async function mockEmptyStops(page: Page) {
     route.fulfill({
       status: 200,
       contentType: "application/json",
-      body: JSON.stringify({ stations: [] }),
+      body: JSON.stringify([]),
     })
   );
 }

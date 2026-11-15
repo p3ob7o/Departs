@@ -17,7 +17,7 @@ describe("api client", () => {
       await fetchNearbyStops(52.52, 13.405);
 
       expect(spy).toHaveBeenCalledWith(
-        expect.stringContaining("/api/stops/nearby?lat=52.52&lon=13.405")
+        expect.stringContaining("/api/stops/nearby?lat=52.52&lon=13.405"), { signal: undefined }
       );
       spy.mockRestore();
     });
@@ -31,7 +31,18 @@ describe("api client", () => {
     it("fetches departures from /api/departures", async () => {
       const result = await fetchDepartures("stop-1");
 
-      expect(result).toEqual(departures);
+      expect(result).toMatchObject(departures);
+      expect(result[0].line).toEqual({ name: "U2", direction: "Pankow", type: "subway" });
+    });
+
+    it("encodes stop IDs and sends the selected line and direction", async () => {
+      const spy = vi.spyOn(global, "fetch");
+      await fetchDepartures("stop/1?platform=A&B#1", { name: "U2", direction: "A & B" });
+      const url = new URL(spy.mock.calls[0][0] as string, "http://localhost");
+      expect(url.searchParams.get("stopId")).toBe("stop/1?platform=A&B#1");
+      expect(url.searchParams.get("lineName")).toBe("U2");
+      expect(url.searchParams.get("direction")).toBe("A & B");
+      spy.mockRestore();
     });
 
     it("passes stopId as query param", async () => {
@@ -39,7 +50,7 @@ describe("api client", () => {
       await fetchDepartures("stop-1");
 
       expect(spy).toHaveBeenCalledWith(
-        expect.stringContaining("/api/departures?stopId=stop-1")
+        expect.stringContaining("/api/departures?stopId=stop-1"), { signal: undefined }
       );
       spy.mockRestore();
     });
@@ -63,7 +74,7 @@ describe("api client", () => {
       );
 
       expect(spy).toHaveBeenCalledWith(
-        expect.stringContaining("/api/directions?from=52.5195,13.4&to=52.52,13.405")
+        expect.stringContaining("/api/directions?from=52.5195,13.4&to=52.52,13.405"), { signal: undefined }
       );
       spy.mockRestore();
     });

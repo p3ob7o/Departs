@@ -1,4 +1,4 @@
-import type { NearbyStop } from "@/app/types";
+import type { LineInfo, NearbyStop } from "@/app/types";
 import { StopRow } from "./StopRow";
 
 export function StopList({
@@ -8,7 +8,7 @@ export function StopList({
 }: {
   stops: NearbyStop[];
   stopColors?: Map<string, string>;
-  onSelectStop: (stop: NearbyStop) => void;
+  onSelectStop: (stop: NearbyStop, line: LineInfo) => void;
 }) {
   if (stops.length === 0) {
     return (
@@ -31,9 +31,9 @@ export function StopList({
 
   return (
     <div>
-      {stops.map((stop) => (
-        <StopRow key={stop.id} stop={stop} color={stopColors?.get(stop.id)} onTap={onSelectStop} />
-      ))}
+      {stops.flatMap((stop) => stop.lines.map((line, index) => (
+        <StopRow key={`${stop.id}:${index}`} stop={stop} line={line} color={stopColors?.get(stop.id)} onTap={onSelectStop} />
+      )))}
     </div>
   );
 }

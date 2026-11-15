@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { renderHook, waitFor } from "@testing-library/react";
+import { renderHook, waitFor, act } from "@testing-library/react";
 import { useNearbyStops } from "@/app/hooks/useNearbyStops";
 import { nearbyStops } from "@/app/__tests__/fixtures/nearby-stops";
 
@@ -56,6 +56,16 @@ describe("useNearbyStops", () => {
 
     expect(result.current.stops).toEqual([]);
     expect(result.current.error).toBe("network");
+  });
+
+  it("can retry at identical coordinates after a network error", async () => {
+    const { fetchNearbyStops } = await import("@/app/lib/api");
+    vi.mocked(fetchNearbyStops).mockRejectedValueOnce(new Error("offline")).mockResolvedValueOnce(nearbyStops);
+    const { result } = renderHook(() => useNearbyStops({ lat: 52.52, lon: 13.405 }));
+    await waitFor(() => expect(result.current.error).toBe("network"));
+    act(() => result.current.retry());
+    await waitFor(() => expect(result.current.stops).toEqual(nearbyStops));
+    expect(result.current.error).toBeNull();
   });
 
   it("refetches when coordinates change", async () => {

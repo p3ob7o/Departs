@@ -39,14 +39,14 @@ describe("StopRow", () => {
 
     await user.click(screen.getByRole("button"));
 
-    expect(onTap).toHaveBeenCalledWith(stop);
+    expect(onTap).toHaveBeenCalledWith(stop, stop.lines[0]);
   });
 
-  it("has 64px row height", () => {
+  it("allows room for the station name and wrapped directions", () => {
     render(<StopRow stop={stop} onTap={onTap} />);
 
     const button = screen.getByRole("button");
-    expect(button).toHaveStyle({ height: "64px" });
+    expect(button).toHaveStyle({ minHeight: "88px" });
   });
 
   it("has bottom border divider", () => {

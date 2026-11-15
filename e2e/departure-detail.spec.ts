@@ -18,12 +18,31 @@ test.describe("Departure Detail (Screen 2)", () => {
     await expect(page.getByText(/10:12/)).toBeVisible();
   });
 
+  test("requests the selected direction at a stop with multiple lines", async ({ page }) => {
+    await page.route("**/api/stops/nearby*", (route) => route.fulfill({ json: [{
+      id: "station/1?A&B", name: "Central Station", type: "subway",
+      location: { lat: 52.52, lon: 13.405 }, distance: 50,
+      lines: [
+        { name: "U2", direction: "Pankow", type: "subway" },
+        { name: "U2", direction: "Ruhleben", type: "subway" },
+      ],
+    }] }));
+    const request = page.waitForRequest((req) => req.url().includes("/api/departures?"));
+    await page.goto("/");
+    await page.getByRole("button", { name: /U2 to Ruhleben/ }).click();
+    const params = new URL((await request).url()).searchParams;
+    expect(params.get("stopId")).toBe("station/1?A&B");
+    expect(params.get("lineName")).toBe("U2");
+    expect(params.get("direction")).toBe("Ruhleben");
+    await expect(page.getByText("Subway U2 to Ruhleben")).toBeVisible();
+  });
+
   test("shows walking route on map", async ({ page }) => {
     await page.goto("/");
     await page.getByText("Central Station").click();
 
     // Map should still be visible with route
-    await expect(page.locator("[data-testid=map]")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Map", exact: true })).toBeVisible();
   });
 
   test("can navigate back to stop list", async ({ page }) => {

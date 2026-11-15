@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useMemo, useCallback } from "react";
-import type { NearbyStop } from "@/app/types";
+import { useState, useMemo } from "react";
+import dynamic from "next/dynamic";
+import type { LineInfo, NearbyStop } from "@/app/types";
 import { useGeolocation } from "@/app/hooks/useGeolocation";
 import { useNearbyStops } from "@/app/hooks/useNearbyStops";
 import { useDepartures } from "@/app/hooks/useDepartures";
@@ -9,45 +10,27 @@ import { LoadingState } from "@/app/components/LoadingState";
 import { ErrorState } from "@/app/components/ErrorState";
 import { StopList } from "@/app/components/StopList";
 import { DepartureDetail } from "@/app/components/DepartureDetail";
-import { MapView } from "@/app/components/Map";
 import { BottomSheet } from "@/app/components/BottomSheet";
 import { getStopColor } from "@/app/components/TransportIcon";
 
+const MapView = dynamic(() => import("@/app/components/Map").then((module) => module.MapView), { ssr: false });
+
 export default function Home() {
-  const [selectedStop, setSelectedStop] = useState<NearbyStop | null>(null);
-  const [mapBounds, setMapBounds] = useState<{
-    north: number; south: number; east: number; west: number;
-  } | null>(null);
+  const [selection, setSelection] = useState<{ stop: NearbyStop; line: LineInfo } | null>(null);
+  const selectedStop = selection?.stop;
   const geo = useGeolocation();
   const stopsHook = useNearbyStops(geo.coords);
   const depsHook = useDepartures(
     selectedStop?.id ?? null,
     geo.coords ?? { lat: 0, lon: 0 },
-    selectedStop?.location ?? { lat: 0, lon: 0 }
-  );
-
-  const handleBoundsReady = useCallback(
-    (bounds: { north: number; south: number; east: number; west: number }) => {
-      setMapBounds(bounds);
-    },
-    []
+    selectedStop?.location ?? { lat: 0, lon: 0 },
+    selection?.line
   );
 
   const stopColors = useMemo(
     () => new Map(stopsHook.stops.map((s, i) => [s.id, getStopColor(i)])),
     [stopsHook.stops]
   );
-
-  const visibleStops = useMemo(() => {
-    if (!mapBounds) return stopsHook.stops;
-    return stopsHook.stops.filter(
-      (s) =>
-        s.location.lat >= mapBounds.south &&
-        s.location.lat <= mapBounds.north &&
-        s.location.lon >= mapBounds.west &&
-        s.location.lon <= mapBounds.east
-    );
-  }, [stopsHook.stops, mapBounds]);
 
   if (geo.loading || stopsHook.loading) {
     return <LoadingState />;
@@ -57,35 +40,40 @@ export default function Home() {
     return <ErrorState type="permission" onRetry={geo.retry} />;
   }
 
-  if (stopsHook.error === "network") {
-    return <ErrorState type="network" onRetry={geo.retry} />;
+  if (geo.error || !geo.coords) {
+    return <ErrorState type={geo.error === "timeout" ? "timeout" : "location"} onRetry={geo.retry} />;
   }
 
-  const userCoords = geo.coords!;
+  if (stopsHook.error === "network") {
+    return <ErrorState type="network" onRetry={stopsHook.retry} />;
+  }
+
+  const userCoords = geo.coords;
 
   return (
     <div className="app-layout">
-      <div className="map-container">
+      <div className="map-container" aria-label="Transit map">
         <MapView
           userCoords={userCoords}
-          stops={selectedStop ? [selectedStop] : visibleStops}
+          stops={selectedStop ? [selectedStop] : stopsHook.stops}
           stopColors={stopColors}
-          walkingRoute={depsHook.walkingRoute ?? undefined}
-          onBoundsReady={handleBoundsReady}
+          walkingRoute={selectedStop ? depsHook.walkingRoute ?? undefined : undefined}
         />
       </div>
       <BottomSheet>
         {selectedStop ? (
           <DepartureDetail
             stop={selectedStop}
+            line={selection?.line}
             departures={depsHook.departures}
             walkingRoute={depsHook.walkingRoute}
             loading={depsHook.loading}
             error={depsHook.error}
-            onBack={() => setSelectedStop(null)}
+            onBack={() => setSelection(null)}
+            onRetry={depsHook.retry}
           />
         ) : (
-          <StopList stops={visibleStops} stopColors={stopColors} onSelectStop={setSelectedStop} />
+          <StopList stops={stopsHook.stops} stopColors={stopColors} onSelectStop={(stop, line) => setSelection({ stop, line })} />
         )}
       </BottomSheet>
     </div>

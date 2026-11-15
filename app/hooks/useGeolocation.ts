@@ -24,8 +24,18 @@ export function useGeolocation() {
   }, []);
 
   useEffect(() => {
+    let cancelled = false;
+    if (!navigator.geolocation) {
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setError("position_unavailable");
+        setLoading(false);
+      });
+      return () => { cancelled = true; };
+    }
     navigator.geolocation.getCurrentPosition(
       (position) => {
+        if (cancelled) return;
         setCoords({
           lat: position.coords.latitude,
           lon: position.coords.longitude,
@@ -33,11 +43,13 @@ export function useGeolocation() {
         setLoading(false);
       },
       (err) => {
+        if (cancelled) return;
         setError(errorMap[err.code] ?? "position_unavailable");
         setLoading(false);
       },
-      { enableHighAccuracy: true, timeout: 10000 }
+      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 }
     );
+    return () => { cancelled = true; };
   }, [trigger]);
 
   return { loading, coords, error, retry };

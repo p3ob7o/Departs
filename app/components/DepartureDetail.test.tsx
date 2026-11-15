@@ -86,8 +86,8 @@ describe("DepartureDetail", () => {
       />
     );
 
-    // 145.2 seconds ≈ 2 min walk
-    expect(screen.getByText(/2\s*min walk/i)).toBeInTheDocument();
+    // 145.2 seconds rounds up to a 3 minute walking allowance
+    expect(screen.getByText(/3\s*min walk/i)).toBeInTheDocument();
   });
 
   it("gracefully handles null walking route", () => {

@@ -1,6 +1,7 @@
 const messages: Record<string, string> = {
   permission: "Location permission required",
   network: "Couldn't load stops",
+  location: "Couldn't find your location",
   timeout: "Taking too long to find your location",
   empty: "No public transit stops nearby",
   offline: "You appear to be offline",
@@ -9,8 +10,9 @@ const messages: Record<string, string> = {
 const descriptions: Record<string, string> = {
   permission: "Departs needs your location to find nearby transit stops. Please enable location access in your browser settings.",
   network: "We couldn't connect to the transit data service. Check your connection and try again.",
+  location: "Location is unavailable. Check your device location settings and try again.",
   timeout: "Your device is taking longer than expected to determine your location.",
-  empty: "We couldn't find any stops within 250m. Try moving to a different area.",
+  empty: "We couldn't find any stops within 400m. Try moving to a different area.",
   offline: "Check your internet connection and try again.",
 };
 
@@ -18,7 +20,7 @@ export function ErrorState({
   type,
   onRetry,
 }: {
-  type: "permission" | "network" | "timeout" | "empty" | "offline";
+  type: "permission" | "location" | "network" | "timeout" | "empty" | "offline";
   onRetry: () => void;
 }) {
   return (

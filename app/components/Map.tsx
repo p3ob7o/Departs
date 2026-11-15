@@ -1,22 +1,24 @@
 "use client";
 
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useSyncExternalStore, useCallback } from "react";
 import { Map, Marker, Source, Layer } from "react-map-gl/mapbox";
 import type { MapRef } from "react-map-gl/mapbox";
 import "mapbox-gl/dist/mapbox-gl.css";
 import type { NearbyStop, WalkingRoute } from "@/app/types";
 import { getTransportName } from "./TransportIcon";
 
+function subscribeToDarkMode(callback: () => void) {
+  const mq = window.matchMedia("(prefers-color-scheme: dark)");
+  mq.addEventListener("change", callback);
+  return () => mq.removeEventListener("change", callback);
+}
+
 function useDarkMode(): boolean {
-  const [dark, setDark] = useState(false);
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    setDark(mq.matches);
-    const handler = (e: MediaQueryListEvent) => setDark(e.matches);
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
-  return dark;
+  return useSyncExternalStore(
+    subscribeToDarkMode,
+    () => window.matchMedia("(prefers-color-scheme: dark)").matches,
+    () => false
+  );
 }
 
 export function MapView({

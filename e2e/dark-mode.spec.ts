@@ -31,7 +31,7 @@ test.describe("Dark Mode", () => {
     await expect(page.getByText("Central Station")).toBeVisible();
 
     // Map should exist and use dark style
-    const map = page.locator("[data-testid=map]");
+    const map = page.getByRole("region", { name: "Map", exact: true });
     await expect(map).toBeVisible();
   });
 });

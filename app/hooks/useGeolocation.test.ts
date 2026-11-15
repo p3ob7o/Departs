@@ -96,6 +96,14 @@ describe("useGeolocation", () => {
     expect(mockGeo.getCurrentPosition).toHaveBeenCalledTimes(2);
   });
 
+  it("reports unavailable location when the browser has no geolocation API", async () => {
+    Object.defineProperty(navigator, "geolocation", { value: undefined, configurable: true });
+    const { result } = renderHook(() => useGeolocation());
+    await act(async () => {});
+    expect(result.current.error).toBe("position_unavailable");
+    expect(result.current.loading).toBe(false);
+  });
+
   it("passes high accuracy and timeout options", () => {
     renderHook(() => useGeolocation());
 

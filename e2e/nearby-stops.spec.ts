@@ -19,7 +19,7 @@ test.describe("Nearby Stops (Screen 1)", () => {
     await page.goto("/");
 
     // Map container should be visible
-    await expect(page.locator("[data-testid=map]")).toBeVisible();
+    await expect(page.getByRole("region", { name: "Map", exact: true })).toBeVisible();
   });
 
   test("stop rows are tappable", async ({ page }) => {

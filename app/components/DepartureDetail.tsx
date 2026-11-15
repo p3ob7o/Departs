@@ -1,23 +1,27 @@
-import type { NearbyStop, Departure, WalkingRoute } from "@/app/types";
+import type { NearbyStop, LineInfo, Departure, WalkingRoute } from "@/app/types";
 import { DepartureRow } from "./DepartureRow";
 import { getTransportName } from "./TransportIcon";
 
 export function DepartureDetail({
   stop,
+  line,
   departures,
   walkingRoute,
   loading,
   error,
   onBack,
+  onRetry,
 }: {
   stop: NearbyStop;
+  line?: LineInfo;
   departures: Departure[];
   walkingRoute: WalkingRoute | null;
   loading: boolean;
   error: string | null;
   onBack: () => void;
+  onRetry?: () => void;
 }) {
-  const firstLine = stop.lines[0];
+  const firstLine = line ?? stop.lines[0];
 
   return (
     <div>
@@ -48,7 +52,7 @@ export function DepartureDetail({
             marginTop: "8px",
           }}
         >
-          {getTransportName(stop.type)} {firstLine.name} to {firstLine.direction}
+          {getTransportName(firstLine.type)} {firstLine.name} to {firstLine.direction}
         </p>
       )}
       {walkingRoute && (
@@ -60,7 +64,7 @@ export function DepartureDetail({
             marginTop: "4px",
           }}
         >
-          {Math.round(walkingRoute.duration / 60)} min walk
+          {Math.max(1, Math.ceil(walkingRoute.duration / 60))} min walk
         </p>
       )}
       <div style={{ marginTop: "20px" }}>
@@ -98,7 +102,8 @@ export function DepartureDetail({
               textAlign: "center",
             }}
           >
-            Couldn't load departure times.
+            Couldn&apos;t load departure times.
+            {onRetry && <button className="block mx-auto mt-3 p-3" onClick={onRetry}>Retry</button>}
           </p>
         ) : departures.length === 0 ? (
           <p

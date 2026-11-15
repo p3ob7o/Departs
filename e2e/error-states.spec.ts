@@ -18,6 +18,19 @@ test.describe("Error States", () => {
     await expect(page.getByText(/location permission/i)).toBeVisible();
   });
 
+  for (const code of [2, 3]) {
+    test(`recovers from location error ${code} without crashing`, async ({ page }) => {
+      const errors: string[] = [];
+      page.on("pageerror", (error) => errors.push(error.message));
+      await page.addInitScript((errorCode) => {
+        navigator.geolocation.getCurrentPosition = (_success, error) => error?.({ code: errorCode } as GeolocationPositionError);
+      }, code);
+      await page.goto("/");
+      await expect(page.getByRole("button", { name: "Retry" })).toBeVisible();
+      expect(errors).toEqual([]);
+    });
+  }
+
   test("shows network error when API fails", async ({ page }) => {
     await mockGeolocation(page);
     await mockNetworkError(page);
