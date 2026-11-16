@@ -167,10 +167,14 @@ final class TransitStore {
         guard fix.coordinate.isValid else { return }
         location = fix
         if let selection { await refreshSelection(selection, force: force); return }
-        let moved = center.map { $0.distance(to: fix.coordinate) > 150 } ?? true
-        if moved || stopsCheckedAt?.isRecent(at: now(), within: 300) != true {
+        guard let center, center.distance(to: fix.coordinate) <= 150 else {
             await loadArea(fix.coordinate)
-        } else { await refreshAnswers(force: force) }
+            return
+        }
+        // Same place. Two fixes at one spot never match exactly, so the centre
+        // stays: a new one would empty the list and move the map for nothing.
+        if stopsCheckedAt?.isRecent(at: now(), within: 300) != true { await loadArea(center) }
+        else { await refreshAnswers(force: force) }
     }
 
     /// Load the stops within reach of a point. A different point is a new
@@ -207,7 +211,13 @@ final class TransitStore {
                 await self.refreshAnswers(force: forceRefresh || changed)
             } catch {
                 guard revision == self.areaRevision, !Self.cancelled(error) else { return }
-                self.stopsError = String(localized: "Couldn't update nearby stops")
+                if changed || self.stopsCheckedAt == nil {
+                    self.stopsError = String(localized: "Couldn't update nearby stops")
+                } else {
+                    // The stops already listed still stand. Keep their times moving.
+                    self.isLoadingStops = false
+                    await self.refreshAnswers(force: forceRefresh)
+                }
             }
         }
         areaTask = task

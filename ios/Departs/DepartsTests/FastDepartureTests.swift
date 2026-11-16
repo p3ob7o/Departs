@@ -557,6 +557,53 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertFalse(store.isLoadingStops)
     }
 
+    @MainActor func testNewFixAtTheSameSpotKeepsTheListAndRefreshesOldStopsInPlace() async throws {
+        var time = instant
+        var api = try sampleClient(), centers: [Coordinate] = [], rowsWhileReloading: [Int] = []
+        let stops = try sampleStops()
+        weak var observed: TransitStore?
+        api.stops = { center in
+            centers.append(center)
+            rowsWhileReloading.append(observed?.displayedOptions.count ?? -1)
+            return stops
+        }
+        let store = TransitStore(client: api, persistence: persistence(), now: { time })
+        observed = store
+        await store.updateLocation(fix)
+        let revision = store.areaRevision
+        XCTAssertEqual(store.displayedOptions.count, 8)
+        // On a phone, two fixes at one spot never have identical coordinates.
+        time.addTimeInterval(301)
+        let fiveMetresNorth = Coordinate(lat: coordinate.lat + 5.0 / 111_200, lon: coordinate.lon)
+        await store.updateLocation(.init(coordinate: fiveMetresNorth, capturedAt: time, accuracy: 10))
+        XCTAssertEqual(store.areaRevision, revision, "The list must not start over when the rider has not moved")
+        XCTAssertEqual(store.center, coordinate)
+        XCTAssertEqual(centers, [coordinate, coordinate], "Old stops are refreshed for the same centre")
+        XCTAssertEqual(rowsWhileReloading, [0, 8], "Rows stay on screen during that refresh")
+        XCTAssertEqual(store.location?.coordinate, fiveMetresNorth, "Walking still starts from the newest fix")
+        let twoHundredMetresNorth = Coordinate(lat: coordinate.lat + 200.0 / 111_200, lon: coordinate.lon)
+        await store.updateLocation(.init(coordinate: twoHundredMetresNorth, capturedAt: time, accuracy: 10))
+        XCTAssertEqual(store.areaRevision, revision + 1, "A real move is a new area")
+        XCTAssertEqual(store.center, twoHundredMetresNorth)
+    }
+
+    @MainActor func testFailedStopsRefreshAtTheSameSpotKeepsTheListAndStillUpdatesTimes() async throws {
+        var time = instant
+        var api = try sampleClient(), failStops = false, batchCalls = 0
+        let stops = try sampleStops(), response = try sampleBatch()
+        api.stops = { _ in if failStops { throw APIError.requestFailed }; return stops }
+        api.batch = { _ in batchCalls += 1; return response }
+        let store = TransitStore(client: api, persistence: persistence(), now: { time })
+        await store.updateLocation(fix)
+        time.addTimeInterval(301)
+        failStops = true
+        await store.updateLocation(.init(coordinate: coordinate, capturedAt: time, accuracy: 10))
+        XCTAssertNil(store.stopsError)
+        XCTAssertFalse(store.isLoadingStops)
+        XCTAssertEqual(store.displayedOptions.count, 8)
+        XCTAssertEqual(batchCalls, 2)
+    }
+
     @MainActor func testSearchedPlaceAndWiderRadiusSavedByEarlierBuildsAreNotRestored() throws {
         let disk = persistence()
         // What 1.2 (7) saved after "Search farther" at a searched place.

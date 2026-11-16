@@ -133,7 +133,7 @@ struct NearbyStopsView: View {
             Button { Task { await onRefresh() } } label: {
                 Label("Couldn't load departures · Retry", systemImage: "arrow.clockwise").frame(minHeight: 44)
             }.foregroundStyle(.tint).accessibilityIdentifier("refresh-list")
-        } else if store.isLoadingStops || store.home.checkedAt == nil && (store.stopsCheckedAt == nil || !store.stops.isEmpty) {
+        } else if store.home.checkedAt == nil, store.isLoadingStops || store.stopsCheckedAt == nil || !store.stops.isEmpty {
             Label("Finding departures…", systemImage: "clock").accessibilityIdentifier("board-status")
         } else if store.stops.isEmpty {
             Text("No stops within \(TransitFormat.distance(Double(TransitStore.radius)))").accessibilityIdentifier("empty-stops")
