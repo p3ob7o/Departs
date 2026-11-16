@@ -4,7 +4,6 @@ import MapKit
 struct StopsMapView: UIViewRepresentable {
     let userCoordinate: CLLocationCoordinate2D?
     let groups: [TransitStore.StopGroup]
-    var radius: Int = 400
     var selectedStopID: String? = nil
     var onSelect: (String?) -> Void = { _ in }
 
@@ -24,16 +23,20 @@ struct StopsMapView: UIViewRepresentable {
         context.coordinator.onSelect = onSelect
         context.coordinator.restoringSelection = true
         defer { context.coordinator.restoringSelection = false }
+        let radius = Double(TransitStore.radius)
         if let userCoordinate {
             let center = Coordinate(lat: userCoordinate.latitude, lon: userCoordinate.longitude)
-            if context.coordinator.regionCenter != center || context.coordinator.radius != radius {
+            if context.coordinator.regionCenter != center {
                 map.setRegion(MKCoordinateRegion(center: userCoordinate,
-                    latitudinalMeters: Double(radius) * 2.4, longitudinalMeters: Double(radius) * 2.4), animated: false)
+                    latitudinalMeters: radius * 2.4, longitudinalMeters: radius * 2.4), animated: false)
                 context.coordinator.regionCenter = center
-                context.coordinator.radius = radius
                 map.removeOverlays(map.overlays)
-                map.addOverlay(MKCircle(center: userCoordinate, radius: CLLocationDistance(radius)))
+                map.addOverlay(MKCircle(center: userCoordinate, radius: radius))
             }
+        } else if context.coordinator.regionCenter != nil {
+            // Location was turned off: no circle may claim an area is searched.
+            context.coordinator.regionCenter = nil
+            map.removeOverlays(map.overlays)
         }
 
         let groupsByID = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, $0) })
@@ -77,7 +80,6 @@ struct StopsMapView: UIViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate {
         var onSelect: (String?) -> Void = { _ in }
         var regionCenter: Coordinate?
-        var radius: Int?
         var restoringSelection = false
 
         func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {

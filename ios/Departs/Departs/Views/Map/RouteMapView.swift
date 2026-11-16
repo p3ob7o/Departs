@@ -2,7 +2,9 @@ import SwiftUI
 import MapKit
 
 struct RouteMapView: UIViewRepresentable {
-    let userCoordinate: CLLocationCoordinate2D
+    /// Where the walk starts. Nil when location is off and no area is saved:
+    /// the map then shows the stop alone.
+    let userCoordinate: CLLocationCoordinate2D?
     let stop: NearbyStop
     let stopColor: Color
     let walkingRoute: WalkingRoute?
@@ -27,7 +29,7 @@ struct RouteMapView: UIViewRepresentable {
         context.coordinator.stopType = line?.type ?? stop.type
         context.coordinator.stopName = stop.name
         context.coordinator.lineName = line?.name ?? stop.lines.first?.name ?? stop.type.label
-        context.coordinator.originLabel = originIsCurrentLocation ? String(localized: "Walking start") : String(localized: "Searched area")
+        context.coordinator.originLabel = originIsCurrentLocation ? String(localized: "Walking start") : String(localized: "Last location")
         let routeCoordinates = walkingRoute?.geometry.clCoordinates ?? []
         let stopAnnotationKey = "\(stop.id)|\(stop.location.lat)|\(stop.location.lon)|\(context.coordinator.lineName)"
 
@@ -43,10 +45,10 @@ struct RouteMapView: UIViewRepresentable {
             context.coordinator.stopAnnotationKey = stopAnnotationKey
         }
 
-        let originKey = "\(userCoordinate.latitude)|\(userCoordinate.longitude)|\(originIsCurrentLocation)"
+        let originKey = userCoordinate.map { "\($0.latitude)|\($0.longitude)|\(originIsCurrentLocation)" } ?? "none"
         if context.coordinator.originKey != originKey {
             map.removeAnnotations(map.annotations.compactMap { $0 as? PinAnnotation }.filter { $0.kind == .user })
-            map.addAnnotation(PinAnnotation(coordinate: userCoordinate, kind: .user))
+            if let userCoordinate { map.addAnnotation(PinAnnotation(coordinate: userCoordinate, kind: .user)) }
             context.coordinator.originKey = originKey
         }
 
@@ -60,9 +62,9 @@ struct RouteMapView: UIViewRepresentable {
             context.coordinator.routeKey = routeKey
         }
 
-        // Fit region to user + stop (and route if available)
-        var lats = [userCoordinate.latitude, stop.location.lat]
-        var lons = [userCoordinate.longitude, stop.location.lon]
+        // Fit region to the stop, the origin and the route, whichever exist.
+        var lats = [stop.location.lat] + (userCoordinate.map { [$0.latitude] } ?? [])
+        var lons = [stop.location.lon] + (userCoordinate.map { [$0.longitude] } ?? [])
         for coord in routeCoordinates {
             lats.append(coord.latitude)
             lons.append(coord.longitude)
@@ -79,11 +81,8 @@ struct RouteMapView: UIViewRepresentable {
             span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan)
         )
 
-        let regionKey = Self.regionKey(
-            userCoordinate: userCoordinate,
-            stopCoordinate: stop.location.clLocationCoordinate2D,
-            routeKey: routeKey
-        )
+        let origin = userCoordinate.map { "\($0.latitude),\($0.longitude)" } ?? "none"
+        let regionKey = "\(origin)|\(stop.location.lat),\(stop.location.lon)|\(routeKey)"
         if context.coordinator.regionKey != regionKey {
             context.coordinator.regionKey = regionKey
             container.targetRegion = region
@@ -146,14 +145,6 @@ struct RouteMapView: UIViewRepresentable {
     private static func routeKey(for coordinates: [CLLocationCoordinate2D]) -> String {
         guard !coordinates.isEmpty else { return "none" }
         return coordinates.map { "\($0.latitude),\($0.longitude)" }.joined(separator: "|")
-    }
-
-    private static func regionKey(
-        userCoordinate: CLLocationCoordinate2D,
-        stopCoordinate: CLLocationCoordinate2D,
-        routeKey: String
-    ) -> String {
-        "\(userCoordinate.latitude),\(userCoordinate.longitude)|\(stopCoordinate.latitude),\(stopCoordinate.longitude)|\(routeKey)"
     }
 
     // MARK: - Coordinator

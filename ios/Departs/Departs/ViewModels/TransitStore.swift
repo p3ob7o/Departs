@@ -2,13 +2,13 @@ import Foundation
 import SwiftUI
 
 struct TransitClient {
-    var stops: (Coordinate, Int) async throws -> [NearbyStop]
+    var stops: (Coordinate) async throws -> [NearbyStop]
     var departures: (StopLineSelection) async throws -> [Departure]
     var directions: (Coordinate, Coordinate) async throws -> WalkingRoute
     var batch: ([String]) async throws -> BatchDepartures
 
     static let live = TransitClient(
-        stops: { try await APIService.shared.fetchNearbyStops(lat: $0.lat, lon: $0.lon, radius: $1) },
+        stops: { try await APIService.shared.fetchNearbyStops(lat: $0.lat, lon: $0.lon) },
         departures: { try await APIService.shared.fetchDepartures(stopId: $0.stop.id, line: $0.line) },
         directions: { try await APIService.shared.fetchDirections(from: $0, to: $1) },
         batch: { try await APIService.shared.fetchDepartureBoards(stopIDs: $0) }
@@ -21,11 +21,13 @@ final class TransitStore {
     typealias StopGroup = HomeStopGroup
     nonisolated static let runningHorizon: TimeInterval = 60 * 60
     nonisolated static let refreshInterval: TimeInterval = 25
+    /// Departs looks this far around the rider, in metres, and nowhere else.
+    nonisolated static let radius = 400
 
-    private(set) var recentAreas: [SearchArea] = []
-    private(set) var area: SearchArea?
+    /// Where the rider was when the list on screen was built: the centre of
+    /// its circle. There is no other way to choose a place.
+    private(set) var center: Coordinate?
     private(set) var location: LocationFix?
-    private(set) var radius = 400
     private(set) var stops: [NearbyStop] = []
     private(set) var stopsCheckedAt: Date?
     private(set) var home = HomeSnapshot()
@@ -39,7 +41,6 @@ final class TransitStore {
     private(set) var loadingBoards: Set<String> = []
     private(set) var areaRevision = 0
     private(set) var homeRestored = false
-    var followsLocation = true
 
     @ObservationIgnored private let client: TransitClient
     @ObservationIgnored private let persistence: TransitPersistence
@@ -60,13 +61,11 @@ final class TransitStore {
         self.client = client
         self.persistence = persistence
         self.now = now
-        recentAreas = persistence.loadRecentAreas()
+        persistence.removeRetiredData()
         pins = persistence.loadPins()
         boards = persistence.loadBoards().filter { $0.value.checkedAt.isRecent(at: now(), within: 86_400) }
-        if let saved = persistence.loadNearby(), saved.area.coordinate.isValid {
-            area = saved.area
-            followsLocation = saved.area.source == .location
-            radius = [400, 800, 1600].contains(saved.radius) ? saved.radius : 400
+        if let saved = persistence.loadNearby(), saved.center.isValid {
+            center = saved.center
             stops = saved.stops
             stopsCheckedAt = saved.checkedAt
             if let savedHome = persistence.loadHome(), savedHome.checkedAt?.isRecent(at: now(), within: 86_400) == true,
@@ -87,18 +86,19 @@ final class TransitStore {
     }
     var displayedOptions: [StopLineSelection] { home.selections }
     var mapGroups: [StopGroup] {
-        guard let area else { return [] }
-        return HomeSnapshot.physicalStops(stops, from: area.coordinate).compactMap { group in
+        guard let center else { return [] }
+        return HomeSnapshot.physicalStops(stops, from: center).compactMap { group in
             let ids = Set(group.stops.map(\.id))
             var result = group
             result.active = home.selections.filter { ids.contains($0.stop.id) }
             return result.active.isEmpty ? nil : result
         }
     }
-    var canSearchFarther: Bool { area != nil && radius < 1600 }
+    /// The current position, else the centre of the last area, else nothing:
+    /// a pinned route opened while location is off has no walk to show.
     var walkingOrigin: Coordinate? {
         if let location, location.isUsable(at: now()) { return location.coordinate }
-        return area?.coordinate
+        return center
     }
 
     func setInteracting(_ active: Bool, presentationID: String) {
@@ -131,8 +131,8 @@ final class TransitStore {
         if let index = pins.firstIndex(where: { $0.id == selection.id }) { pins.remove(at: index) }
         else { pins.append(selection) }
         persistence.savePins(pins)
-        if let response = lastResponse, let area, let date = TimeFormatter.parseISO(response.fetchedAt) {
-            var snapshot = HomeSnapshot.make(stops: stops, origin: area.coordinate, pins: pins, response: response, checkedAt: date)
+        if let response = lastResponse, let center, let date = TimeFormatter.parseISO(response.fetchedAt) {
+            var snapshot = HomeSnapshot.make(stops: stops, origin: center, pins: pins, response: response, checkedAt: date)
             let current = pendingHome ?? home
             snapshot.missing = current.missing
             snapshot.boards.merge(current.boards) { _, current in current }
@@ -147,14 +147,14 @@ final class TransitStore {
                 }
             } else if !isPinned(selection) {
                 snapshot.pins.removeAll { $0.id == selection.id }
-                if snapshot.boards[selection.id]?.hasDepartureWithinHorizon == true, let area {
+                if snapshot.boards[selection.id]?.hasDepartureWithinHorizon == true, let center {
                     if let index = snapshot.groups.firstIndex(where: { $0.stops.contains { $0.id == selection.stop.id } }) {
                         snapshot.groups[index].active.append(selection)
-                    } else if var group = HomeSnapshot.physicalStops(stops, from: area.coordinate)
+                    } else if var group = HomeSnapshot.physicalStops(stops, from: center)
                         .first(where: { $0.stops.contains { $0.id == selection.stop.id } }) {
                         group.active = [selection]
                         snapshot.groups.append(group)
-                        snapshot.groups.sort { $0.distance(from: area.coordinate) < $1.distance(from: area.coordinate) }
+                        snapshot.groups.sort { $0.distance(from: center) < $1.distance(from: center) }
                     }
                 }
             }
@@ -167,47 +167,20 @@ final class TransitStore {
         guard fix.coordinate.isValid else { return }
         location = fix
         if let selection { await refreshSelection(selection, force: force); return }
-        guard followsLocation else { await refreshAnswers(force: force); return }
-        let moved = area.map { $0.coordinate.distance(to: fix.coordinate) > 150 } ?? true
-        if moved || area?.source != .location || stopsCheckedAt?.isRecent(at: now(), within: 300) != true {
-            await loadArea(.init(coordinate: fix.coordinate, name: String(localized: "Near you"), source: .location), radius: radius)
+        let moved = center.map { $0.distance(to: fix.coordinate) > 150 } ?? true
+        if moved || stopsCheckedAt?.isRecent(at: now(), within: 300) != true {
+            await loadArea(fix.coordinate)
         } else { await refreshAnswers(force: force) }
     }
 
-    func searchFarther() async {
-        guard let area, canSearchFarther, !isLoadingStops else { return }
-        await loadArea(area, radius: radius == 400 ? 800 : 1600)
-    }
-
-    func loadArea(_ newArea: SearchArea, radius newRadius: Int = 400, forceRefresh: Bool = false) async {
-        guard newArea.coordinate.isValid else { return }
-        let changed = area != newArea || radius != newRadius
+    /// Load the stops within reach of a point. A different point is a new
+    /// area: the list starts over and the map recentres.
+    func loadArea(_ newCenter: Coordinate, forceRefresh: Bool = false) async {
+        guard newCenter.isValid else { return }
+        let changed = center != newCenter
         if !changed, let areaTask { await areaTask.value; return }
-        if changed {
-            areaRevision += 1
-            areaTask?.cancel()
-            batchTask?.cancel()
-            batchTask = nil
-            batchID = nil
-            lastBatchAttempt = nil
-            lastResponse = nil
-            pendingHome = nil
-            home = .init()
-            stops = []
-            stopsCheckedAt = nil
-            departuresError = nil
-            homeRestored = false
-            persistence.saveHome(home)
-        }
-        area = newArea
-        followsLocation = newArea.source == .location
-        radius = newRadius
-        if newArea.source == .chosen {
-            recentAreas.removeAll { $0.coordinate.distance(to: newArea.coordinate) < 40 && $0.name == newArea.name }
-            recentAreas.insert(newArea, at: 0)
-            recentAreas = Array(recentAreas.prefix(5))
-            persistence.saveRecentAreas(recentAreas)
-        }
+        if changed { resetArea() }
+        center = newCenter
         let revision = areaRevision
         isLoadingStops = true
         stopsError = nil
@@ -215,11 +188,11 @@ final class TransitStore {
             guard let self else { return }
             defer { if revision == self.areaRevision { self.isLoadingStops = false; self.areaTask = nil } }
             do {
-                let response = try await self.client.stops(newArea.coordinate, newRadius)
+                let response = try await self.client.stops(newCenter)
                 guard revision == self.areaRevision, !Task.isCancelled else { return }
                 var seen: Set<String> = []
                 self.stops = Array(response.filter {
-                    $0.location.isValid && $0.location.distance(to: newArea.coordinate) <= Double(newRadius)
+                    $0.location.isValid && $0.location.distance(to: newCenter) <= Double(Self.radius)
                         && seen.insert($0.id).inserted
                 }.prefix(50))
                 self.stopsCheckedAt = self.now()
@@ -229,20 +202,50 @@ final class TransitStore {
                     self.lastResponse = nil
                     self.persistence.saveHome(self.home)
                 }
-                self.persistence.saveNearby(.init(area: newArea, radius: newRadius, stops: self.stops, checkedAt: self.now()))
+                self.persistence.saveNearby(.init(center: newCenter, stops: self.stops, checkedAt: self.now()))
                 self.isLoadingStops = false
                 await self.refreshAnswers(force: forceRefresh || changed)
             } catch {
                 guard revision == self.areaRevision, !Self.cancelled(error) else { return }
-                self.stopsError = String(localized: "Couldn't update nearby stops. Try again or choose an area.")
+                self.stopsError = String(localized: "Couldn't update nearby stops")
             }
         }
         areaTask = task
         await task.value
     }
 
+    /// Location is off, so there is no "around you". Forget the last area
+    /// instead of refreshing a place the rider may have left. Pins stay.
+    func clearArea() {
+        guard center != nil || location != nil else { return }
+        resetArea()
+        center = nil
+        location = nil
+        isLoadingStops = false
+        stopsError = nil
+        persistence.clearNearby()
+    }
+
+    private func resetArea() {
+        areaRevision += 1
+        areaTask?.cancel()
+        areaTask = nil
+        batchTask?.cancel()
+        batchTask = nil
+        batchID = nil
+        lastBatchAttempt = nil
+        lastResponse = nil
+        pendingHome = nil
+        home = .init()
+        stops = []
+        stopsCheckedAt = nil
+        departuresError = nil
+        homeRestored = false
+        persistence.saveHome(home)
+    }
+
     func refreshAnswers(force: Bool = false) async {
-        guard let area, !stops.isEmpty else { return }
+        guard let center, !stops.isEmpty else { return }
         if let batchTask { await batchTask.value; return }
         if !force, lastBatchAttempt?.isRecent(at: now(), within: Self.refreshInterval) == true { return }
         let revision = areaRevision, requestID = UUID(), requestedStops = stops
@@ -257,7 +260,7 @@ final class TransitStore {
                 let response = try await self.client.batch(requestedStops.map(\.id))
                 guard revision == self.areaRevision, !Task.isCancelled else { return }
                 guard let fetchedAt = TimeFormatter.parseISO(response.fetchedAt) else { throw APIError.requestFailed }
-                var snapshot = HomeSnapshot.make(stops: requestedStops, origin: area.coordinate, pins: self.pins,
+                var snapshot = HomeSnapshot.make(stops: requestedStops, origin: center, pins: self.pins,
                                                  response: response, checkedAt: fetchedAt)
                 let previous = self.pendingHome ?? self.home
                 if !snapshot.missing.isEmpty, previous.checkedAt != nil {
@@ -345,12 +348,12 @@ final class TransitStore {
         return walk
     }
     func walk(for group: StopGroup, at date: Date) -> CachedWalk? {
-        guard let area, let platform = group.nearestPlatform(to: area.coordinate) else { return nil }
+        guard let center, let platform = group.nearestPlatform(to: center) else { return nil }
         return walk(for: platform, at: date)
     }
     private func refreshListedWalks() async {
-        guard let area else { return }
-        let platforms = mapGroups.compactMap { $0.nearestPlatform(to: area.coordinate) }
+        guard let center else { return }
+        let platforms = mapGroups.compactMap { $0.nearestPlatform(to: center) }
         await withTaskGroup(of: Void.self) { group in
             var iterator = platforms.makeIterator()
             for _ in 0..<3 {

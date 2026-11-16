@@ -44,8 +44,8 @@ actor APIService {
         return try await task.value
     }
 
-    func fetchNearbyStops(lat: Double, lon: Double, radius: Int = 400) async throws -> [NearbyStop] {
-        let url = try Self.nearbyStopsURL(lat: lat, lon: lon, radius: radius)
+    func fetchNearbyStops(lat: Double, lon: Double) async throws -> [NearbyStop] {
+        let url = try Self.nearbyStopsURL(lat: lat, lon: lon)
         let data = try await data(at: url)
         return try decoder.decode([NearbyStop].self, from: data).filter { $0.location.isValid }
     }
@@ -73,13 +73,13 @@ actor APIService {
         return route
     }
 
-    static func nearbyStopsURL(lat: Double, lon: Double, radius: Int = 400) throws -> URL {
+    static func nearbyStopsURL(lat: Double, lon: Double) throws -> URL {
         try makeURL(
             path: "/api/stops/nearby",
             queryItems: [
                 URLQueryItem(name: "lat", value: String(lat)),
                 URLQueryItem(name: "lon", value: String(lon)),
-                URLQueryItem(name: "radius", value: String(radius)),
+                URLQueryItem(name: "radius", value: String(TransitStore.radius)),
             ]
         )
     }
