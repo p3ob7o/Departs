@@ -10,8 +10,8 @@ Keep the Next.js/Vercel API backend: installed iOS builds call `https://departs.
 
 ```bash
 # iOS app (requires Xcode selected as the active developer directory)
-xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
-xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
+xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.0' -derivedDataPath /tmp/departs-iphone build
+xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.0' -derivedDataPath /tmp/departs-iphone test
 
 # API backend
 npm ci
@@ -35,10 +35,11 @@ The native MapKit map does not use a public Mapbox token. Local backend startup 
 
 ## Architecture
 
-- SwiftUI with `@Observable` view models, iOS 17+, zero third-party iOS dependencies.
+- SwiftUI with `@Observable` view models, iOS 26+, zero third-party iOS dependencies. Guard iOS 27-only APIs with availability checks.
 - MapKit through `UIViewRepresentable` wrappers, system light/dark appearance.
-- `ContentView` owns foreground refresh and location/search navigation. One `TransitStore` supplies list and detail, restores cached boards and pins, and rejects stale area/route responses.
-- Opening answers are limited to six service options, with independently batched departures and walking routes. MapKit maps load on request.
+- `DepartsApp` owns one `TransitSession`, containing the shared `TransitStore`, `LocationService` and foreground refresh clock. Each `ContentView` owns its selection, split navigation, scroll targets and sheets. Visible panes contribute separately to refresh demand; closing or backgrounding a window removes only its demand.
+- The app target stays iPhone-only (`TARGETED_DEVICE_FAMILY = 1`). Landscape is enabled on iPhone. Test the resizable foundation on iPad with a command-line `TARGETED_DEVICE_FAMILY="1,2"` override and separate derived data; do not commit iPad, Mac or Vision Pro availability without the owner's decision in the adaptation plan.
+- Nearby pins and the first three provider stops load on open; subsequent refreshes demand pins and visible stop sections. Departure and walking queues are independent and each runs at most three requests at once. MapKit maps load on request.
 - App Intents expose pinned stop/direction entities through Shortcuts. Keep their stable identities independent of provider ordering.
 - `APIService` is an actor using URLSession async/await.
 - iOS structure: `Models/`, `Services/`, `ViewModels/`, `Views/`, `Utilities/`, `Preview Content/`.

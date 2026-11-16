@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct StopRowView: View {
+    @Environment(\.colorScheme) private var scheme
+    @Environment(\.dynamicTypeSize) private var textSize
     let selection: StopLineSelection
     let board: DepartureBoard?
     let walk: CachedWalk?
@@ -13,83 +15,189 @@ struct StopRowView: View {
     let now: Date
     let onOpen: () -> Void
     let onPin: () -> Void
+    var direction: String? = nil
+    var showStop = false
+    var idle = false
+    var accessibilityID = "departure-option"
 
+    private var content: DepartureRowContent {
+        .init(board: board, advice: advice, loading: loading, failed: failed, fresh: fresh, idle: idle, now: now)
+    }
     var body: some View {
-        HStack(alignment: .top, spacing: 4) {
-            Button(action: onOpen) {
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack(alignment: .top, spacing: 10) {
-                        TransportIconView(type: selection.line.type, color: .accentColor)
-                            .accessibilityLabel(selection.line.type.displayName)
-                        Text("\(selection.line.name) → \(selection.line.direction)")
-                            .font(.headline).foregroundStyle(.primary).fixedSize(horizontal: false, vertical: true)
-                    }
-                    Text(selection.stop.name).font(.subheadline).foregroundStyle(.secondary)
-                    if let board {
-                        let departures = Array(board.upcoming(at: now).prefix(2))
-                        if departures.isEmpty {
-                            Text(fresh ? "No upcoming departures" : "Times need an update")
-                                .font(.subheadline).foregroundStyle(.secondary)
-                        } else {
-                            ViewThatFits(in: .horizontal) {
-                                HStack(alignment: .firstTextBaseline, spacing: 18) { times(departures) }
-                                VStack(alignment: .leading, spacing: 8) { times(departures) }
-                            }
-                        }
-                        HStack(spacing: 4) {
-                            Text("\(fresh ? "Updated" : "Saved · updated") \(board.checkedAt, style: .relative) ago")
-                                .fixedSize(horizontal: false, vertical: true)
-                            if loading { ProgressView().controlSize(.mini) }
-                        }
-                        .font(.caption).foregroundStyle(fresh ? Color.secondary : Color.orange)
-                        .accessibilityElement(children: .combine)
-                        .accessibilityIdentifier("board-status")
-                    } else {
-                        HStack {
-                            if loading { ProgressView().controlSize(.small) }
-                            Text(failed ? "Couldn't load times · tap to retry" : "Checking departures…")
-                                .font(.subheadline).foregroundStyle(.secondary)
-                        }
-                    }
-                    if let walk {
-                        Label("\(max(1, walk.route.walkingMinutes)) min walk\(fromCurrentLocation ? "" : " from searched area")", systemImage: "figure.walk")
-                            .font(.subheadline).foregroundStyle(.secondary)
-                    }
-                    if advice.kind != .unavailable {
-                        VStack(alignment: .leading, spacing: 3) {
-                            Text(advice.title).font(.headline)
-                                .foregroundStyle(advice.kind == .leave ? Color.accentColor : Color.primary)
-                            Text(advice.detail).font(.caption).foregroundStyle(.secondary)
+        Button(action: onOpen) {
+            let layout = textSize.isAccessibilitySize
+                ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+                : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
+            layout {
+                HStack(alignment: .top, spacing: 8) {
+                    LineBadge(line: selection.line)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(direction ?? selection.line.direction).font(.subheadline.weight(.semibold))
+                            .lineLimit(textSize.isAccessibilitySize ? nil : 2)
+                        if showStop && !textSize.isAccessibilitySize { pinnedDetails }
+                        if !textSize.isAccessibilitySize {
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                Image(systemName: content.statusSymbol).font(.caption2)
+                                Text(content.status).fixedSize(horizontal: false, vertical: true)
+                            }.font(.caption)
                         }
                     }
                 }
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .contentShape(Rectangle())
+                if !textSize.isAccessibilitySize { Spacer(minLength: 0) }
+                VStack(alignment: textSize.isAccessibilitySize ? .leading : .trailing, spacing: 3) {
+                    HStack(alignment: .firstTextBaseline, spacing: 4) {
+                        if textSize.isAccessibilitySize {
+                            Image(systemName: content.adviceKind == .leave ? "checkmark.circle" : content.adviceKind == .caution ? "exclamationmark.circle" : "clock")
+                        }
+                        Text(content.answer).fixedSize(horizontal: false, vertical: true)
+                            .modifier(CountdownTransition(value: content.answer))
+                    }
+                        .font(.headline)
+                        .monospacedDigit().foregroundStyle(answerColor)
+                    let timesLayout = textSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 3)) : AnyLayout(HStackLayout(spacing: 3))
+                    timesLayout {
+                        ForEach(Array(content.times.enumerated()), id: \.offset) { index, time in
+                            if index > 0 && !textSize.isAccessibilitySize { Text("·") }
+                            Text(time.text).strikethrough(time.tooTight)
+                                .modifier(CountdownTransition(value: time.text))
+                        }
+                    }.font(.caption).monospacedDigit()
+                }
+                if textSize.isAccessibilitySize && (failed || !fresh) {
+                    Label(content.status, systemImage: content.statusSymbol).font(.caption)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                if showStop && textSize.isAccessibilitySize { pinnedDetails }
             }
-            .buttonStyle(.plain)
-            .accessibilityIdentifier("departure-option")
-
-            Button(action: onPin) {
-                Image(systemName: pinned ? "pin.fill" : "pin")
-                    .frame(width: 44, height: 44)
-            }
-            .buttonStyle(.borderless)
-            .accessibilityLabel("\(pinned ? "Unpin" : "Pin") \(selection.line.name) toward \(selection.line.direction) at \(selection.stop.name)")
-            .accessibilityIdentifier(pinned ? "unpin-route" : "pin-route")
+            .foregroundStyle(.primary)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+            .contentShape(Rectangle())
         }
-        .padding(16)
-        .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+        .buttonStyle(.plain)
+        .accessibilityLabel(spokenAnswer)
+        .accessibilityIdentifier(accessibilityID)
+        .swipeActions { pinAction }
+        .contextMenu { pinAction }
+    }
+    private var spokenAnswer: String {
+        if showStop, let walk {
+            return String(localized: "\(content.answer). \(selection.line.type.displayName) \(selection.line.name) toward \(selection.line.direction) from \(selection.stop.name). \(content.spokenTimes). \(content.status). \(TransitFormat.walk(walk.route, fromCurrentLocation: fromCurrentLocation)).")
+        }
+        return String(localized: "\(content.answer). \(selection.line.type.displayName) \(selection.line.name) toward \(selection.line.direction) from \(selection.stop.name). \(content.spokenTimes). \(content.status).")
+    }
+    private var answerColor: Color {
+        switch content.adviceKind {
+        case .leave: Color(hex: scheme == .dark ? "30D158" : "1D7A36")
+        case .caution: Color(hex: scheme == .dark ? "FF9F0A" : "B25000")
+        case .unavailable: .primary
+        }
+    }
+    @ViewBuilder private var pinnedDetails: some View {
+        Text(selection.stop.name).font(.caption)
+        if let walk {
+            Text(TransitFormat.walk(walk.route, fromCurrentLocation: fromCurrentLocation)).font(.caption)
+        }
+    }
+    private var pinAction: some View {
+        Button(action: onPin) { Label(pinned ? String(localized: "Unpin route") : String(localized: "Pin route"), systemImage: pinned ? "pin.slash" : "pin") }
+            .accessibilityIdentifier(pinned ? "unpin-route" : "pin-route")
+    }
+}
+
+struct LineBadge: View {
+    @Environment(\.dynamicTypeSize) private var textSize
+    let line: LineInfo
+
+    var body: some View {
+        HStack(spacing: 3) {
+            if !textSize.isAccessibilitySize { Image(systemName: line.type.symbol).font(.caption2) }
+            Text(line.name)
+        }
+        .font(.headline).padding(.horizontal, 6).padding(.vertical, 4)
+        .foregroundStyle(.white)
+        .background(StopPalette.modeColor(line.type), in: RoundedRectangle(cornerRadius: 6))
+    }
+}
+
+/// The compact answer and its spoken equivalent share the same selected service.
+struct DepartureRowContent {
+    struct TimeLabel {
+        let text: String
+        var tooTight = false
+    }
+    let answer: String
+    let status: String
+    let statusSymbol: String
+    let adviceKind: DepartureAdvice.Kind
+    let times: [TimeLabel]
+    var spokenTimes: String {
+        times.map { $0.tooTight ? String(localized: "\($0.text), too tight") : $0.text }
+            .formatted(.list(type: .and))
     }
 
-    @ViewBuilder private func times(_ departures: [Departure]) -> some View {
-        ForEach(Array(departures.enumerated()), id: \.element.id) { index, departure in
-            VStack(alignment: .leading, spacing: 2) {
-                Text(fresh ? (TimeFormatter.relativeTime(departure.time, now: now) ?? TimeFormatter.formatTime(departure.time)) : TimeFormatter.formatTime(departure.time))
-                    .font(index == 0 ? .title2.bold() : .headline).monospacedDigit()
-                Text("\(index == 0 ? "" : "Then · ")\(departure.realTime ? (fresh ? "Live" : "Saved prediction") : "Scheduled")")
-                    .font(.caption).foregroundStyle(.secondary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
+    init(board: DepartureBoard?, advice: DepartureAdvice, loading: Bool, failed: Bool, fresh: Bool, idle: Bool, now: Date) {
+        let departures = board?.upcoming(at: now) ?? []
+        let target = advice.departureTime.flatMap(TimeFormatter.parseISO)
+        let showAdvice = !idle && fresh && !failed && advice.kind != .unavailable &&
+            (target == nil || target!.timeIntervalSince(now) <= TransitStore.runningHorizon)
+        adviceKind = showAdvice ? advice.kind : .unavailable
+        func time(_ departure: Departure) -> String {
+            fresh && !idle ? TimeFormatter.relativeTime(departure.time, now: now) ?? TimeFormatter.formatTime(departure.time) : TimeFormatter.formatTime(departure.time)
         }
+        if let coverage = board?.coverageLimit {
+            answer = coverage.message
+        } else if showAdvice { answer = advice.kind == .caution ? String(localized: "Too tight") : advice.title }
+        else if let first = departures.first { answer = time(first) }
+        else if board == nil { answer = loading ? String(localized: "Checking…") : String(localized: "Unavailable") }
+        else { answer = failed || !fresh ? String(localized: "Needs an update") : String(localized: "Nothing soon") }
+
+        var shown = Array(departures.prefix(2))
+        if showAdvice, let matched = departures.first(where: { $0.time == advice.departureTime }),
+           !shown.contains(where: { $0.time == matched.time }), let first = departures.first {
+            shown = [first, matched]
+        }
+        if !showAdvice { shown = Array(shown.dropFirst()) }
+        times = shown.map { departure in
+            let chosen = showAdvice && departure.time == advice.departureTime
+            let tight = showAdvice && advice.isTooTight(departure)
+            return .init(text: chosen ? String(localized: "for \(TimeFormatter.formatTime(departure.time))") : time(departure), tooTight: tight)
+        }
+        if failed {
+            status = board == nil ? String(localized: "Couldn't load · retry") : String(localized: "Saved · couldn't update")
+            statusSymbol = "exclamationmark.triangle"
+        } else if board == nil {
+            status = loading ? String(localized: "Checking departures") : String(localized: "Times unavailable")
+            statusSymbol = "clock"
+        } else if !fresh {
+            status = String(localized: "Saved information")
+            statusSymbol = "clock.badge.exclamationmark"
+        } else if board?.coverageLimit != nil {
+            status = String(localized: "Limited timetable")
+            statusSymbol = "clock"
+        } else if let first = (showAdvice ? departures.first(where: { $0.time == advice.departureTime }) : nil) ?? departures.first {
+            let delay = max(0, Int((first.delay ?? 0) / 60))
+            if delay >= 1 {
+                status = first.realTime ? String(localized: "Live · \(TransitFormat.minutes(delay)) late")
+                    : String(localized: "Scheduled · \(TransitFormat.minutes(delay)) late")
+            } else {
+                status = first.realTime ? String(localized: "Live") : String(localized: "Scheduled")
+            }
+            statusSymbol = first.realTime ? "dot.radiowaves.left.and.right" : "calendar"
+        } else {
+            status = String(localized: "No upcoming departures")
+            statusSymbol = "clock"
+        }
+    }
+}
+
+struct CountdownTransition: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let value: String
+
+    func body(content: Content) -> some View {
+        content
+            .contentTransition(reduceMotion ? .identity : .numericText(countsDown: true))
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: value)
     }
 }

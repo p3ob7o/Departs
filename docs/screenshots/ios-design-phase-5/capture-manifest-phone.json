@@ -1,0 +1,402 @@
+[
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "5681A659-1671-4F43-8313-F014415B94F7.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Board delivered during scroll_0_DD97C6D3-ECFC-4531-806A-60DEB2E5976C.png",
+        "timestamp": 1794790825.809,
+        "committedFileName": "board-delivered-during-scroll.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testBoardArrivingDuringScrollKeepsProviderOrder()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testBoardArrivingDuringScrollKeepsProviderOrder"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "6B67FD16-A96E-49B3-A86C-A5B1CFE7B43C.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Recent places_0_1807F56D-0223-4A83-A80B-B14E2DB94DB4.png",
+        "timestamp": 1794790847.266,
+        "committedFileName": "recent-places.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testChosenPlaceAppearsInRecentsAfterRelaunch()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testChosenPlaceAppearsInRecentsAfterRelaunch"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "972AC8FB-A248-48B0-BBEF-EB152B9B2812.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Landscape search_0_672CF78F-2EBA-4E38-896F-81409DFBBEB0.png",
+        "timestamp": 1794790882.189,
+        "committedFileName": "landscape-search.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "1ABC07A3-531C-4737-9710-5271ADAC812C.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Landscape selected stop_0_464BCDAF-A7DD-4FCE-AE5D-6A4F93074C64.png",
+        "timestamp": 1794790873.588,
+        "committedFileName": "landscape-selected-stop.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "067EEA00-50E9-415C-B349-B1A841E99221.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Landscape route map_0_703F2312-4700-4CF5-B98D-1F33856BEB3E.png",
+        "timestamp": 1794790863.928,
+        "committedFileName": "landscape-route-map.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "14B1D8F3-ECEE-42C0-9F4B-8B32738C5CB7.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Landscape detail_0_6D1A67BF-6A51-4310-8349-D248965BECAB.png",
+        "timestamp": 1794790861.717,
+        "committedFileName": "landscape-detail.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "2CBC1F96-794E-47B5-92F6-86B551F30722.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Landscape nearby_0_858DFD3E-865F-457D-A03F-32033F384460.png",
+        "timestamp": 1794790857.724,
+        "committedFileName": "landscape-nearby.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testCompactHeightScreensAndRotation()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testCompactHeightScreensAndRotation"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "A60C4E30-410D-4AA8-B5DF-436C0F252146.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Landscape search accessibility_0_3DBD8D56-A96E-406F-83AD-C5F9E674A7CA.png",
+        "timestamp": 1794790920.652,
+        "committedFileName": "landscape-search-accessibility.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "9E46753E-9FA8-4F52-A681-48F985272C3B.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Landscape selected stop accessibility_0_D642EAF8-C678-4D9E-9702-2D030B4546A9.png",
+        "timestamp": 1794790913.469,
+        "committedFileName": "landscape-selected-stop-accessibility.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "767AF05B-402C-424D-B2A1-4622B68EB2FA.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Landscape route map accessibility_0_A4647F66-5287-43BC-B67D-8487F5DE2C2E.png",
+        "timestamp": 1794790903.604,
+        "committedFileName": "landscape-route-map-accessibility.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "B38CF318-D84E-4AE2-A5A6-6174014A45F1.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Landscape detail accessibility_0_4B4ADDD8-1D5F-4C74-951C-38499E5F74AE.png",
+        "timestamp": 1794790901.586,
+        "committedFileName": "landscape-detail-accessibility.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "03610BA7-3157-4A94-B394-61127CFB2DEC.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Landscape nearby accessibility_0_CE183524-743F-4967-BD50-2CE0EC0E534C.png",
+        "timestamp": 1794790892.311,
+        "committedFileName": "landscape-nearby-accessibility.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testCompactHeightScreensAtLargestTextSize()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testCompactHeightScreensAtLargestTextSize"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "55BE9161-EB6F-43F3-91F3-DA0BE7EC463E.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Search after location denied_0_A261312A-9F31-4B1D-8230-76A210175FF8.png",
+        "timestamp": 1794790959.702,
+        "committedFileName": "search-after-location-denied.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "43FD07D6-047B-48EA-BAA8-CDB484B6499D.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Location denied with accessibility text_0_33DFB02F-B3EC-463D-8478-A2A53385EAD3.png",
+        "timestamp": 1794790957.562,
+        "committedFileName": "location-denied-with-accessibility-text.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testDeniedLocationOffersSearchAndLargeTextRemainsUsable()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testDeniedLocationOffersSearchAndLargeTextRemainsUsable"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "9230BAE7-711D-4A4F-B22F-F18517E5AC53.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Saved departures after failed refresh_0_1826CD2B-DAF8-47A0-9974-F68094631D15.png",
+        "timestamp": 1794790983.901,
+        "committedFileName": "saved-departures-after-failed-refresh.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testFailedRefreshKeepsSavedTimesAndRecovers()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testFailedRefreshKeepsSavedTimesAndRecovers"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "67186D1F-2FEB-4C8E-8171-4DFB5F0C7D03.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Pinned departure detail_0_5372912D-02A4-45BC-AEAA-FF047C88D7D5.png",
+        "timestamp": 1794791012.936,
+        "committedFileName": "pinned-departure-detail.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "08C5C9C4-B8DD-4843-907C-614B2DDFA3F8.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Nearby departures_0_93495E9F-67F4-4634-B691-78D38622D815.png",
+        "timestamp": 1794790995.817,
+        "committedFileName": "nearby-departures.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testFirstScreenPinsRelaunchAndDirectEntry()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testFirstScreenPinsRelaunchAndDirectEntry"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "5AA00706-BC4C-455B-BB27-76397D00E048.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Offline on foreground return_0_EDD8DC3B-9519-4D9A-B00C-E742CFFE6622.png",
+        "timestamp": 1794791050.22,
+        "committedFileName": "offline-on-foreground-return.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testForegroundRefreshKeepsCachedAnswerWhenOffline()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testForegroundRefreshKeepsCachedAnswerWhenOffline"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "AB95C3A6-8EA1-40D9-9E62-B5BC3B136744.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Changed boards after refresh_0_36DD0A09-1CC9-4581-BB5B-3F205671700F.png",
+        "timestamp": 1794791073.593,
+        "committedFileName": "changed-boards-after-refresh.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "783E150F-5185-4B9A-BAAC-F61E8B50E83B.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Expanded future and idle lines_0_7E5BA5AB-6345-4F85-BA7E-205C4B1D346A.png",
+        "timestamp": 1794791060.691,
+        "committedFileName": "expanded-future-and-idle-lines.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testFutureRowsAndChangedBoardsUseTheHorizon()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testFutureRowsAndChangedBoardsUseTheHorizon"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "B1BD241C-8880-49C8-ABD5-B12A0AAE88AC.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Route map at accessibility text size_0_AA874B95-6968-415C-AD48-3ADB099CD65D.png",
+        "timestamp": 1794791093.658,
+        "committedFileName": "route-map-at-accessibility-text-size.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "8FEFB818-0C37-4CEF-AF12-AE92AFCBAFA4.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Advice at accessibility text size_0_EF7309BB-005E-413B-85FB-25385857D6B6.png",
+        "timestamp": 1794791091.644,
+        "committedFileName": "advice-at-accessibility-text-size.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "F613B106-1863-4EDB-986B-5812B4B3982C.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Detail at accessibility text size_0_EE4E7D51-A8DD-42C6-B2E2-6B1A0DF3B1FE.png",
+        "timestamp": 1794791085.514,
+        "committedFileName": "detail-at-accessibility-text-size.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "AC1E9D2E-DF6A-4A6C-8D9B-F20B12F30962.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Nearby at accessibility text size_0_F0C10C29-A353-4900-97CC-D64B39BA6E42.png",
+        "timestamp": 1794791083.555,
+        "committedFileName": "nearby-at-accessibility-text-size.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testLargeTextKeepsDirectionAndWalkingActionAccessible()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testLargeTextKeepsDirectionAndWalkingActionAccessible"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "8A2061B2-4C2E-4A61-B72F-38FBA654C297.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Legacy server fallback_0_7C86AAA9-1003-4D2C-95E9-DD9568192EB6.png",
+        "timestamp": 1794791104.224,
+        "committedFileName": "legacy-server-fallback.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testLegacyServerLoadsBoardsWithoutGroupedSupport()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testLegacyServerLoadsBoardsWithoutGroupedSupport"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "627AE5AD-A7ED-434C-9C2A-5E7DAB50D185.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Other lines at this stop_0_539AE403-93C3-43CC-A17E-F74159A44F73.png",
+        "timestamp": 1794791118.068,
+        "committedFileName": "other-lines-at-this-stop.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "8611AC36-F0B7-4EF8-B6DB-6A303DEA8C09.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Route map sheet_0_764AC647-9B61-4BB0-BA04-0C77AEF0BA7B.png",
+        "timestamp": 1794791115.598,
+        "committedFileName": "route-map-sheet.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testRouteMapOpensInVisibleSheetAndStopNameAppearsOnce()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testRouteMapOpensInVisibleSheetAndStopNameAppearsOnce"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "01B27F8B-DDF8-436D-9C37-1699828298C8.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Visible sections after scrolling_0_E4B2562B-37A2-4049-A05E-16694D28EAAC.png",
+        "timestamp": 1794791191.941,
+        "committedFileName": "visible-sections-after-scrolling.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "4294248A-DF46-4EB4-8482-B9473187E69F.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Last stop visibility check_0_904774D6-DFF7-4A50-A3B2-B61493DA8C1E.png",
+        "timestamp": 1794791133.825,
+        "committedFileName": "last-stop-visibility-check.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testScrollingLoadsVisibleSectionsAndRefreshesOnlyTheViewport()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testScrollingLoadsVisibleSectionsAndRefreshesOnlyTheViewport"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "DF0D0C4F-1A6D-426B-8C72-CC91EAB90A83.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Selected stop map_0_D6EFE065-896F-4A04-8E8F-CA9FD300C6F9.png",
+        "timestamp": 1794791205.155,
+        "committedFileName": "selected-stop-map.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testStopMapSelectionReturnsToList()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testStopMapSelectionReturnsToList"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "5594530E-6030-42A6-B196-4E3401E24615",
+        "deviceName": "Departs Design 402pt",
+        "exportedFileName": "2640B4B4-82C3-4122-9119-BE4EAF2DA8A6.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Choose an area_0_9980D656-59E2-4A0D-A0F3-9BE1F7833A9F.png",
+        "timestamp": 1794791219.201,
+        "committedFileName": "choose-an-area.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testWiderSearchAndAreaSearchStayAvailable()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testWiderSearchAndAreaSearchStayAvailable"
+  }
+]

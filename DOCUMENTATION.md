@@ -1,6 +1,6 @@
 # Departs implementation guide
 
-Departs answers “What is leaving near me?” in a native iOS app. The browser client has been retired. The backend remains on Vercel because installed iOS builds depend on it.
+Departs answers “What is leaving near me?” in a native app requiring iOS 26 or later. The owner approved this minimum during the design implementation on 15 November 2026. iOS 27-only APIs require availability checks. The browser client has been retired. The backend remains on Vercel because installed iOS builds depend on it.
 
 ## Native app
 
@@ -9,12 +9,14 @@ Departs answers “What is leaving near me?” in a native iOS app. The browser 
 The flow is:
 
 1. Restore saved stops, boards, and pinned directions synchronously, then request location without blocking navigation.
-2. Find stops within 400 metres and load answers for the first six line/direction options. Departures and walking routes update independently, in batches of three each.
+2. Find stops within 400 metres and load nearby pins plus the first three provider stop boards. Refresh pins and visible stop sections; keep a 25-second throttle unless the user explicitly refreshes. Departure and walking queues run independently, in batches of three each.
 3. Show the next two times, live/scheduled labels, walking time, and leave-time advice when the board, location, and route are fresh enough.
-4. Open a line for up to four departures and walking navigation. Both screens share one `TransitStore`, so opening a board reuses the answer already shown.
-5. Refresh the visible screen on foreground return and every 30 seconds after the previous refresh completes. Pull-to-refresh remains available. Saved times remain visible after failure, with an explicit saved-data label.
+4. Open a line for up to four departures and walking navigation. An app-owned `TransitSession` shares one `TransitStore` and `LocationService` across panes and windows, so opening a board reuses the answer already shown. Each window retains its own selection and sheets in one `NavigationSplitView`, which collapses in compact width.
+5. Refresh visible panes on foreground return and every 30 seconds after the previous refresh completes, using one app-owned clock. Pull-to-refresh remains available. Saved times remain visible after failure, with an explicit saved-data label. List status includes the cycle's initial targets plus newly visible stops, so the status header cannot oscillate as its height changes.
 
 Users can pin a stop plus direction, open it via App Shortcuts, choose a place using MapKit search, or expand the nearby radius to 800 then 1600 metres. A map is created only when requested. See [the native behavior guide](docs/ios-fast-answers.md) for freshness rules and verification.
+
+The committed app target supports iPhone, including landscape. Text columns cap at 640 points; maps fill their containers and the selected-stop card scrolls independently in compact height. iPad runs exercise the shared layout foundation using a command-line device-family override, not committed iPad support. Mac, Vision Pro, scene configuration and required device capabilities are unchanged. Product support for other devices belongs to the separate adaptation plans.
 
 The API host is compiled into `Services/APIService.swift`. `URLComponents` encodes station IDs and line/direction parameters. The native `NearbyStop.distance` is optional and `LineInfo.id` is computed from the line name and direction. Previews using `PreviewData` must stay within `#if DEBUG`.
 
@@ -37,6 +39,8 @@ The website root `/` returns a plain-text notice that Departs is now an iOS app.
 Use the commands in [AGENTS.md](AGENTS.md). The backend uses Vitest in Node with MSW intercepting external providers. Native tests live in `ios/Departs/DepartsTests/`. Mocked tests require no real keys; live backend calls require `HERE_API_KEY` and `MAPBOX_SECRET_TOKEN`.
 
 Running the backend locally does not automatically redirect `APIService`. Set `DEPARTS_API_BASE_URL` in a Debug scheme for integration checks; release builds always use the production host unless an instance is explicitly constructed with a different base URL in code. `DEPARTS_DEFAULTS_SUITE` provides isolated preferences for Debug UI tests. Neither environment override is compiled into release builds. Keep credentials out of test output.
+
+UI tests use `DEPARTS_TEST_VIEWPORT=1` only for exact container dimensions from 320 to 1200 points, driven by the local fixture server. That host is excluded from Release. Separate tests resize actual iPad windows; the iOS 27 simulator window manager imposes a 375-point minimum. Use separate derived-data directories for iPhone builds and iPad builds with `TARGETED_DEVICE_FAMILY="1,2"`.
 
 Vercel deploys the backend from `main`. An iOS release is a separate Xcode/TestFlight/App Store operation. Deploying the backend does not update installed Swift code.
 

@@ -7,7 +7,7 @@
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Departs needs your location to find nearby transit stops and show walking directions.</string>
+	<string>Departs uses your location to find nearby stops and show walking directions.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>

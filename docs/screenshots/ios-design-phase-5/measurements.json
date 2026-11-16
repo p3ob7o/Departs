@@ -1,0 +1,152 @@
+{
+  "phone402": {
+    "firstRowTopPoints": 167.333,
+    "completeVisibleOptions": 8,
+    "minimumAssertedWidthPoints": 71.0,
+    "minimumAssertedHeightPoints": 44.0,
+    "unitTestsPassed": 72,
+    "uiTestsPassed": 16,
+    "platformSkips": 3
+  },
+  "phone375": {
+    "firstRowTopPoints": 125.5,
+    "completeVisibleOptions": 7,
+    "minimumAssertedWidthPoints": 71.0,
+    "minimumAssertedHeightPoints": 44.0,
+    "unitTestsPassed": 72,
+    "uiTestsPassed": 16,
+    "platformSkips": 3
+  },
+  "ipad11": {
+    "firstRowTopPoints": 137.5,
+    "completeVisibleOptions": 8,
+    "minimumAssertedWidthPoints": 71.0,
+    "minimumAssertedHeightPoints": 44.0,
+    "unitTestsPassed": 72,
+    "uiTestsPassed": 14,
+    "platformSkips": 5
+  },
+  "resize": {
+    "exactWidths": [
+      320,
+      402,
+      466,
+      669,
+      834,
+      1024,
+      1200
+    ],
+    "detailAnchors": [
+      {
+        "width": 402,
+        "headingOffset": 245.25048828125,
+        "initialOffset": 245.25048828125
+      },
+      {
+        "width": 466,
+        "headingOffset": 245.25048828125,
+        "initialOffset": 245.25048828125
+      },
+      {
+        "width": 669,
+        "headingOffset": 225.25048828125,
+        "initialOffset": 245.25048828125
+      },
+      {
+        "width": 834,
+        "headingOffset": 245.25048828125,
+        "initialOffset": 245.25048828125
+      },
+      {
+        "width": 1024,
+        "headingOffset": 225.25048828125,
+        "initialOffset": 245.25048828125
+      },
+      {
+        "width": 1200,
+        "headingOffset": 225.25048828125,
+        "initialOffset": 245.25048828125
+      },
+      {
+        "width": 320,
+        "headingOffset": 245.25048828125,
+        "initialOffset": 245.25048828125
+      },
+      {
+        "width": 402,
+        "headingOffset": 124.490966796875,
+        "initialOffset": 124.490966796875
+      },
+      {
+        "width": 466,
+        "headingOffset": 124.490966796875,
+        "initialOffset": 124.490966796875
+      },
+      {
+        "width": 669,
+        "headingOffset": 124.5,
+        "initialOffset": 124.490966796875
+      },
+      {
+        "width": 834,
+        "headingOffset": 124.490966796875,
+        "initialOffset": 124.490966796875
+      },
+      {
+        "width": 1024,
+        "headingOffset": 124.490966796875,
+        "initialOffset": 124.490966796875
+      },
+      {
+        "width": 1200,
+        "headingOffset": 124.5,
+        "initialOffset": 124.490966796875
+      },
+      {
+        "width": 320,
+        "headingOffset": 124.5,
+        "initialOffset": 124.490966796875
+      }
+    ],
+    "maximumDefaultReflowPoints": 20.0,
+    "maximumAccessibilityReflowPoints": 0.009033203125,
+    "nativeWindows": [
+      {
+        "requestedWidth": 1200.0,
+        "requestedHeight": 650.0,
+        "width": 1200.0,
+        "height": 657.0
+      },
+      {
+        "requestedWidth": 375.0,
+        "requestedHeight": 650.0,
+        "width": 381.0,
+        "height": 650.0
+      },
+      {
+        "requestedWidth": 669.0,
+        "requestedHeight": 650.0,
+        "width": 663.0,
+        "height": 650.0
+      },
+      {
+        "requestedWidth": 1200.0,
+        "requestedHeight": 650.0,
+        "width": 1194.0,
+        "height": 650.0
+      },
+      {
+        "requestedWidth": 375.0,
+        "requestedHeight": 650.0,
+        "width": 381.0,
+        "height": 650.0
+      },
+      {
+        "requestedWidth": 1200.0,
+        "requestedHeight": 650.0,
+        "width": 1194.0,
+        "height": 650.0
+      }
+    ]
+  }
+}

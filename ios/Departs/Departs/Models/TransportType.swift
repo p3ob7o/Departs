@@ -6,6 +6,14 @@ enum TransportType: String, Codable, CaseIterable {
     case bus
     case rail
 
+    var symbol: String {
+        switch self {
+        case .bus: "bus"
+        case .tram: "tram"
+        case .subway, .rail: "train.side.front.car"
+        }
+    }
+
     var label: String {
         switch self {
         case .subway: "M"
@@ -17,10 +25,10 @@ enum TransportType: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .subway: "Subway"
-        case .tram: "Tram"
-        case .bus: "Bus"
-        case .rail: "Rail"
+        case .subway: String(localized: "Subway")
+        case .tram: String(localized: "Tram")
+        case .bus: String(localized: "Bus")
+        case .rail: String(localized: "Rail")
         }
     }
 }

@@ -1,18 +1,21 @@
 import SwiftUI
 
 enum StopPalette {
-    static let colors: [Color] = [
-        Color(hex: "7BA3C9"), // powder blue
-        Color(hex: "C9887B"), // terra cotta
-        Color(hex: "82B882"), // soft green
-        Color(hex: "9B82C9"), // soft purple
-        Color(hex: "7BC9BD"), // teal
-        Color(hex: "C97B95"), // soft rose
-        Color(hex: "B8A87B"), // sand
-        Color(hex: "7B95C9"), // periwinkle
-        Color(hex: "C9B27B"), // gold
-        Color(hex: "82C9A3"), // mint
-    ]
+    // White glyphs meet 4.5:1 on every fill.
+    static let colors: [Color] = ["3A6C9E", "A8553F", "3B7A47", "6B52A6", "276F65", "99425F", "756033", "4C6094", "806223", "346C50"].map { Color(hex: $0) }
+
+    static func modeColor(_ type: TransportType) -> Color {
+        Color(uiColor: UIColor { traits in
+            let hex: String
+            switch type {
+            case .tram: hex = "3A6C9E"
+            case .bus: hex = "A8553F"
+            case .rail: hex = "3B7A47"
+            case .subway: hex = traits.userInterfaceStyle == .dark ? "8065B8" : "6B52A6"
+            }
+            return UIColor(Color(hex: hex))
+        })
+    }
 
     static func color(at index: Int) -> Color {
         colors[index % colors.count]
