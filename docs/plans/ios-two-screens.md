@@ -1,0 +1,407 @@
+# Two screens: map over list
+
+| | |
+| --- | --- |
+| Status | Proposal. This branch changes no app code. |
+| Date | 16 November 2026 |
+| Based on | Departs 1.1 (6), `main` at `6430c94` |
+| Branch | `feat/ios-two-screens` |
+| Replaces | The list, detail and map design in [ios-design-improvements.md](ios-design-improvements.md): its sections 1 to 5 and 7, and the split view and landscape work of its Phase 5 |
+| Keeps | That plan's accessibility repairs, string catalog, icon variants, mode colors, search with recent places, pins, and the 60-second freshness rule |
+| Affects | The iPhone Duo and iPad plans (PRs #18 and #19). Both must be rewritten on top of this plan |
+
+## Summary
+
+The owner redefined the product on 16 November 2026. Departs shows which transport is available around you. It is not a complete timetable. The app becomes two screens with the same shape: a square map on top and a short list underneath.
+
+Departs 1.1 (6) was tested against the previous plan on the same day. It met that plan while every request succeeded and broke down when one failed. This plan fixes those findings or removes the screens they belonged to.
+
+At the Vienna test location, on the 16 November sample:
+
+| | 1.1 (6), measured | This plan |
+| --- | --- | --- |
+| Rows in the home list | 17 running, plus 56 idle lines behind 7 disclosure rows | 8 |
+| Requests when the app opens | 21 (1 stops, 10 departures, 10 walking routes) | 6 (1 stops, 1 departures, 4 walking routes) |
+| Departure requests per 30-second refresh | 10 | 1 |
+
+The work has four phases. Phase 0 is the backend. Phases 1 and 2 build the two screens. Phase 3 removes what is retired and verifies the result.
+
+## Owner decisions
+
+Paolo made these on 16 November 2026. They are settled.
+
+| ID | Decision |
+| --- | --- |
+| O1 | A line with no departure in the next 60 minutes is not shown. The "N lines with nothing soon" rows go. |
+| O2 | A line appears once per direction, at the nearest stop where it leaves soon. It is not repeated at farther stops. |
+| O3 | Rows say less: badge, destination and "In N min". "Scheduled" and the calendar symbol go everywhere. Stop headers stay. |
+| O4 | Leave advice goes everywhere: "Leave in", "Leave now", "Too tight" and crossed-out times. People can count. |
+| O5 | Home is a square map on top with the list underneath. The layout is always vertical. |
+| O6 | Tapping a row opens the line screen: the walking route on a square map, and the next four departures of that line underneath. |
+| O7 | The home map has one label per stop, showing its line numbers. Tapping it opens the line when the stop has one row. Otherwise it scrolls the list to that stop. This is a trial. |
+| O8 | Pins stay for now. A pinned line with nothing soon is still shown, dimmed. The owner is undecided about pins as a whole. |
+| O9 | iPhone Duo and iPad will put map and list side by side, later. |
+
+Where this plan fills a gap the owner did not decide, it says so and lists the choice under [Assumptions to confirm](#assumptions-to-confirm) as A1 to A9.
+
+## The two screens
+
+### Home
+
+```
+┌──────────────────────────────────────────┐
+│ Near you ▾                       ⌕   ➤   │  title menu · search · locate
+├──────────────────────────────────────────┤
+│                                          │
+│              ▐13A·49▌                    │
+│                  ◉          ▐48A▌        │  square map: radius, you,
+│       ▐14A▌                              │  one label per listed stop
+│                ▐U3▌                      │
+│                                          │
+├──────────────────────────────────────────┤
+│ Siebensterngasse · 1 min walk            │
+│ ▐13A▌ Skodagasse               In 2 min  │
+│ ▐13A▌ Hauptbahnhof             In 3 min  │
+│ ▐49▌  Parlament/Volkstheater   In 5 min  │
+│ ▐49▌  Hütteldorf, Bujattigasse      Now  │
+│ Burggasse/Neubaugasse · 4 min walk       │
+│ ▐48A▌ Parlament/Volkstheater   In 3 min  │
+└──────────────────────────────────────────┘
+```
+
+### Line
+
+```
+┌──────────────────────────────────────────┐
+│ ‹        13A Wien Skodagasse     🚶   ⚑  │  back · line · Apple Maps · pin
+├──────────────────────────────────────────┤
+│                                          │
+│          ◉┄┄┄┄┄┄┐                        │  square map: the walking
+│                 ┆                        │  route from you to the stop
+│                 └┄┄▐13A▌                 │
+│                                          │
+├──────────────────────────────────────────┤
+│ Siebensterngasse · 1 min walk · 20 m     │
+│ In 2 min                          12:58  │
+│ In 6 min                          13:02  │
+│ In 10 min                         13:06  │
+│ In 14 min                         13:10  │
+└──────────────────────────────────────────┘
+```
+
+## Rules
+
+### Which lines are listed
+
+1. A candidate is a line and destination with a departure within 60 minutes, at a platform inside the search radius. The 60 minutes are measured when the board arrives, as today (`TransitStore.runningHorizon`).
+2. Candidates come from the departures the provider returns, not from a stop's list of lines. The two can disagree. In the sample, one Burggasse/Neubaugasse platform returned 13A departures that its line list does not contain.
+3. Platforms with the same name within 150 m form one stop, as today.
+4. Stops are taken nearest first, by straight-line distance from the search point. The stops endpoint returned no distance in the sample, so the app computes it from coordinates. Walking time is shown and never reorders.
+5. A line is listed at its nearest stop, with one row per destination leaving from there. If that stop has only one destination of the line, the next nearest stop with a different destination adds one row. That covers one-way streets, where the two directions use different stops. A line never has rows at more than two stops.
+6. A line and destination that is already shown, or pinned in this area, is never repeated.
+
+Rule 5 is this plan's way of making O2 exact. It is assumption A4.
+
+The sample, with these rules applied:
+
+| Stop | From the search point | Leaving within the hour | Result |
+| --- | --- | --- | --- |
+| Siebensterngasse | 29 m | 13A → Skodagasse, 13A → Hauptbahnhof, 49 → Parlament/Volkstheater, 49 → Hütteldorf | 4 rows |
+| Kirchengasse | 180 m | 49, both directions | Nothing: already shown |
+| Burggasse/Neubaugasse | 286 m | 13A, both directions; 13A → Volkstheater; 48A → Parlament/Volkstheater | 1 row: 48A. The 13A already has two destinations at its nearest stop |
+| Westbahnstraße/Zieglergasse | 306 m | 49, both directions | Nothing |
+| Neubaugasse (bus) | 312 m | 13A, both directions; 14A → Reumannplatz | 1 row: 14A |
+| Neubaugasse (U3) | 325 m | U3 → Ottakring, U3 → Simmering | 2 rows |
+| Stiftgasse | 371 m | 49 → Parlament/Volkstheater | Nothing |
+
+### Order and stability
+
+7. Sections follow stop order. Rows inside a stop follow the provider's order.
+8. Which rows exist is decided when a board arrives. A countdown tick never adds, removes or moves a row.
+9. A failed refresh never adds, removes or moves a row. It only changes how the time is written (rule 20).
+10. Nothing moves while the list is being touched, as today.
+
+### What a row says
+
+11. Badge, destination, time. The badge is unchanged: line name, mode color, mode symbol. The destination takes up to two lines and hides a city prefix shared by every destination, as today.
+12. The time reads "Now" under one minute and "In N min" up to 60 minutes. It uses the locale's duration format through the string catalog. It is the largest text in the row and uses the label color.
+13. There is no second line. Home has no live or scheduled label.
+14. The stop header shows the stop name in primary text and the walking time in secondary text. In 1.1 (6) the stop name is secondary gray at 3.44:1.
+15. A row is 44 pt tall at the default text size with a one-line destination.
+
+### Home map
+
+16. The map is a square as wide as the screen, directly under the navigation bar. It shows the search radius, the user's location, and one label per stop that has at least one row, pinned rows included.
+17. A label holds the line numbers of that stop's rows, in list order, each drawn as the list badge. It shows up to three, then "+N".
+18. Tapping a label follows O7. A stop with one row opens that line. A stop with several rows scrolls the list to its header and shows the selection ring.
+19. The list never waits for the map. Rows appear even when map tiles fail to load.
+
+### Freshness and failures
+
+The freshness rules in [ios-fast-answers.md](../ios-fast-answers.md) stay: a board is fresh for 60 seconds, and a failed refresh marks it saved at once.
+
+20. A saved board shows clock times ("13:18"), never a countdown.
+
+| ID | Situation | What the list shows |
+| --- | --- | --- |
+| S1 | First launch, nothing saved | "Finding departures…" under the map |
+| S2 | Relaunch with a saved list | The saved rows at once, with clock times, until the first response |
+| S3 | Fresh data | Rows only. No status line (A3) |
+| S4 | A refresh failed | The same rows in the same order, with clock times. One banner row: "Saved times from 13:15 · Refresh" |
+| S5 | A response lacks some platforms | Rows from those platforms as in S4. Banner: "Some times couldn't update · Retry". A stop with nothing saved gets one row under its header: "Couldn't load this stop · Retry". Never one row per line |
+| S6 | The stops request failed on first load | The error and "Try again". Not "No stops in this area", and not "Checking departures…" |
+| S7 | No stop inside the radius | "No stops within 400 m", with "Search farther" and "Choose an area" |
+| S8 | Stops, but nothing within 60 minutes | "Nothing leaves here in the next hour", with "Search farther" |
+| S9 | Location denied, no area chosen | The explanation, "Open Settings" and "Choose an area" |
+| S10 | Location denied, area chosen | No notice. The location button reports "Location is off" to VoiceOver |
+| S11 | The area changes | The list returns to the top and the map recenters |
+
+"Try again", "Retry", "Refresh" and "Open Settings" are drawn as buttons, in the tint color with a symbol.
+
+### Line screen
+
+21. The title is the line and its full destination. The toolbar holds the pin button and the Apple Maps walking-directions button, both as system items with a title and a symbol (A5).
+22. The map is square. It shows the walking route from the walking origin to the platform, the stop label and the user's location. Without a route it shows both points.
+23. One line under the map names the stop once, with walking time and distance. Without a usable location it says "from this area", as today.
+24. Up to four departures follow. Each shows "In N min" and the clock time. Beyond 60 minutes it shows the clock time only. A live departure carries the live symbol, and "N min late" from one minute of delay. A scheduled departure carries nothing (A8).
+25. Nothing is crossed out or greyed. There is no advice card and no "Other lines at this stop".
+26. States mirror home: checking, "Couldn't load · Retry", saved clock times with "Refresh", and "Nothing in the next hour".
+
+### Pins
+
+27. The "Pinned" section comes first, in pin order. A pinned row adds the stop name under the destination, because pinned rows come from different stops.
+28. A pinned line with nothing within 60 minutes stays, dimmed, and reads "Nothing soon" (O8).
+29. "Pinned elsewhere (n)" stays as the last row of that section.
+30. Pin with a swipe or a long press on a row, and with the button on the line screen. The first-run hint row goes (A6). Shortcuts and `departs://pin` links do not change.
+
+### Text size
+
+31. Up to the largest standard size, the map is fixed and the list scrolls under it.
+32. At accessibility sizes the map stays square and on top, and scrolls away with the list (A2). On a 667-pt display the list area is 218 pt, and at the largest size a stop header alone measured 137 pt.
+
+### Accessibility
+
+33. A row is one VoiceOver element: "Bus 13A toward Wien Skodagasse. In 3 minutes. From Siebensterngasse." It speaks the full destination. It has no empty sentence, and decorative symbols are hidden.
+34. Map labels are buttons: "Siebensterngasse, Bus 13A and Tram 49". The list offers everything the map does.
+35. Every control is at least 44 × 44 pt. App-chosen text meets 4.5:1.
+
+## Requests
+
+1.1 (6) asks for departures once per platform. The first screen of the sample spans 10 platforms, so it makes 10 departure requests on opening and 10 more every 30 seconds. The earlier plan estimated about 3.
+
+The new list needs every platform in the radius, because it must know the nearest stop for each line. One request per platform would mean 17 in the sample. So the backend takes them in one call.
+
+### Backend change
+
+`GET /api/departures?stopIds=a,b,c` is additive. The existing `stopId` calls, with and without `lineName`, `direction` and `groupBy`, keep their exact responses for installed builds.
+
+```json
+{
+  "fetchedAt": "2026-11-16T12:56:09+01:00",
+  "boards": [
+    { "stopId": "77704_312",
+      "groups": [ { "line": { "name": "13A", "direction": "Wien Skodagasse", "type": "bus" },
+                    "departures": [ { "time": "…", "realTime": false, "delay": null } ] } ] }
+  ],
+  "missing": ["77704_999"]
+}
+```
+
+- The handler sends the ids to HERE in one call. HERE documents `ids` as a comma-separated list and returns one board per id ([Next Departures: send a request](https://docs.here.com/transit/docs/send-request-1)). The maximum number of ids is not on that page. Phase 0 verifies it on a preview deployment and splits the list server-side if needed.
+- The call asks for two departures per line: the next one and a spare. The provider caps a platform board at 50 departures, so two per line lets a capped board cover more lines than today's four. A line missing from a capped board is not listed.
+- `missing` lists requested ids that came back without a board.
+- `fetchedAt` is the time of the provider call. The app counts freshness from it. Today the app counts from receipt, while production serves departures from the CDN for up to 30 seconds (`x-vercel-cache: HIT`, `age: 29` during the test).
+- The handler accepts 1 to 50 ids, matching the 50 stops the nearby endpoint returns.
+
+### Logging and retry
+
+The handler's `catch` returns 500 and logs nothing, so the two 500s seen in the test cannot be explained. The handler will log the upstream status or error class, never the request URL, which contains the API key. It retries once on a network error or a 5xx. An upstream failure returns 502.
+
+### App side
+
+- One departures request on opening and one per refresh. It covers pins in the area.
+- One walking-route request per listed stop, to its nearest platform, cached for ten minutes as today. The line screen requests the route to its own platform.
+- The line screen keeps the existing per-line call for its four departures. It opens with the two the home list already holds.
+- The demand queue, the visibility tracking and the per-line fallback in the list loader go. There is no fallback to a backend without `stopIds` (A7). The backend deploys first.
+
+## Test findings and what happens to each
+
+From the test of 1.1 (6) on 16 November 2026.
+
+| ID | Finding | In this plan |
+| --- | --- | --- |
+| T1 | A failed refresh turns every line of the stop into a full row and promotes failed lines above running ones. The header says "Saved information" when one stop failed | Rules 8, 9 and 20; states S4 and S5 |
+| T2 | Production returned 500 for 2 of 446 grouped requests. The handler logs nothing | Logging and retry, Phase 0 |
+| T3 | Choosing an area keeps the old scroll position | State S11 |
+| T4 | 10 departure requests on opening and per refresh | One request, Phase 0 and Phase 1 |
+| T5 | A failed first load says "No stops in this area" and "Checking departures…" | State S6 |
+| T6 | With location denied, the notice stays above the answers after an area is chosen | State S10 |
+| T7 | Search results: subtitle 1.99:1, distance 4.02:1 | Name in primary text, distance and subtitle in secondary text, none in the tint color. Phase 1 |
+| T8 | In landscape, "Walking directions" covers "Show route map" | Both gone: portrait only (A1), and the button moves to the top bar (A5) |
+| T9 | "Try again" and "Open Settings" do not look like buttons | Under the states table |
+| T10 | Spoken labels contain an empty sentence | Rule 33 |
+| T11 | Rows with leave advice carry the Selected trait at accessibility sizes | The symbol goes with the advice. Rule 33 |
+| T12 | The location button reports "Following your location" while denied | State S10 |
+| T13 | Map badges do not follow text size | Kept on purpose: they scale up to 18 pt so the map stays readable. The list carries the full size |
+| T14 | "Other lines at this stop" keeps "couldn't update" after a refresh | The section is removed |
+| T15 | On the SE at the largest text size, the detail's advice is below the first screen | The advice is removed. Rule 32 |
+
+Also seen during the test and not in the report:
+
+| ID | Observation | In this plan |
+| --- | --- | --- |
+| T16 | Freshness counts from receipt, but responses can be 30 seconds old | `fetchedAt`, Phase 0 |
+| T17 | `NSAllowsLocalNetworking` ships in the Release Info.plist. Only the UI tests' fixture server needs it | Debug only, Phase 3 |
+
+| A failed refresh (T1) | After choosing an area (T3) | A failed first load (T5) |
+| --- | --- | --- |
+| ![List after a failed refresh](../screenshots/ios-two-screens/list-after-failed-refresh.jpg) | ![List after choosing an area while scrolled](../screenshots/ios-two-screens/list-after-choosing-area.jpg) | ![First load with the stops request failing](../screenshots/ios-two-screens/first-load-failed.jpg) |
+
+## What is removed
+
+- Leave advice: `DepartureAdvice`, its rules in `ios-fast-answers.md`, its strings and its tests.
+- Idle lines: the disclosure rows, the coverage-limit state and their strings.
+- The stops-map sheet and its toolbar button, the route-map sheet, the advice card, and "Other lines at this stop".
+- The split view, the Debug layout host, the size-matrix and window-resize tests, and the two landscape tests. The iPhone returns to portrait only (A1).
+- The demand queue, visibility tracking and status set in `TransitStore`, and the legacy per-line fallback for the list.
+- The pin hint row.
+
+`TransitSession` stays: one store, one location service and one refresh clock for the app.
+
+## Phases
+
+Sizes are relative: S is days, M is about a week.
+
+### Phase 0. Backend (S)
+
+Add `stopIds`, `fetchedAt`, `missing`, logging and the retry to `app/api/departures/route.ts`.
+
+Acceptance:
+
+- With the 17 sample ids, one request returns 17 boards. Each lists the same lines and next departures as the single-stop grouped response for the same id at the same time.
+- The existing tests for `stopId` calls pass unchanged.
+- A simulated upstream failure produces one log line with the status and a 502. No log line contains the API key.
+- Verified against live provider data on the preview deployment at two locations, then on production after the merge.
+
+### Phase 1. Home (M)
+
+Views: `ContentView`, `NearbyStopsView`, `StopRowView`, `StopsMapView`, `AreaSearchView`. Data: `TransitStore`, `APIService`, `TimeFormatter`.
+
+Acceptance:
+
+| Measure | Target |
+| --- | --- |
+| Rows for the 16 November sample | Exactly the 8 in the table above |
+| A line and destination listed twice | Never |
+| Stops per line | 2 at most |
+| Map size, iPhone 17 Pro and 667-pt display | 402 × 402 pt and 375 × 375 pt |
+| Rows visible without scrolling, default text size | 5 or more on iPhone 17 Pro, 3 or more on the 667-pt display |
+| Requests on opening | 1 stops, 1 departures, one walking route per listed stop |
+| Departure requests per refresh | 1 |
+| After a failed refresh | Same rows, same order, clock times, one banner (S4) |
+| After choosing an area while scrolled | List at the top, map recentered (S11) |
+| Search results | Every text at 4.5:1 or better |
+
+Unit tests cover rules 1 to 6 with the sample, a one-way pair, three destinations at one station, a pinned duplicate, and a destination missing from the line list. UI tests cover S1 to S11 and both label behaviors from O7.
+
+### Phase 2. Line screen (S to M)
+
+Views: `DepartureDetailView`, `RouteMapView`.
+
+Acceptance:
+
+- The stop name appears once. On the 667-pt display at least three departures are visible without scrolling, and the fourth after one scroll.
+- The walking route is on screen without a tap.
+- A failed refresh shows clock times and "Refresh". Recovery returns to countdowns within one refresh.
+- The Apple Maps button opens walking directions to the platform.
+- A pinned line opens from a shortcut and from a `departs://pin` link.
+
+### Phase 3. Removal, documents and verification (S)
+
+- Delete what [What is removed](#what-is-removed) lists, and the strings and tests that go with it.
+- Restrict the iPhone to portrait. Move `NSAllowsLocalNetworking` to Debug.
+- Update `ios-fast-answers.md`, `ios-roadmap.md`, `CLAUDE.md` and `AGENTS.md`. The roadmap's first, second and seventh improvements describe the design this plan replaces.
+- Mark PRs #18 and #19 as needing a rewrite.
+
+Acceptance:
+
+- The unit and UI suites pass on iPhone 17 Pro with iOS 27.0, on iPhone 17 Pro with iOS 26.2, and on iPhone SE (3rd generation) with iOS 26.2.
+- The German pseudo-localization test passes with no clipped or concatenated strings.
+- A live session at the Vienna test location matches the Phase 1 table, with requests counted at a proxy.
+- Dark mode is checked on the iOS 26 simulator or on a device. The iOS 27.0 simulator did not apply dark appearance during the test.
+- A Release build contains no test hooks and loads production directly.
+- No build is uploaded to TestFlight before the backend is in production.
+
+## Assumptions to confirm
+
+These fill gaps in the owner's decisions. Each has this plan's choice. Paolo can overrule any of them.
+
+| ID | Question | This plan's choice |
+| --- | --- | --- |
+| A1 | Landscape on iPhone | Portrait only. A square map as wide as a landscape screen leaves no room for the list |
+| A2 | The square map at accessibility text sizes | It stays square and on top, and scrolls away with the list. Fixed, it would leave less than one row on a 667-pt display |
+| A3 | The line "Within 400 m · Updated just now" | Removed while data is fresh. The map draws the radius. A banner appears only for saved or failed data |
+| A4 | What "once per direction" means when a line has more than two destinations nearby | Rule 5: all destinations at the nearest stop, one more from the next stop if the nearest has only one, never more than two stops |
+| A5 | Where the Apple Maps button goes | The top bar, next to the pin. A bottom bar would cover the fourth departure on small screens |
+| A6 | The first-run pin hint | Removed. It costs a row in a short list, and the pin button stays on the line screen |
+| A7 | An app build that meets a backend without `stopIds` | No fallback. The backend deploys from `main` before any build is distributed, and the release steps check production first |
+| A8 | A live marker | None on home. On the line screen, a live symbol and the delay. Scheduled departures carry nothing |
+| A9 | Version number | 1.2, since both screens change |
+
+## Risks
+
+- **A line's other direction can be missed.** Rule 5 hides a direction when the nearest stop serves one direction with two destinations and the opposite direction leaves from a differently named stop. Check with the one-way pairs around the test location before release.
+- **One request, one failure.** A failed departures call now affects the whole list. Rules 9 and 20 keep the last list on screen, and the server retries once.
+- **Night.** With idle lines hidden, state S8 will be common at night. Its wording and "Search farther" need a check on a device.
+- **Less room for the list.** The square map leaves 356 pt on an iPhone 17 Pro and 218 pt on a 667-pt display.
+- **Provider limits.** The number of ids per HERE call and its cost per call are unverified until Phase 0.
+- **Large hubs.** A platform with more than 25 lines and destinations can still exceed the 50-departure cap. Lines beyond it are not listed. No such platform is in the sample.
+- **Pins may still go.** O8 keeps them as a trial. Rules 27 to 30 are written so they can be removed without touching the rest.
+
+## Out of scope
+
+Widgets, Live Activities, notifications, accounts, journey planning, German, the iPhone Duo and iPad layouts, searching by moving the map, and any backend change beyond Phase 0.
+
+## How this will be verified
+
+- Fixtures: the unit suite, and the UI suite against the local fixture server in the test runner.
+- Preview: the backend against live provider data, fetched through the Vercel connector.
+- Production: the same checks after the merge, and a Debug build pointed at a logging proxy in front of production to count requests and inject failures. Debug builds accept `DEPARTS_API_BASE_URL`.
+- Not possible in a simulator: VoiceOver speech, haptics, GPS, the Home Screen icon variants and iPhone Mirroring. These need a device.
+
+## Appendix A. Measurements from the test of 1.1 (6)
+
+Vienna test coordinate (48.20134, 16.34941), Monday 16 November 2026, 12:55 to 13:45, against production.
+
+| Item | Value |
+| --- | --- |
+| Stops response | 17 platforms, 7 stops, 73 line and destination options |
+| Running rows in the list | 17 |
+| Idle lines behind disclosure rows | 56 |
+| Top of the first answer, iPhone 17 Pro | 167 pt |
+| Top of the first answer, 667-pt display | 125.5 pt |
+| Navigation bar bottom, iPhone 17 Pro and 667-pt display | 116 pt and 74 pt |
+| Row height, one-line and two-line destination | 52 pt and 63 pt |
+| Requests on opening | 1 stops, 10 departures, 10 walking routes |
+| Departure requests per refresh | 10 |
+| Grouped requests that reached production | 446, of which 2 returned 500 |
+| Cache headers | Stops 24 hours, walking routes 1 hour, departures 30 seconds, all served from the CDN |
+| Leave advice, "Too tight", badges | 5.40:1, 5.20:1, 4.70 to 5.50:1 |
+| Stop header text | `#8A8A8E` on white, 3.44:1 |
+| Search result subtitle and distance | `#7FBCFF` on white, 1.99:1; `#007AFF` on white, 4.02:1 |
+| Suites | 72 unit and 16 UI tests pass on three iPhone simulators. The iPad runs use a test-only override and are retired by this plan |
+
+## Appendix B. Where things change
+
+| Area | File |
+| --- | --- |
+| Navigation, sheets, refresh clock | `ios/Departs/Departs/Views/ContentView.swift`, `DepartsApp.swift` |
+| Home list and states | `Views/NearbyStopsView.swift` |
+| Row | `Views/StopRowView.swift` |
+| Home map and labels | `Views/Map/StopsMapView.swift` |
+| Line screen | `Views/DepartureDetailView.swift`, `Views/Map/RouteMapView.swift` |
+| Search results | `Views/AreaSearchView.swift` |
+| Loading, line selection, freshness | `ViewModels/TransitStore.swift`, `Models/TransitState.swift` |
+| Requests | `Services/APIService.swift`, `app/api/departures/route.ts` |
+| Time and distance wording | `Utilities/TimeFormatter.swift`, `Localizable.xcstrings` |
+| Tests | `DepartsTests/FastDepartureTests.swift`, `DepartsUITests/DepartsUITests.swift`, `app/api/departures/route.test.ts` |
