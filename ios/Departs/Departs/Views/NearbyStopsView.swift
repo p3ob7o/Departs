@@ -8,13 +8,13 @@ struct NearbyStopsView: View {
     let onLocate: () -> Void
     let onRefresh: () async -> Void
     var onChooseArea: (SearchArea) -> Void = { _ in }
+    var onMap: () -> Void = {}
+    var onDistantPins: () -> Void = {}
+    var visibilityID = "nearby"
+    @Binding var scrollTarget: String?
     @Environment(\.dynamicTypeSize) private var textSize
     @Environment(\.openURL) private var openURL
     @AppStorage("departs.pinHintSeen", store: TransitPersistence().defaults) private var hintSeen = false
-    @State private var showingMap = false
-    @State private var selectedMapStop: String?
-    @State private var scrollTarget: String?
-    @State private var showingDistantPins = false
     @State private var expandedIdle: Set<String> = []
     @State private var countdownStart = Date.now
 
@@ -65,7 +65,7 @@ struct NearbyStopsView: View {
                     Section("Pinned") {
                         ForEach(store.nearbyPins) { row($0, at: date, pinnedSection: true) }
                         if !store.distantPins.isEmpty {
-                            Button { showingDistantPins = true } label: {
+                            Button(action: onDistantPins) {
                                 Text("Pinned elsewhere (\(store.distantPins.count))").frame(minHeight: 44)
                             }
                         }
@@ -83,7 +83,7 @@ struct NearbyStopsView: View {
                                 Text(TransitFormat.idleLines(idle.count, limited: idle.contains { store.boards[$0.id]?.coverageLimit != nil }))
                                     .font(.subheadline).frame(minHeight: 44)
                             }
-                            .modifier(VisibleStops(store: store, stops: group.stops, token: "idle-\(group.id)"))
+                            .modifier(VisibleStops(store: store, stops: group.stops, token: "\(visibilityID)-idle-\(group.id)"))
                             .listRowInsets(.vertical, 0).listRowInsets(.horizontal, 16)
                         }
                     } header: {
@@ -95,7 +95,7 @@ struct NearbyStopsView: View {
                         }
                         .font(.subheadline).textCase(nil)
                         .id(group.id)
-                        .modifier(VisibleStops(store: store, stops: group.stops, token: "header-\(group.id)"))
+                        .modifier(VisibleStops(store: store, stops: group.stops, token: "\(visibilityID)-header-\(group.id)"))
                     }
                     if group.id == store.groups.first?.id, !hintSeen, store.pins.isEmpty {
                         Section {
@@ -120,11 +120,14 @@ struct NearbyStopsView: View {
                 }
             }
             .listStyle(.plain)
+            .modifier(ReadableList())
+            .accessibilityIdentifier("nearby-list")
             .environment(\.defaultMinListRowHeight, 0)
             .environment(\.defaultMinListHeaderHeight, 0)
             .listSectionSpacing(0)
             .contentMargins(.top, 0, for: .scrollContent)
-            .onScrollPhaseChange { _, phase in store.interacting = phase != .idle }
+            .onScrollPhaseChange { _, phase in store.setInteracting(phase != .idle, presentationID: visibilityID) }
+            .onDisappear { store.clearPresentation(visibilityID) }
             .refreshable { await onRefresh() }
         }
         .navigationTitle(areaTitle)
@@ -142,52 +145,13 @@ struct NearbyStopsView: View {
                     .accessibilityIdentifier("choose-area")
                 Button("Use my location", systemImage: store.followsLocation ? "location.fill" : "location", action: onLocate)
                     .accessibilityValue(store.followsLocation ? String(localized: "Following your location") : String(localized: "Showing a chosen or saved area"))
-                Button("Show nearby map", systemImage: "map") { showingMap = true }
+                Button("Show nearby map", systemImage: "map", action: onMap)
             }
         }
-        .sheet(isPresented: $showingMap) {
-            if let area = store.area {
-                NavigationStack {
-                    StopsMapView(userCoordinate: area.coordinate.clLocationCoordinate2D, groups: store.groups,
-                                 radius: store.radius, selectedStopID: selectedMapStop, onSelect: { selectedMapStop = $0 })
-                        .safeAreaInset(edge: .bottom) {
-                            if let group = store.groups.first(where: { $0.id == selectedMapStop }) {
-                                VStack(alignment: .leading, spacing: 8) {
-                                    Text(group.name).font(.headline)
-                                    Text(group.lines.map(\.name).joined(separator: " · ")).font(.subheadline)
-                                    Button {
-                                        scrollTarget = group.id
-                                        showingMap = false
-                                    } label: {
-                                        Label("Show in list", systemImage: "list.bullet").frame(minHeight: 48)
-                                    }
-                                }.padding().frame(maxWidth: .infinity, alignment: .leading).background(.regularMaterial)
-                            }
-                        }
-                        .navigationTitle("Nearby stops")
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar { Button("Done", systemImage: "checkmark") { showingMap = false } }
-                }
-                .presentationDetents(textSize.isAccessibilitySize ? [.large] : [.medium, .large])
-            }
-        }
-        .onChange(of: showingMap) { _, visible in
-            if !visible, let scrollTarget {
-                proxy.scrollTo(scrollTarget, anchor: .top)
-                self.scrollTarget = nil
-            }
-        }
-        .sheet(isPresented: $showingDistantPins) {
-            NavigationStack {
-                List(store.distantPins) { selection in
-                    Button("\(selection.line.name) toward \(selection.line.direction) · \(selection.stop.name)") {
-                        showingDistantPins = false
-                        onSelect(selection)
-                    }
-                }.navigationTitle("Pinned elsewhere")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar { Button("Done", systemImage: "checkmark") { showingDistantPins = false } }
-            }
+        .onChange(of: scrollTarget) { _, target in
+            guard let target else { return }
+            proxy.scrollTo(target, anchor: .top)
+            scrollTarget = nil
         }
         }
     }
@@ -202,7 +166,7 @@ struct NearbyStopsView: View {
                     failed: store.boardErrors.contains(selection.id), fresh: store.isBoardFresh(for: selection, at: date),
                     fromCurrentLocation: store.location?.isUsable(at: date) == true, pinned: store.isPinned(selection), now: date,
                     onOpen: { onSelect(selection) }, onPin: { store.togglePin(selection); hintSeen = true }, direction: displayDirection(selection.line.direction), showStop: pinnedSection, idle: idle)
-            .modifier(VisibleStops(store: store, stops: [selection.stop], token: selection.id))
+            .modifier(VisibleStops(store: store, stops: [selection.stop], token: "\(visibilityID)-\(selection.id)"))
             .listRowInsets(.vertical, 4).listRowInsets(.horizontal, 16)
     }
     private func displayDirection(_ direction: String) -> String {

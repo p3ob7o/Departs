@@ -1,0 +1,290 @@
+[
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "0EC55CB9-2A85-4162-B6F5-C1C86E78982A.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Board delivered during scroll_0_41655EB2-197D-4344-8549-91B21E640727.png",
+        "timestamp": 1794790840.906,
+        "committedFileName": "ipad-board-delivered-during-scroll.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testBoardArrivingDuringScrollKeepsProviderOrder()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testBoardArrivingDuringScrollKeepsProviderOrder"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "9B68316A-4410-4A6E-86CA-94143732A589.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Recent places_0_47AF5049-BC55-4CF1-A642-8BE63DFE962D.png",
+        "timestamp": 1794790864.828,
+        "committedFileName": "ipad-recent-places.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testChosenPlaceAppearsInRecentsAfterRelaunch()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testChosenPlaceAppearsInRecentsAfterRelaunch"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "AB033328-DE2D-49F0-AF66-020AD5132D84.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Search after location denied_0_5246A3A1-CE1F-48C8-9CC0-F13D6F8BC0E6.png",
+        "timestamp": 1794790906.839,
+        "committedFileName": "ipad-search-after-location-denied.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "B62F0247-4AD4-4DBE-A272-BD394C6E0AA2.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Location denied with accessibility text_0_A2AD5A25-A94C-4CE6-9EB8-46A1ED9937C1.png",
+        "timestamp": 1794790904.555,
+        "committedFileName": "ipad-location-denied-with-accessibility-text.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testDeniedLocationOffersSearchAndLargeTextRemainsUsable()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testDeniedLocationOffersSearchAndLargeTextRemainsUsable"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "B5A61038-61AA-4674-A6B2-250FAB62CFD0.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Saved departures after failed refresh_0_7294BEFD-845D-430F-9E50-21FB7A0BBA41.png",
+        "timestamp": 1794790932.946,
+        "committedFileName": "ipad-saved-departures-after-failed-refresh.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testFailedRefreshKeepsSavedTimesAndRecovers()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testFailedRefreshKeepsSavedTimesAndRecovers"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "F755741E-9E13-45E8-831A-84806A88DFE1.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Pinned departure detail_0_113CC430-1CC1-4C27-876A-328464AFF806.png",
+        "timestamp": 1794790962.508,
+        "committedFileName": "ipad-pinned-departure-detail.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "B9C5055D-E82B-4068-99D0-1DC19F1CAB3C.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Nearby departures_0_8C4B32B1-B333-4435-A4BB-66EBD89AFE98.png",
+        "timestamp": 1794790945.205,
+        "committedFileName": "ipad-nearby-departures.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testFirstScreenPinsRelaunchAndDirectEntry()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testFirstScreenPinsRelaunchAndDirectEntry"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "D07AD802-6A98-4169-B81A-39E30FF43A9C.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Offline on foreground return_0_58A2A00B-85E2-4036-88C5-4571F8EF7B10.png",
+        "timestamp": 1794790999.441,
+        "committedFileName": "ipad-offline-on-foreground-return.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testForegroundRefreshKeepsCachedAnswerWhenOffline()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testForegroundRefreshKeepsCachedAnswerWhenOffline"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "6572B85F-B839-4D85-AD3E-B478B78F932C.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Changed boards after refresh_0_DB1589E7-82B3-4357-A941-238C4E08B7F2.png",
+        "timestamp": 1794791023.854,
+        "committedFileName": "ipad-changed-boards-after-refresh.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "8806586F-235C-4577-BC24-FF1EDE476B66.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Expanded future and idle lines_0_958C06A9-4E59-471E-A64C-0C5E62F40653.png",
+        "timestamp": 1794791010.094,
+        "committedFileName": "ipad-expanded-future-and-idle-lines.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testFutureRowsAndChangedBoardsUseTheHorizon()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testFutureRowsAndChangedBoardsUseTheHorizon"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "DDBE0D82-3F48-442C-903E-CB5673B29C4B.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Route map at accessibility text size_0_985468DC-641F-45BA-9285-8CD5277D4160.png",
+        "timestamp": 1794791041.893,
+        "committedFileName": "ipad-route-map-at-accessibility-text-size.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "8EFC42DA-E19D-4611-AE75-44027BD2AC60.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Advice at accessibility text size_0_F9CD877B-C90E-4479-9B31-46C3CC0FD75A.png",
+        "timestamp": 1794791039.719,
+        "committedFileName": "ipad-advice-at-accessibility-text-size.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "258E5B81-7795-41ED-81D4-F49EADB0D94C.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Detail at accessibility text size_0_B8C52B4C-5284-46D9-82B6-662FC1B024B5.png",
+        "timestamp": 1794791035.574,
+        "committedFileName": "ipad-detail-at-accessibility-text-size.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "3E9D12FC-F384-46A2-87E6-CDEB7140ED5B.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Nearby at accessibility text size_0_F15DCCC8-23B5-4D42-9D9E-20734E5FB591.png",
+        "timestamp": 1794791033.89,
+        "committedFileName": "ipad-nearby-at-accessibility-text-size.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testLargeTextKeepsDirectionAndWalkingActionAccessible()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testLargeTextKeepsDirectionAndWalkingActionAccessible"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "6261D2A9-BDB2-478F-98E1-B12FCE0A9303.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Legacy server fallback_0_1770FD07-5CD3-4853-8750-E4EA1A2C6A70.png",
+        "timestamp": 1794791052.792,
+        "committedFileName": "ipad-legacy-server-fallback.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testLegacyServerLoadsBoardsWithoutGroupedSupport()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testLegacyServerLoadsBoardsWithoutGroupedSupport"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "6CEC770A-325B-4CB6-99DA-D0BD3DA4297E.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Other lines at this stop_0_974449A9-3D0A-4F98-92E1-012CB81E801B.png",
+        "timestamp": 1794791066.166,
+        "committedFileName": "ipad-other-lines-at-this-stop.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "0EB59C39-AE1A-4324-BD32-BD3433BED5E3.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Route map sheet_0_068EEAE9-7E09-4053-8060-0A1AD5B34AA6.png",
+        "timestamp": 1794791064.67,
+        "committedFileName": "ipad-route-map-sheet.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testRouteMapOpensInVisibleSheetAndStopNameAppearsOnce()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testRouteMapOpensInVisibleSheetAndStopNameAppearsOnce"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "1FF2CA39-72DE-453B-9311-995FEFAE60EB.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Visible sections after scrolling_0_1FB6D112-92DD-4E97-AED0-CE942F35459C.png",
+        "timestamp": 1794791111.906,
+        "committedFileName": "ipad-visible-sections-after-scrolling.png"
+      },
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "E1C3EF40-E905-4105-9C05-DD717B420594.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Last stop visibility check_0_83A9EB2E-5067-444B-82B6-47FC955AF4C5.png",
+        "timestamp": 1794791085.735,
+        "committedFileName": "ipad-last-stop-visibility-check.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testScrollingLoadsVisibleSectionsAndRefreshesOnlyTheViewport()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testScrollingLoadsVisibleSectionsAndRefreshesOnlyTheViewport"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "FD67BEA4-A4E4-49E9-865F-A9A9EA10D8D5.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Selected stop map_0_12323EF9-A074-4755-9E91-0B448B2EAAE1.png",
+        "timestamp": 1794791125.011,
+        "committedFileName": "ipad-selected-stop-map.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testStopMapSelectionReturnsToList()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testStopMapSelectionReturnsToList"
+  },
+  {
+    "attachments": [
+      {
+        "configurationName": "Test Scheme Action",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "exportedFileName": "9DDFC91E-ECDA-4173-A589-D344BB02EA38.png",
+        "isAssociatedWithFailure": false,
+        "suggestedHumanReadableName": "Choose an area_0_5249546A-5E9F-49BE-9633-4FFB92E18B3E.png",
+        "timestamp": 1794791139.477,
+        "committedFileName": "ipad-choose-an-area.png"
+      }
+    ],
+    "testIdentifier": "DepartsUITests/testWiderSearchAndAreaSearchStayAvailable()",
+    "testIdentifierURL": "test://com.apple.xcode/Departs/DepartsUITests/DepartsUITests/testWiderSearchAndAreaSearchStayAvailable"
+  }
+]

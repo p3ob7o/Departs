@@ -2,6 +2,20 @@ import Foundation
 import CoreLocation
 
 enum PreviewData {
+    @MainActor static func makeStore() -> TransitStore {
+        let storage = TransitPersistence(defaults: UserDefaults(suiteName: "departs-preview-\(UUID())")!)
+        let client = TransitClient(
+            stops: { _, _ in stops },
+            departures: { selection in
+                [7, 12, 20].map { minutes in
+                    Departure(time: Date.now.addingTimeInterval(Double(minutes * 60)).ISO8601Format(),
+                              realTime: minutes != 20, delay: nil, line: selection.line)
+                }
+            },
+            directions: { _, _ in walkingRoute })
+        return TransitStore(client: client, persistence: storage)
+    }
+
     static let userCoordinate = Coordinate(lat: 52.5200, lon: 13.4050)
 
     static let stops: [NearbyStop] = [

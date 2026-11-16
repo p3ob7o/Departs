@@ -1,0 +1,43 @@
+{
+  "devicesAndConfigurations": [
+    {
+      "device": {
+        "architecture": "arm64",
+        "deviceId": "FCEF6AEC-D6A2-44B5-B95B-0072F59DDF48",
+        "deviceName": "iPad Pro 11-inch (M5)",
+        "modelName": "iPad Pro 11-inch (M5)",
+        "osBuildNumber": "24A434",
+        "osVersion": "27.0",
+        "platform": "iOS Simulator"
+      },
+      "expectedFailures": 0,
+      "failedTests": 0,
+      "passedTests": 86,
+      "skippedTests": 5,
+      "testPlanConfiguration": {
+        "configurationId": "1",
+        "configurationName": "Test Scheme Action"
+      }
+    }
+  ],
+  "environmentDescription": "Departs \u00b7 Built with macOS 27.2",
+  "expectedFailures": 0,
+  "failedTests": 0,
+  "finishTime": 1794791153.036,
+  "passedTests": 86,
+  "result": "Passed",
+  "runtimeWarnings": [],
+  "skippedTests": 5,
+  "startTime": 1794790792.324,
+  "statistics": [],
+  "testFailures": [],
+  "title": "Test - Departs",
+  "topInsights": [
+    {
+      "category": "Longest Test Runs",
+      "impact": "46% of duration",
+      "text": "3 longest test runs with outlier durations exceeding 0.10s (three standard deviations)"
+    }
+  ],
+  "totalTestCount": 91
+}

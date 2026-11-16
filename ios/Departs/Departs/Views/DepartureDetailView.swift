@@ -7,7 +7,9 @@ struct DepartureDetailView: View {
     let selection: StopLineSelection
     @Bindable var store: TransitStore
     var onSelect: (StopLineSelection) -> Void = { _ in }
-    @State private var showingMap = false
+    var onMap: () -> Void = {}
+    var interactionID = "detail"
+    @Binding var scrollTarget: String?
     @State private var showingIdle = false
     @State private var countdownStart = Date.now
 
@@ -19,7 +21,7 @@ struct DepartureDetailView: View {
             let advice = store.advice(for: selection, at: date)
             let walk = store.walk(for: selection.stop, at: date)
             ScrollView {
-                VStack(alignment: .leading, spacing: 20) {
+                LazyVStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 8) {
                         LineBadge(line: selection.line)
                             .accessibilityLabel("\(selection.line.type.displayName) \(selection.line.name)")
@@ -39,7 +41,7 @@ struct DepartureDetailView: View {
                                     .font(.caption).foregroundStyle(.secondary)
                             }
                         }
-                    }
+                    }.id("header")
                     VStack(alignment: .leading, spacing: 8) {
                         Label(
                             advice.title,
@@ -64,9 +66,7 @@ struct DepartureDetailView: View {
                                 Label("Refresh now", systemImage: "arrow.clockwise").frame(minHeight: 44)
                             }.accessibilityIdentifier("refresh-advice")
                         }
-                        Button {
-                            showingMap = true
-                        } label: {
+                        Button(action: onMap) {
                             Label("Show route map", systemImage: "map")
                                 .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         }
@@ -75,6 +75,7 @@ struct DepartureDetailView: View {
                     .frame(maxWidth: .infinity, alignment: .leading).padding(18)
                     .background(
                         Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 18))
+                    .id("advice")
 
                     VStack(alignment: .leading, spacing: 12) {
                         HStack {
@@ -166,7 +167,7 @@ struct DepartureDetailView: View {
                         } else {
                             Text("Checking departures…").foregroundStyle(.secondary)
                         }
-                    }
+                    }.id("departures")
                     let group = store.group(containing: selection.stop)
                     let active = group.active.filter { $0.id != selection.id }
                     let idle = group.idle.filter { $0.id != selection.id }
@@ -189,12 +190,17 @@ struct DepartureDetailView: View {
                                     .font(.subheadline).frame(minHeight: 44)
                                 }.accessibilityIdentifier("other-lines-idle")
                             }
-                        }
+                        }.id("other")
                     }
-                }.padding(16)
+                }
+                .scrollTargetLayout()
+                .padding(16).frame(maxWidth: 640)
+                .frame(maxWidth: .infinity)
             }
+            .scrollPosition(id: $scrollTarget)
+            .accessibilityIdentifier("departure-detail")
             .background(Color(.systemGroupedBackground))
-            .onScrollPhaseChange { _, phase in store.interacting = phase != .idle }
+            .onScrollPhaseChange { _, phase in store.setInteracting(phase != .idle, presentationID: interactionID) }
             .refreshable { await store.refreshSelection(selection, force: true) }
         }
         .navigationTitle("\(selection.line.name) \(selection.line.direction)")
@@ -233,25 +239,15 @@ struct DepartureDetailView: View {
                 .accessibilityIdentifier("walking-directions")
             }
         }
-        .sheet(isPresented: $showingMap) {
-            NavigationStack {
-                RouteMapView(
-                    userCoordinate: (store.walkingOrigin ?? selection.stop.location).clLocationCoordinate2D,
-                    stop: selection.stop, stopColor: StopPalette.modeColor(selection.line.type),
-                    walkingRoute: store.walk(for: selection.stop)?.route, line: selection.line
-                )
-                .navigationTitle("Walking route")
-                .navigationBarTitleDisplayMode(.inline)
-                .toolbar { Button("Done", systemImage: "checkmark") { showingMap = false } }
-            }
-            .presentationDetents(dynamicTypeSize.isAccessibilitySize ? [.large] : [.medium, .large])
-        }
         .task(id: selection.id) {
             await store.refreshSelection(selection)
             await store.loadGroup(store.group(containing: selection.stop))
         }
-        .onChange(of: selection.id) { _, _ in showingIdle = false }
-        .onDisappear { store.interacting = false }
+        .onChange(of: selection.id) { _, _ in
+            showingIdle = false
+            scrollTarget = "header"
+        }
+        .onDisappear { store.clearPresentation(interactionID) }
     }
     private func otherRow(_ other: StopLineSelection, at date: Date, idle: Bool = false) -> some View {
         StopRowView(

@@ -10,8 +10,8 @@ Keep the Next.js/Vercel API backend: installed iOS builds call `https://departs.
 
 ```bash
 # iOS app (requires Xcode selected as the active developer directory)
-xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs -destination 'platform=iOS Simulator,name=iPhone 17 Pro' build
-xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
+xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.0' -derivedDataPath /tmp/departs-iphone build
+xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.0' -derivedDataPath /tmp/departs-iphone test
 
 # API backend
 npm ci
@@ -37,7 +37,8 @@ The native MapKit map does not use a public Mapbox token. Local backend startup 
 
 - SwiftUI with `@Observable` view models, iOS 26+, zero third-party iOS dependencies. Guard iOS 27-only APIs with availability checks.
 - MapKit through `UIViewRepresentable` wrappers, system light/dark appearance.
-- `ContentView` switches between nearby stops and a selected stop/line departure board.
+- `DepartsApp` owns one `TransitSession`, containing the shared `TransitStore`, `LocationService` and foreground refresh clock. Each `ContentView` owns its selection, split navigation, scroll targets and sheets. Compact width shows list or detail; regular width shows both.
+- The app target stays iPhone-only (`TARGETED_DEVICE_FAMILY = 1`). Landscape is enabled on iPhone. Test the resizable foundation on iPad with a command-line `TARGETED_DEVICE_FAMILY="1,2"` override and separate derived data; do not commit iPad, Mac or Vision Pro availability without the owner's decision in the adaptation plan.
 - `APIService` is an actor using URLSession async/await.
 - iOS structure: `Models/`, `Services/`, `ViewModels/`, `Views/`, `Utilities/`, `Preview Content/`.
 - iOS `NearbyStop.distance` is optional; `LineInfo.id` is computed from `name::direction` because provider IDs are not consistently present.
