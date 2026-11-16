@@ -110,8 +110,8 @@ struct DepartureAdvice: Equatable {
         let clock = TimeFormatter.formatTime(departure.time)
         let extra = TransitFormat.minutes(Int(buffer / 60))
         let detail = departure.realTime
-            ? String(localized: "For the \(clock) live arrival. Includes \(extra) extra.")
-            : String(localized: "For the \(clock) scheduled arrival. Includes \(extra) extra.")
+            ? String(localized: "For the \(clock) live departure. Includes \(extra) extra.")
+            : String(localized: "For the \(clock) scheduled departure. Includes \(extra) extra.")
         return .init(title: title, detail: detail, kind: .leave, departureTime: departure.time)
     }
 }

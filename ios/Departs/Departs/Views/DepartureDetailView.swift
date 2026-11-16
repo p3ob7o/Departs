@@ -140,7 +140,7 @@ struct DepartureDetailView: View {
                                     ) {
                                         Label(
                                             departure.realTime
-                                                ? (fresh ? String(localized: "Live arrival") : String(localized: "Last known arrival")) : String(localized: "Scheduled"),
+                                                ? (fresh ? String(localized: "Live departure") : String(localized: "Last known departure")) : String(localized: "Scheduled"),
                                             systemImage: fresh && departure.realTime
                                                 ? "dot.radiowaves.left.and.right" : "clock"
                                         )

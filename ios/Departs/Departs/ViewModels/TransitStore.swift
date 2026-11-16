@@ -45,7 +45,10 @@ final class TransitStore {
     private var stopAttempts: [String: Date] = [:]
     private var visibleStops: [String: [NearbyStop]] = [:]
     private var hasMeasuredVisibility = false
-    private var lastStatusStops: [NearbyStop] = []
+    // Status can change the header's height. Its inputs must not shrink when
+    // that height pushes a section out of view, or visibility feeds back into
+    // layout. Requests still use refreshTargets, the live viewport.
+    private var statusStopIDs: Set<String> = []
     private var needsOpeningRefresh = true
     private var groupedUnavailable = false
     private var restoredBoards: Set<String> = []
@@ -154,10 +157,10 @@ final class TransitStore {
         if visible {
             guard visibleStops[elementID] != stops else { return }
             visibleStops[elementID] = stops
+            let addedIDs = Set(stops.map(\.id)).subtracting(statusStopIDs)
+            if !addedIDs.isEmpty { statusStopIDs.formUnion(addedIDs) }
             demand(stops, force: false)
         } else if visibleStops[elementID] != nil { visibleStops[elementID] = nil }
-        let targets = refreshTargets
-        if !targets.isEmpty && lastStatusStops != targets { lastStatusStops = targets }
     }
 
     private func demand(_ stops: [NearbyStop], force: Bool) {
@@ -290,7 +293,7 @@ final class TransitStore {
             stopsCheckedAt = nil
             visibleStops = [:]
             hasMeasuredVisibility = false
-            lastStatusStops = []
+            statusStopIDs = []
             needsOpeningRefresh = true
             for stop in demandedStops {
                 pendingStopIDs.remove(stop.id)
@@ -346,6 +349,9 @@ final class TransitStore {
         } else if force && refreshTargets.isEmpty {
             targets = statusStops
         } else { targets = refreshTargets }
+        // Begin a status cycle with this refresh's targets. Newly visible
+        // stops may join until the next cycle; leaving view never removes one.
+        if !targets.isEmpty { statusStopIDs = Set(targets.map(\.id)) }
         demand(targets, force: force)
         await loadTask?.value
         await walkLoadTask?.value
@@ -354,11 +360,7 @@ final class TransitStore {
     var displayedOptions: [StopLineSelection] { statusStops.flatMap(\.lineSelections) }
 
     private var statusStops: [NearbyStop] {
-        let targets = refreshTargets
-        if !targets.isEmpty { return targets }
-        // Removing the last row must not turn "saved" into "fresh", shrink the
-        // header, reveal the row again, and start a layout feedback loop.
-        let retained = lastStatusStops.filter { previous in stops.contains { $0.id == previous.id } }
+        let retained = stops.filter { statusStopIDs.contains($0.id) }
         return retained.isEmpty ? Array(stops.prefix(3)) : retained
     }
 

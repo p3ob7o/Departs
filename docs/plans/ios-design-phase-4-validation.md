@@ -10,7 +10,7 @@ This phase makes the interface localizable, explains departure advice in everyda
 | Count forms | “1 lines” | Catalog singular/plural forms for idle and additional lines |
 | Distance at 400 metres | Always “400 m” | German locale: “400 m”; US: “1,300 ft”; UK: “450 yd”; explicit metric override of US locale: “400 m” |
 | Walking duration | Hard-coded “3 min” | Foundation duration formatting: “3 min” in English, “3 Min.” in German; upward walking rounding unchanged |
-| Advice copy | “scheduled estimate · 2 min buffer”; “Saved prediction” | “scheduled arrival. Includes 2 min extra”; “Last known arrival” |
+| Advice copy | “scheduled estimate · 2 min buffer”; “Saved prediction” | “scheduled departure. Includes 2 min extra”; “Last known departure” |
 | Advice detail at largest text, 402 pt | Six lines in the Phase 3 review | Four lines / 232.7 pt in the final 01:04 AM fixture capture; clock length can change wrapping |
 | Fixture density, 402 / 375 pt | Phase 2: first row 167.3 / 125.5 pt, 8 / 7 full options | Unchanged: 167.3 / 125.5 pt, 8 / 7 full options |
 | Expanded German layout | No catalog or test | Disposable German pseudolocalization build, default and largest accessibility text, with screenshots exported from native tests |
@@ -21,7 +21,7 @@ The pseudolocalization script copies the native project outside the repository a
 
 At accessibility sizes, fresh rows keep the badge, direction, answer and times. Live/scheduled wording remains in the spoken label and detail; saved/failed markers remain visible. The context line retains the radius while fresh, and still shows saved information and refresh recovery when needed. This keeps the answer visible with expanded text instead of shrinking its font.
 
-Visibility callbacks now ignore unchanged state. A tall saved-state header could also push every row offscreen, make the status briefly appear fresh, shrink, and reveal those rows again. List status now retains the last nonempty viewport in that case, and an opening refresh revalidates the first three stop boards even before their rows appear. Periodic refresh still uses pins and visible stops. Regression tests cover both feedback paths. Countdown schedules retain a stable start date, and numeric transitions use the Reduce Motion environment to disable animation. Pin changes trigger the system selection feedback.
+Visibility callbacks ignore unchanged state. List freshness uses the targets captured at the start of a refresh cycle, plus stops that become visible during that cycle. Leaving view never removes a stop from this status set; only the next refresh or a new area resets it. This removes the layout feedback path where a failed section header at the bottom edge could repeatedly appear and disappear as Refresh now changed the header's height. Requests still use pins and the live viewport, so status stability does not expand request volume. An opening refresh revalidates the first three boards even with only a tall saved-state header visible. Regression tests cover the bottom-edge case, empty viewports and duplicate callbacks. Countdown schedules retain a stable start date, and numeric transitions use Reduce Motion to disable animation. Pin changes trigger system selection feedback.
 
 ## Icon review
 

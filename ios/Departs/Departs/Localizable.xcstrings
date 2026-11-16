@@ -450,24 +450,24 @@
         }
       }
     },
-    "For the %@ live arrival. Includes %@ extra." : {
+    "For the %@ live departure. Includes %@ extra." : {
       "comment" : "Live prediction; extra time is the conservative allowance after the walk.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "For the %1$@ live arrival. Includes %2$@ extra."
+            "value" : "For the %1$@ live departure. Includes %2$@ extra."
           }
         }
       }
     },
-    "For the %@ scheduled arrival. Includes %@ extra." : {
+    "For the %@ scheduled departure. Includes %@ extra." : {
       "comment" : "A scheduled time is from the timetable, not a live prediction. Extra time is the conservative allowance after the walk.",
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "For the %1$@ scheduled arrival. Includes %2$@ extra."
+            "value" : "For the %1$@ scheduled departure. Includes %2$@ extra."
           }
         }
       }
@@ -482,12 +482,12 @@
         }
       }
     },
-    "Last known arrival" : {
+    "Last known departure" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Last known arrival"
+            "value" : "Last known departure"
           }
         }
       }
@@ -552,12 +552,12 @@
         }
       }
     },
-    "Live arrival" : {
+    "Live departure" : {
       "localizations" : {
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Live arrival"
+            "value" : "Live departure"
           }
         }
       }
