@@ -70,7 +70,7 @@ final class AreaSearchModel {
             let places = response.mapItems.enumerated().map { index, item in
                 let coordinate = item.placemark.coordinate
                 return PlaceResult(
-                    id: "\(requestID)-\(index)", name: item.name ?? "Selected place",
+                    id: "\(requestID)-\(index)", name: item.name ?? String(localized: "Selected place"),
                     subtitle: item.placemark.title ?? "",
                     coordinate: .init(lat: coordinate.latitude, lon: coordinate.longitude),
                     transit: item.pointOfInterestCategory == .publicTransport,
@@ -80,7 +80,7 @@ final class AreaSearchModel {
             results = Self.transitFirst(places)
         } catch {
             guard revision == requestID, !Task.isCancelled else { return }
-            self.error = "Couldn't search places. Check your connection and try again."
+            self.error = String(localized: "Couldn't search places. Check your connection and try again.")
         }
     }
     private func nearDistance(_ point: CLLocationCoordinate2D, from origin: Coordinate?) -> Double? {
@@ -118,11 +118,18 @@ struct AreaSearchView: View {
         NavigationStack {
             List {
                 Section {
-                    TextField("Stop, address, or place", text: $query)
-                        .textInputAutocapitalization(.words).submitLabel(.search)
-                        .focused($queryFocused)
-                        .accessibilityIdentifier("area-query")
-
+                    HStack {
+                        Image(systemName: "magnifyingglass").accessibilityHidden(true)
+                        TextField("", text: $query, axis: .vertical)
+                            .frame(minHeight: 44)
+                            .textInputAutocapitalization(.words).submitLabel(.search)
+                            .focused($queryFocused)
+                            .accessibilityLabel("Stop, address, or place")
+                            .accessibilityIdentifier("area-query")
+                    }.frame(minHeight: 44)
+                } header: {
+                    Text("Stop, address, or place").textCase(nil)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if query.isEmpty {
                     Section {
@@ -150,7 +157,7 @@ struct AreaSearchView: View {
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
                             Label(place.name, systemImage: place.symbol).foregroundStyle(.primary)
-                            if let distance = place.distance { Text("\(Int(distance)) m away").font(.caption) }
+                            if let distance = place.distance { Text("\(TransitFormat.distance(distance)) away").font(.caption) }
                             Text(place.subtitle).font(.caption).foregroundStyle(.secondary)
                         }.frame(minHeight: 44)
                     }.accessibilityIdentifier("area-result")
@@ -161,7 +168,10 @@ struct AreaSearchView: View {
             }
             .navigationTitle("Choose an area").navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Cancel", systemImage: "xmark") { dismiss() } }
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel", systemImage: "xmark") { dismiss() }
+                        .accessibilityIdentifier("cancel-area-search")
+                }
             }
             .task(id: query) { await model.find(query, near: near) }
         }

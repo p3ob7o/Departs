@@ -41,7 +41,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         timeout = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(8))
             guard !Task.isCancelled, let self, case .requesting = self.state else { return }
-            self.state = .failed("Location is taking too long. Choose an area to continue.")
+            self.state = .failed(String(localized: "Location is taking too long. Choose an area to continue."))
         }
         manager.requestLocation()
     }

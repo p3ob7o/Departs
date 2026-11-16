@@ -45,6 +45,11 @@ final class TransitStore {
     private var stopAttempts: [String: Date] = [:]
     private var visibleStops: [String: [NearbyStop]] = [:]
     private var hasMeasuredVisibility = false
+    // Status can change the header's height. Its inputs must not shrink when
+    // that height pushes a section out of view, or visibility feeds back into
+    // layout. Requests still use refreshTargets, the live viewport.
+    private var statusStopIDs: Set<String> = []
+    private var needsOpeningRefresh = true
     private var groupedUnavailable = false
     private var restoredBoards: Set<String> = []
     var followsLocation = true
@@ -148,11 +153,14 @@ final class TransitStore {
     }
 
     func setVisible(_ stops: [NearbyStop], elementID: String, visible: Bool) {
-        hasMeasuredVisibility = true
+        if !hasMeasuredVisibility { hasMeasuredVisibility = true }
         if visible {
+            guard visibleStops[elementID] != stops else { return }
             visibleStops[elementID] = stops
+            let addedIDs = Set(stops.map(\.id)).subtracting(statusStopIDs)
+            if !addedIDs.isEmpty { statusStopIDs.formUnion(addedIDs) }
             demand(stops, force: false)
-        } else { visibleStops[elementID] = nil }
+        } else if visibleStops[elementID] != nil { visibleStops[elementID] = nil }
     }
 
     private func demand(_ stops: [NearbyStop], force: Bool) {
@@ -264,7 +272,7 @@ final class TransitStore {
         let moved = area.map { $0.coordinate.distance(to: fix.coordinate) > 150 } ?? true
         let needsStops = moved || area?.source != .location || stopsCheckedAt?.isRecent(at: now(), within: 300) != true
         if needsStops {
-            await loadArea(.init(coordinate: fix.coordinate, name: "Near you", source: .location), radius: radius)
+            await loadArea(.init(coordinate: fix.coordinate, name: String(localized: "Near you"), source: .location), radius: radius)
         } else {
             await refreshAnswers(force: force)
         }
@@ -285,6 +293,8 @@ final class TransitStore {
             stopsCheckedAt = nil
             visibleStops = [:]
             hasMeasuredVisibility = false
+            statusStopIDs = []
+            needsOpeningRefresh = true
             for stop in demandedStops {
                 pendingStopIDs.remove(stop.id)
                 forcedStopIDs.remove(stop.id)
@@ -325,17 +335,34 @@ final class TransitStore {
             await refreshAnswers(force: forceRefresh)
         } catch {
             guard revision == areaRevision, !Self.cancelled(error) else { return }
-            stopsError = "Couldn't update nearby stops. Try again or choose an area."
+            stopsError = String(localized: "Couldn't update nearby stops. Try again or choose an area.")
         }
     }
 
     func refreshAnswers(force: Bool = false) async {
-        demand(refreshTargets, force: force)
+        // A tall saved-state header can be the whole viewport on relaunch.
+        // Revalidate the opening boards even before their rows enter view.
+        let targets: [NearbyStop]
+        if needsOpeningRefresh && !stops.isEmpty {
+            targets = nearbyPins.map(\.stop) + Array(stops.prefix(3)) + refreshTargets
+            needsOpeningRefresh = false
+        } else if force && refreshTargets.isEmpty {
+            targets = statusStops
+        } else { targets = refreshTargets }
+        // Begin a status cycle with this refresh's targets. Newly visible
+        // stops may join until the next cycle; leaving view never removes one.
+        if !targets.isEmpty { statusStopIDs = Set(targets.map(\.id)) }
+        demand(targets, force: force)
         await loadTask?.value
         await walkLoadTask?.value
     }
 
-    var displayedOptions: [StopLineSelection] { refreshTargets.flatMap(\.lineSelections) }
+    var displayedOptions: [StopLineSelection] { statusStops.flatMap(\.lineSelections) }
+
+    private var statusStops: [NearbyStop] {
+        let retained = stops.filter { statusStopIDs.contains($0.id) }
+        return retained.isEmpty ? Array(stops.prefix(3)) : retained
+    }
 
     private var refreshTargets: [NearbyStop] {
         let visibleIDs = Set(visibleStops.values.flatMap { $0 }.map(\.id))

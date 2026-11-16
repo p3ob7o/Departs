@@ -25,10 +25,10 @@ enum TransportType: String, Codable, CaseIterable {
 
     var displayName: String {
         switch self {
-        case .subway: "Subway"
-        case .tram: "Tram"
-        case .bus: "Bus"
-        case .rail: "Rail"
+        case .subway: String(localized: "Subway")
+        case .tram: String(localized: "Tram")
+        case .bus: String(localized: "Bus")
+        case .rail: String(localized: "Rail")
         }
     }
 }
