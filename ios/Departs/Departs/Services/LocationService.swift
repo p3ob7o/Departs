@@ -72,8 +72,14 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
               location.horizontalAccuracy >= 0,
               location.timestamp.isRecent(at: .now, within: 120) else { return }
         timeout?.cancel()
+        var accuracy = location.horizontalAccuracy
+        #if DEBUG
+        // The simulator only ever reports a precise fix. UI tests set this to
+        // get the coarse one that Precise Location off produces on a phone.
+        if let coarse = ProcessInfo.processInfo.environment["DEPARTS_TEST_LOCATION_ACCURACY"].flatMap(Double.init) { accuracy = coarse }
+        #endif
         let candidate = LocationFix(coordinate: Coordinate(lat: location.coordinate.latitude, lon: location.coordinate.longitude),
-                                    capturedAt: location.timestamp, accuracy: location.horizontalAccuracy)
+                                    capturedAt: location.timestamp, accuracy: accuracy)
         // The store ignores a fix it cannot use. Reporting it as located would
         // leave home waiting for departures that are never requested.
         guard candidate.isUsable(at: .now) else { state = .failed; return }

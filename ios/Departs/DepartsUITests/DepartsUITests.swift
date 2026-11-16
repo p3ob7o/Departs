@@ -145,7 +145,7 @@ final class DepartsUITests: XCTestCase {
         launch(); waitForRows()
         XCTAssertTrue(app.navigationBars["Near you"].exists)
         XCTAssertEqual(app.navigationBars.firstMatch.buttons.count, 1, "No search button and no title menu")
-        assertTarget(app.buttons["locate"])
+        // A system toolbar item: its accessibility frame is not its hit region.
         XCTAssertTrue(app.buttons["locate"].label.contains("Following your location"))
         for _ in 0..<3 { nearbyList.swipeUp() }
         XCTAssertFalse(app.buttons["search-farther"].exists)
@@ -225,32 +225,41 @@ final class DepartsUITests: XCTestCase {
         capture("Home after moving")
     }
 
-    func testCoarseFirstFixExplainsItselfAndRecoversWithTryAgain() {
-        XCUIDevice.shared.location = coarseLocation
+    func testCoarseFixExplainsItselfAndAPreciseOneRecovers() {
+        // What Precise Location off produces: a fix arrives, too coarse to use.
+        app.launchEnvironment["DEPARTS_TEST_LOCATION_ACCURACY"] = "800"
         launch()
         let status = app.staticTexts["location-status"]
-        XCTAssertTrue(status.waitForExistence(timeout: 15), app.debugDescription)
+        XCTAssertTrue(status.waitForExistence(timeout: 12), app.debugDescription)
         XCTAssertTrue(status.label.hasPrefix("Couldn't find your location"))
         XCTAssertFalse(app.staticTexts["Finding departures…"].exists)
         assertTarget(app.buttons["Try again"])
         assertTarget(app.buttons["Open Settings"])
+        XCTAssertTrue(app.buttons["locate"].label.contains("Location not found"))
+        XCTAssertEqual(rows.count, 0)
         XCTAssertEqual(server.radii, [], "Nothing is searched from a place this uncertain")
         capture("Home location not found")
-        XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 48.20134, longitude: 16.34941))
         app.buttons["Try again"].tap()
+        XCTAssertTrue(status.waitForExistence(timeout: 12), "Still coarse: the explanation returns")
+        XCTAssertEqual(server.radii, [])
+        app.terminate()
+        app.launchEnvironment["DEPARTS_TEST_LOCATION_ACCURACY"] = nil
+        app.launch()
         waitForRows()
         XCTAssertFalse(status.exists)
+        XCTAssertTrue(app.navigationBars["Near you"].exists)
     }
 
     func testCoarseFixKeepsTheLastAreaAndNamesWhereTheWalkStarts() {
         launch(); waitForRows()
         app.terminate()
-        XCUIDevice.shared.location = coarseLocation
+        app.launchEnvironment["DEPARTS_TEST_LOCATION_ACCURACY"] = "800"
         app.launch()
         XCTAssertTrue(app.navigationBars["Last area"].waitForExistence(timeout: 8))
         waitForRows()
-        waitUntil(timeout: 15) { self.app.buttons["locate"].label.contains("Showing your last area") }
-        XCTAssertFalse(app.staticTexts["location-status"].exists)
+        waitUntil(timeout: 15) { self.rows.firstMatch.label.contains(". In ") || self.rows.firstMatch.label.contains(". Now.") }
+        XCTAssertTrue(app.buttons["locate"].label.contains("Showing your last area"))
+        XCTAssertFalse(app.staticTexts["location-status"].exists, "A saved area is more use than an apology")
         XCTAssertTrue(app.navigationBars["Last area"].exists)
         rows.firstMatch.tap()
         waitUntil { self.lineRows.count == 4 }
@@ -276,6 +285,20 @@ final class DepartsUITests: XCTestCase {
         single.tap()
         XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS '48A'")).firstMatch.exists)
+    }
+
+    func testLocationButtonBringsAPannedMapBack() {
+        launch(); waitForRows()
+        let label = app.buttons.matching(NSPredicate(format: "identifier == 'stop-map-pin' AND label CONTAINS 'Subway U3'")).firstMatch
+        XCTAssertTrue(label.waitForExistence(timeout: 8))
+        let home = label.frame
+        homeMap.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            .press(forDuration: 0.1, thenDragTo: homeMap.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.6)),
+                   withVelocity: .slow, thenHoldForDuration: 0.3)
+        waitUntil { !label.exists || abs(label.frame.midX - home.midX) > 30 || abs(label.frame.midY - home.midY) > 30 }
+        app.buttons["locate"].tap()
+        waitUntil { label.exists && abs(label.frame.midX - home.midX) < 3 && abs(label.frame.midY - home.midY) < 3 }
+        XCTAssertEqual(Set(server.radii), [400], "Returning to the circle searches nothing new")
     }
 
     func testCountdownLeavesOrderUntouchedAndRowsSpeakNoDecorativeState() {
@@ -437,12 +460,18 @@ final class DepartsUITests: XCTestCase {
     func testWalkingDirectionsOpensAppleMaps() {
         launch(); waitForRows(); rows.firstMatch.tap()
         XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
+        // Maps plans a walk only with its own location permission. On a new
+        // simulator grant it first: xcrun simctl privacy <id> grant location com.apple.Maps.
+        // Granting it through the prompt makes iOS ask about Maps widgets later,
+        // on top of whichever test is running.
         app.buttons["walking-directions"].tap()
         let maps = XCUIApplication(bundleIdentifier: "com.apple.Maps")
         XCTAssertTrue(maps.wait(for: .runningForeground, timeout: 10))
-        for title in ["Continue", "Allow Once", "Not Now"] {
-            let button = maps.buttons[title].firstMatch
-            if button.waitForExistence(timeout: 1) { button.tap() }
+        // A new simulator shows Maps' own first-run sheets, in an order that varies.
+        for _ in 0..<4 {
+            let prompts = ["Continue", "Not Now"].map { maps.buttons[$0].firstMatch }
+            guard let prompt = prompts.first(where: { $0.waitForExistence(timeout: 1) }) else { break }
+            prompt.tap()
         }
         // Maps 26 exposes a waypoint cell and a labeled segmented button;
         // Maps 27 exposes the destination and mode as identified buttons.
@@ -569,11 +598,6 @@ final class DepartsUITests: XCTestCase {
             .press(forDuration: 0.1, thenDragTo: nearbyList.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)),
                    withVelocity: .slow, thenHoldForDuration: 0.5)
         if waitForRequest { waitUntil { self.server.batchCount > count } }
-    }
-    /// A fix too coarse to say what is within 400 m, as with Precise Location off.
-    private var coarseLocation: XCUILocation {
-        XCUILocation(location: CLLocation(coordinate: .init(latitude: 48.20134, longitude: 16.34941), altitude: 0,
-                                          horizontalAccuracy: 800, verticalAccuracy: 10, timestamp: Date()))
     }
     private func launch(allowLocation: Bool = true) {
         app.launch()

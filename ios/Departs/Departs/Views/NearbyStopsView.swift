@@ -11,6 +11,7 @@ struct NearbyStopsView: View {
     @Environment(\.dynamicTypeSize) private var textSize
     @Environment(\.openURL) private var openURL
     @State private var selectedMapStop: String?
+    @State private var recenter = 0
     @State private var countdownStart = Date.now
 
     var body: some View {
@@ -90,7 +91,11 @@ struct NearbyStopsView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Use my location", systemImage: showsCurrentLocation ? "location.fill" : "location", action: onLocate)
+                Button("Use my location", systemImage: showsCurrentLocation ? "location.fill" : "location") {
+                    // The only way back after panning the map away.
+                    recenter += 1
+                    onLocate()
+                }
                     .accessibilityLabel(String(localized: "Use my location. \(locationValue)."))
                     .accessibilityIdentifier("locate")
             }
@@ -99,7 +104,7 @@ struct NearbyStopsView: View {
 
     private func map(width: CGFloat, proxy: ScrollViewProxy) -> some View {
         StopsMapView(userCoordinate: store.center?.clLocationCoordinate2D, groups: store.mapGroups,
-                     selectedStopID: selectedMapStop) { selected in
+                     selectedStopID: selectedMapStop, recenter: recenter) { selected in
             selectedMapStop = selected
             guard let group = store.mapGroups.first(where: { $0.id == selected }) else { return }
             if group.active.count == 1, let selection = group.active.first { onSelect(selection) }
@@ -168,8 +173,10 @@ struct NearbyStopsView: View {
         showsCurrentLocation ? String(localized: "Near you") : store.center == nil ? "Departs" : String(localized: "Last area")
     }
     private var locationValue: String {
-        locationState == .denied ? String(localized: "Location is off") : showsCurrentLocation
-            ? String(localized: "Following your location") : String(localized: "Showing your last area")
+        if locationState == .denied { return String(localized: "Location is off") }
+        if showsCurrentLocation { return String(localized: "Following your location") }
+        if store.center != nil { return String(localized: "Showing your last area") }
+        return locationState == .failed ? String(localized: "Location not found") : String(localized: "Finding your location")
     }
     private func row(_ selection: StopLineSelection, at date: Date, showStop: Bool = false) -> some View {
         StopRowView(selection: selection, board: store.home.boards[selection.id],

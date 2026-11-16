@@ -1,16 +1,6 @@
 {
   "sourceLanguage": "en",
   "strings": {
-    "": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": ""
-          }
-        }
-      }
-    },
     "%@": {
       "localizations": {
         "en": {
@@ -266,6 +256,16 @@
         }
       }
     },
+    "Finding your location": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Finding your location"
+          }
+        }
+      }
+    },
     "Following your location": {
       "localizations": {
         "en": {
@@ -332,6 +332,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "Location is off. Turn it on to see what leaves near you."
+          }
+        }
+      }
+    },
+    "Location not found": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Location not found"
           }
         }
       }
