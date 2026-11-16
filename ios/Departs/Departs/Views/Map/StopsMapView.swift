@@ -70,8 +70,9 @@ struct StopsMapView: UIViewRepresentable {
             let lines = group.lines
             mode = lines.first?.type ?? group.stops.first?.type ?? .tram
             let first = lines.first?.name ?? mode.displayName
-            badgeName = lines.count > 1 ? "\(first) +\(lines.count - 1)" : first
-            spokenLabel = "\(group.name), \(lines.map { "\($0.type.displayName) \($0.name)" }.joined(separator: ", "))"
+            badgeName = lines.count > 1 ? "\(first) +\((lines.count - 1).formatted())" : first
+            let services = lines.map { String(localized: "\($0.type.displayName) \($0.name)") }.formatted(.list(type: .and))
+            spokenLabel = String(localized: "\(group.name), \(services)")
         }
     }
 

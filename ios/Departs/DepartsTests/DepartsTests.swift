@@ -173,6 +173,20 @@ final class DepartsTests: XCTestCase {
         XCTAssertEqual(TimeFormatter.freshness(checked, now: checked.addingTimeInterval(120), fresh: false), "Saved information · checked at \(checked.formatted(date: .omitted, time: .shortened))")
     }
 
+    func testDistancesUseTheLocalesMeasurementSystem() {
+        XCTAssertEqual(TransitFormat.distance(400, locale: Locale(identifier: "de_DE")), "400 m")
+        XCTAssertEqual(TransitFormat.distance(400, locale: Locale(identifier: "en_US")), "1,300 ft")
+        XCTAssertEqual(TransitFormat.distance(400, locale: Locale(identifier: "en_GB")), "450 yd")
+        XCTAssertEqual(TransitFormat.minutes(3, locale: Locale(identifier: "de_DE")), "3 Min.")
+        XCTAssertEqual(TransitFormat.minutes(3, locale: Locale(identifier: "en_US")), "3 min")
+    }
+
+    func testIdleLineCountUsesSingularAndPluralCatalogForms() {
+        XCTAssertEqual(TransitFormat.idleLines(1, limited: false), "1 line with nothing soon")
+        XCTAssertEqual(TransitFormat.idleLines(2, limited: false), "2 lines with nothing soon")
+        XCTAssertEqual(TransitFormat.idleLines(1, limited: true), "1 more line")
+    }
+
     func testPaletteCount() {
         XCTAssertEqual(StopPalette.colors.count, 10)
     }

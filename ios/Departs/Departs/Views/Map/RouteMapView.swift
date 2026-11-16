@@ -191,7 +191,7 @@ struct RouteMapView: UIViewRepresentable {
                 ?? MKAnnotationView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
             view.isAccessibilityElement = true
-            view.accessibilityLabel = annotation.kind == .stop ? "\(stopName), \(stopType.displayName) stop" : "Your location"
+            view.accessibilityLabel = annotation.kind == .stop ? String(localized: "\(stopName), \(stopType.displayName) stop") : String(localized: "Your location")
 
             let size: CGFloat = 24
             let container = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
@@ -225,7 +225,7 @@ struct RouteMapView: UIViewRepresentable {
                 ?? MapLineAnnotationView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
             view.configure(name: lineName, type: stopType, color: stopColor)
-            view.accessibilityLabel = "\(stopName), \(stopType.displayName) \(lineName)"
+            view.accessibilityLabel = String(localized: "\(stopName), \(stopType.displayName) \(lineName)")
             return view
         }
     }

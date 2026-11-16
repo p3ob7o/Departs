@@ -135,10 +135,10 @@ enum APIError: LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .requestFailed: "Failed to connect to the server."
-        case .invalidStopId: "Invalid stop identifier."
-        case .invalidURL: "Invalid API request URL."
-        case .groupedUnavailable: "This server uses individual departure boards."
+        case .requestFailed: String(localized: "Couldn't connect. Please try again.")
+        case .invalidStopId: String(localized: "This stop couldn't be found. Choose another stop.")
+        case .invalidURL: String(localized: "Couldn't load this request. Please try again.")
+        case .groupedUnavailable: String(localized: "This server uses individual departure boards.")
         }
     }
 }

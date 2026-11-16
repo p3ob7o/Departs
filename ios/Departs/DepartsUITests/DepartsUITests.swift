@@ -333,6 +333,8 @@ final class DepartsUITests: XCTestCase {
             app.swipeUp()
         }
         assertTarget(app.buttons["show-route-map"])
+        print("ADVICE accessibility height=\(app.staticTexts["departure-advice-detail"].frame.height)")
+        capture("Advice at accessibility text size")
         app.buttons["show-route-map"].tap()
         XCTAssertTrue(app.maps.firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.maps.firstMatch.isHittable)
@@ -343,6 +345,63 @@ final class DepartsUITests: XCTestCase {
         app.buttons["walking-directions"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(XCUIApplication(bundleIdentifier: "com.apple.Maps").wait(for: .runningForeground, timeout: 5))
     }
+
+    #if PSEUDO_LOCALIZATION
+    func testGermanRegionWithExpandedPseudoLocalization() {
+        app.launchArguments = ["-AppleLanguages", "(de)", "-AppleLocale", "de_DE"]
+        launchAndAllowLocation()
+        let row = app.buttons["departure-option"].firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 12))
+        let status = app.staticTexts["board-status"].firstMatch
+        print("PSEUDO context=\(status.label)")
+        XCTAssertTrue(status.label.contains("400 m"))
+        XCTAssertTrue(status.label.hasPrefix("［Im Umkreis"), "Verify the test-only German catalog is loaded")
+        XCTAssertFalse(status.label.contains("$@"), "Interpolation must substitute every placeholder")
+        XCTAssertFalse(row.label.contains("$@"))
+        capture("German region expanded pseudo list")
+        app.buttons["choose-area"].tap()
+        XCTAssertTrue(app.textFields["area-query"].waitForExistence(timeout: 3))
+        capture("German region expanded pseudo search")
+        app.buttons["cancel-area-search"].tap()
+        row.tap()
+        XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
+        capture("German region expanded pseudo detail")
+        app.terminate()
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL", "-UIAccessibilityReduceMotionEnabled", "YES"]
+        app.launch()
+        XCTAssertTrue(row.waitForExistence(timeout: 12))
+        capture("German region expanded pseudo accessibility list")
+        row.tap()
+        XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
+        capture("German region expanded pseudo accessibility detail")
+        for _ in 0..<10 {
+            let button = app.buttons["show-route-map"]
+            let top = app.navigationBars.firstMatch.frame.maxY
+            let bottom = app.buttons["walking-directions"].frame.minY
+            if button.isHittable && button.frame.minY > top && button.frame.maxY < bottom { break }
+            let correction = min(0.25, max(-0.25, ((top + bottom) / 2 - button.frame.midY) / app.frame.height))
+            app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+                .press(forDuration: 0.05,
+                       thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5 + correction)),
+                       withVelocity: .slow, thenHoldForDuration: 0.5)
+        }
+        assertTarget(app.buttons["show-route-map"])
+        XCTAssertGreaterThan(app.buttons["show-route-map"].frame.minY, app.navigationBars.firstMatch.frame.maxY)
+        XCTAssertLessThan(app.buttons["show-route-map"].frame.maxY, app.buttons["walking-directions"].frame.minY)
+        capture("German region expanded pseudo accessibility advice")
+        app.navigationBars.buttons.firstMatch.tap()
+        if !app.buttons["choose-area"].isHittable {
+            app.navigationBars.buttons.allElementsBoundByIndex.last!.tap()
+            // Native overflow menu entries preserve the localized title, but
+            // iOS 27 does not preserve a toolbar item's custom identifier here.
+            app.buttons.matching(NSPredicate(format: "label CONTAINS 'Chöösë árëá'")).firstMatch.tap()
+        } else {
+            app.buttons["choose-area"].tap()
+        }
+        XCTAssertTrue(app.textFields["area-query"].waitForExistence(timeout: 3))
+        capture("German region expanded pseudo accessibility search")
+    }
+    #endif
 
     private func launchAndAllowLocation() {
         dismissMapsPrompt()

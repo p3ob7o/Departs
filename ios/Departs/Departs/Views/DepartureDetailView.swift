@@ -9,9 +9,10 @@ struct DepartureDetailView: View {
     var onSelect: (StopLineSelection) -> Void = { _ in }
     @State private var showingMap = false
     @State private var showingIdle = false
+    @State private var countdownStart = Date.now
 
     var body: some View {
-        TimelineView(.periodic(from: .now, by: 15)) { timeline in
+        TimelineView(.periodic(from: countdownStart, by: 15)) { timeline in
             let date = max(timeline.date, Date.now)
             let board = store.boards[selection.id]
             let fresh = store.isBoardFresh(for: selection, at: date)
@@ -29,7 +30,7 @@ struct DepartureDetailView: View {
                             .accessibilityIdentifier("detail-stop-name")
                         if let walk {
                             Label(
-                                "\(max(1, walk.route.walkingMinutes)) min walk · \(Int(walk.route.distance)) m",
+                                "\(TransitFormat.walk(walk.route)) · \(TransitFormat.distance(walk.route.distance))",
                                 systemImage: "figure.walk"
                             )
                             .font(.subheadline)
@@ -46,6 +47,7 @@ struct DepartureDetailView: View {
                                 ? "checkmark.circle" : advice.kind == .caution ? "exclamationmark.circle" : "clock"
                         )
                         .font(.title2.bold())
+                        .modifier(CountdownTransition(value: advice.title))
                         .accessibilityElement(children: .combine)
                         .accessibilityIdentifier("departure-advice-title")
                         .foregroundStyle(
@@ -54,6 +56,7 @@ struct DepartureDetailView: View {
                                 : advice.kind == .caution
                                     ? Color(hex: colorScheme == .dark ? "FF9F0A" : "B25000") : Color.primary)
                         Text(advice.detail).font(.subheadline).foregroundStyle(.secondary)
+                            .accessibilityIdentifier("departure-advice-detail")
                         if !fresh {
                             Button {
                                 Task { await store.refreshSelection(selection, force: true) }
@@ -100,7 +103,7 @@ struct DepartureDetailView: View {
                             if departures.isEmpty && board.coverageLimit == nil {
                                 Text(
                                     fresh
-                                        ? "No upcoming departures found." : "Refresh to see current departure times."
+                                        ? String(localized: "No upcoming departures found.") : String(localized: "Refresh to see current departure times.")
                                 )
                                 .foregroundStyle(.secondary)
                             }
@@ -119,6 +122,7 @@ struct DepartureDetailView: View {
                                                 : TimeFormatter.formatTime(departure.time)
                                         )
                                         .font(.title2.bold()).monospacedDigit()
+                                        .modifier(CountdownTransition(value: TimeFormatter.relativeTime(departure.time, now: date) ?? departure.time))
                                         .strikethrough(tooTight)
                                         if fresh, TimeFormatter.relativeTime(departure.time, now: date) != nil {
                                             Text(TimeFormatter.formatTime(departure.time)).font(.subheadline)
@@ -136,7 +140,7 @@ struct DepartureDetailView: View {
                                     ) {
                                         Label(
                                             departure.realTime
-                                                ? (fresh ? "Live estimate" : "Saved prediction") : "Scheduled",
+                                                ? (fresh ? String(localized: "Live arrival") : String(localized: "Last known arrival")) : String(localized: "Scheduled"),
                                             systemImage: fresh && departure.realTime
                                                 ? "dot.radiowaves.left.and.right" : "clock"
                                         )
@@ -147,7 +151,7 @@ struct DepartureDetailView: View {
                                         )
                                         if let delay = departure.delay, delay >= 60 {
                                             Label(
-                                                "\(Int(delay / 60)) min late", systemImage: "exclamationmark.circle"
+                                                "\(TransitFormat.minutes(Int(delay / 60))) late", systemImage: "exclamationmark.circle"
                                             )
                                             .font(.subheadline.weight(.semibold))
                                             .foregroundStyle(Color(hex: colorScheme == .dark ? "FF9F0A" : "B25000"))
@@ -180,8 +184,7 @@ struct DepartureDetailView: View {
                                     }
                                 } label: {
                                     Text(
-                                        idle.contains { store.boards[$0.id]?.coverageLimit != nil }
-                                            ? "\(idle.count) more lines" : "\(idle.count) lines with nothing soon"
+                                        TransitFormat.idleLines(idle.count, limited: idle.contains { store.boards[$0.id]?.coverageLimit != nil })
                                     )
                                     .font(.subheadline).frame(minHeight: 44)
                                 }.accessibilityIdentifier("other-lines-idle")
@@ -199,7 +202,7 @@ struct DepartureDetailView: View {
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button(
-                    store.isPinned(selection) ? "Unpin this direction" : "Pin this direction",
+                    store.isPinned(selection) ? String(localized: "Unpin this direction") : String(localized: "Pin this direction"),
                     systemImage: store.isPinned(selection) ? "pin.fill" : "pin"
                 ) {
                     store.togglePin(selection)

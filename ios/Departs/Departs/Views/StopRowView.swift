@@ -36,10 +36,12 @@ struct StopRowView: View {
                         Text(direction ?? selection.line.direction).font(.subheadline.weight(.semibold))
                             .lineLimit(textSize.isAccessibilitySize ? nil : 2)
                         if showStop && !textSize.isAccessibilitySize { pinnedDetails }
-                        HStack(alignment: .firstTextBaseline, spacing: 4) {
-                            Image(systemName: content.statusSymbol).font(.caption2)
-                            Text(content.status).fixedSize(horizontal: false, vertical: true)
-                        }.font(.caption)
+                        if !textSize.isAccessibilitySize {
+                            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                                Image(systemName: content.statusSymbol).font(.caption2)
+                                Text(content.status).fixedSize(horizontal: false, vertical: true)
+                            }.font(.caption)
+                        }
                     }
                 }
                 if !textSize.isAccessibilitySize { Spacer(minLength: 0) }
@@ -49,6 +51,7 @@ struct StopRowView: View {
                             Image(systemName: content.adviceKind == .leave ? "checkmark.circle" : content.adviceKind == .caution ? "exclamationmark.circle" : "clock")
                         }
                         Text(content.answer).fixedSize(horizontal: false, vertical: true)
+                            .modifier(CountdownTransition(value: content.answer))
                     }
                         .font(.headline)
                         .monospacedDigit().foregroundStyle(answerColor)
@@ -57,8 +60,13 @@ struct StopRowView: View {
                         ForEach(Array(content.times.enumerated()), id: \.offset) { index, time in
                             if index > 0 && !textSize.isAccessibilitySize { Text("·") }
                             Text(time.text).strikethrough(time.tooTight)
+                                .modifier(CountdownTransition(value: time.text))
                         }
                     }.font(.caption).monospacedDigit()
+                }
+                if textSize.isAccessibilitySize && (failed || !fresh) {
+                    Label(content.status, systemImage: content.statusSymbol).font(.caption)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
                 if showStop && textSize.isAccessibilitySize { pinnedDetails }
             }
@@ -67,10 +75,16 @@ struct StopRowView: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityLabel("\(content.answer). \(selection.line.type.displayName) \(selection.line.name) toward \(selection.line.direction) from \(selection.stop.name). \(content.spokenTimes). \(content.status)\(showStop && walk != nil ? ". \(max(1, walk!.route.walkingMinutes)) min walk" : "")")
+        .accessibilityLabel(spokenAnswer)
         .accessibilityIdentifier(accessibilityID)
         .swipeActions { pinAction }
         .contextMenu { pinAction }
+    }
+    private var spokenAnswer: String {
+        if showStop, let walk {
+            return String(localized: "\(content.answer). \(selection.line.type.displayName) \(selection.line.name) toward \(selection.line.direction) from \(selection.stop.name). \(content.spokenTimes). \(content.status). \(TransitFormat.walk(walk.route, fromCurrentLocation: fromCurrentLocation)).")
+        }
+        return String(localized: "\(content.answer). \(selection.line.type.displayName) \(selection.line.name) toward \(selection.line.direction) from \(selection.stop.name). \(content.spokenTimes). \(content.status).")
     }
     private var answerColor: Color {
         switch content.adviceKind {
@@ -82,11 +96,11 @@ struct StopRowView: View {
     @ViewBuilder private var pinnedDetails: some View {
         Text(selection.stop.name).font(.caption)
         if let walk {
-            Text(fromCurrentLocation ? "\(max(1, walk.route.walkingMinutes)) min walk" : "\(max(1, walk.route.walkingMinutes)) min walk from this area").font(.caption)
+            Text(TransitFormat.walk(walk.route, fromCurrentLocation: fromCurrentLocation)).font(.caption)
         }
     }
     private var pinAction: some View {
-        Button(action: onPin) { Label(pinned ? "Unpin route" : "Pin route", systemImage: pinned ? "pin.slash" : "pin") }
+        Button(action: onPin) { Label(pinned ? String(localized: "Unpin route") : String(localized: "Pin route"), systemImage: pinned ? "pin.slash" : "pin") }
             .accessibilityIdentifier(pinned ? "unpin-route" : "pin-route")
     }
 }
@@ -117,7 +131,10 @@ struct DepartureRowContent {
     let statusSymbol: String
     let adviceKind: DepartureAdvice.Kind
     let times: [TimeLabel]
-    var spokenTimes: String { times.map { $0.text + ($0.tooTight ? ", too tight" : "") }.joined(separator: ". ") }
+    var spokenTimes: String {
+        times.map { $0.tooTight ? String(localized: "\($0.text), too tight") : $0.text }
+            .formatted(.list(type: .and))
+    }
 
     init(board: DepartureBoard?, advice: DepartureAdvice, loading: Bool, failed: Bool, fresh: Bool, idle: Bool, now: Date) {
         let departures = board?.upcoming(at: now) ?? []
@@ -130,10 +147,10 @@ struct DepartureRowContent {
         }
         if let coverage = board?.coverageLimit {
             answer = coverage.message
-        } else if showAdvice { answer = advice.kind == .caution ? "Too tight" : advice.title }
+        } else if showAdvice { answer = advice.kind == .caution ? String(localized: "Too tight") : advice.title }
         else if let first = departures.first { answer = time(first) }
-        else if board == nil { answer = loading ? "Checking…" : "Unavailable" }
-        else { answer = failed || !fresh ? "Needs an update" : "Nothing soon" }
+        else if board == nil { answer = loading ? String(localized: "Checking…") : String(localized: "Unavailable") }
+        else { answer = failed || !fresh ? String(localized: "Needs an update") : String(localized: "Nothing soon") }
 
         var shown = Array(departures.prefix(2))
         if showAdvice, let matched = departures.first(where: { $0.time == advice.departureTime }),
@@ -144,27 +161,43 @@ struct DepartureRowContent {
         times = shown.map { departure in
             let chosen = showAdvice && departure.time == advice.departureTime
             let tight = showAdvice && advice.isTooTight(departure)
-            return .init(text: chosen ? "for \(TimeFormatter.formatTime(departure.time))" : time(departure), tooTight: tight)
+            return .init(text: chosen ? String(localized: "for \(TimeFormatter.formatTime(departure.time))") : time(departure), tooTight: tight)
         }
         if failed {
-            status = board == nil ? "Couldn't load · retry" : "Saved · couldn't update"
+            status = board == nil ? String(localized: "Couldn't load · retry") : String(localized: "Saved · couldn't update")
             statusSymbol = "exclamationmark.triangle"
         } else if board == nil {
-            status = loading ? "Checking departures" : "Times unavailable"
+            status = loading ? String(localized: "Checking departures") : String(localized: "Times unavailable")
             statusSymbol = "clock"
         } else if !fresh {
-            status = "Saved information"
+            status = String(localized: "Saved information")
             statusSymbol = "clock.badge.exclamationmark"
         } else if board?.coverageLimit != nil {
-            status = "Limited timetable"
+            status = String(localized: "Limited timetable")
             statusSymbol = "clock"
         } else if let first = (showAdvice ? departures.first(where: { $0.time == advice.departureTime }) : nil) ?? departures.first {
             let delay = max(0, Int((first.delay ?? 0) / 60))
-            status = (first.realTime ? "Live" : "Scheduled") + (delay >= 1 ? " · \(delay) min late" : "")
+            if delay >= 1 {
+                status = first.realTime ? String(localized: "Live · \(TransitFormat.minutes(delay)) late")
+                    : String(localized: "Scheduled · \(TransitFormat.minutes(delay)) late")
+            } else {
+                status = first.realTime ? String(localized: "Live") : String(localized: "Scheduled")
+            }
             statusSymbol = first.realTime ? "dot.radiowaves.left.and.right" : "calendar"
         } else {
-            status = "No upcoming departures"
+            status = String(localized: "No upcoming departures")
             statusSymbol = "clock"
         }
+    }
+}
+
+struct CountdownTransition: ViewModifier {
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    let value: String
+
+    func body(content: Content) -> some View {
+        content
+            .contentTransition(reduceMotion ? .identity : .numericText(countsDown: true))
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: value)
     }
 }
