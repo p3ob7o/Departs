@@ -20,7 +20,7 @@ See [native behavior](ios-fast-answers.md) and the [final validation](plans/ios-
 
 The test baseline was Departs 1.1 (6). After the implementation checks passed, the owner requested the update on 16 November. **Departs 1.2 (7) is uploaded, VALID and IN_BETA_TESTING for internal testers.** The [release record](releases/1.2-7.md) contains package, production and processing verification.
 
-Plan PR #26 and additive backend PR #27 merged into `main`, and Vienna/Berlin production checks passed before upload. Native home #28, line #29, cleanup #30 and release #31 remain stacked drafts pending separate merge approval. Each must land in `main` in that order, retargeting after the previous merge. Merging into an already-merged phase branch does not update `main`.
+Plan PR #26 and additive backend PR #27 merged into `main`, and Vienna/Berlin production checks passed before upload. Native home #28, line #29, cleanup #30 and release #31 form the implementation stack. The owner explicitly approved landing all four in `main` in that order, retargeting after each previous merge. Merging into an already-merged phase branch does not update `main`.
 
 The uploaded build uses the tested release branch. Backend-first is satisfied. Complete the remaining physical-device checks with TestFlight; no external beta review or public App Store release was submitted.
 
