@@ -36,7 +36,7 @@ The website root returns a plain-text iOS retirement notice without provider cal
 
 Use [AGENTS.md](AGENTS.md) for commands and simulator rules. Vitest/MSW intercept external providers; native XCTest uses a small derived Vienna sample and a local fixture server. Live backend checks require provider credentials on the deployment, not embedded in the app.
 
-Debug builds accept API, preferences and place-search test overrides. `NSAllowsLocalNetworking` is included only by the Debug Info.plist preprocessor definition. Release contains no such overrides and loads production directly. Previews using `PreviewData` stay inside `#if DEBUG`.
+Debug builds accept API, preferences and location-accuracy test overrides. `NSAllowsLocalNetworking` is included only by the Debug Info.plist preprocessor definition. Release contains no such overrides and loads production directly. Previews using `PreviewData` stay inside `#if DEBUG`.
 
 Run native suites with the runtime pinned and derived data outside the repository. Complete first boot before testing. Dark appearance requires the iOS 26.2 simulator. The German pseudolocalization script copies and expands the catalog outside Git; it reuses that destination's derived data. No German localization ships.
 

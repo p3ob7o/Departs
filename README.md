@@ -1,8 +1,8 @@
 # Departs
 
-Departs is a native iOS app for finding nearby public transport, checking the next departures, and walking to the stop. It uses SwiftUI and MapKit on iOS 17 and later, with no accounts or third-party iOS dependencies.
+Departs is a native iOS app for finding nearby public transport, checking the next departures, and walking to the stop. It uses SwiftUI and MapKit on iOS 26 and later, with no accounts or third-party iOS dependencies.
 
-The opening screen shows the next two departures for nearby lines, walking time, and conservative leave-time guidance. Saved results appear immediately while location and transit data refresh. Pin a stop and direction for repeat trips, open it through App Shortcuts, or choose an area when location is unavailable. Maps are available on demand.
+The opening screen shows a square map over the lines that leave within the hour, within 400 metres of where you are. Tap a line for its walking route and next four departures. Saved results appear immediately while location and transit data refresh. Pin a stop and direction for repeat trips and open it through App Shortcuts. There is no search: with location off, the app shows pinned routes only.
 
 Development focuses exclusively on iOS. The browser app is retired; this repository retains the Next.js API backend that the iOS app needs. The website root returns a short retirement notice.
 
