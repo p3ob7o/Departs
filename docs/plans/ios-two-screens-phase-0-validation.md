@@ -12,12 +12,12 @@ The timestamp is captured immediately before the successful provider attempt and
 
 | Requirement | Local/fixture result | Preview | Production |
 | --- | --- | --- | --- |
-| 17 sample IDs, one request, 17 boards | Passed; one MSW-observed provider request; all 17 identities and first two departures match single-stop groups | Passed: 17/17 boards, 28 groups, zero mismatches across all 17 single-stop comparisons | Awaiting owner-approved merge |
-| Existing `stopId` tests unchanged | Passed; original test file is byte-identical to the plan base | 17/17 Vienna grouped responses match the batch's first two departures | Existing production unchanged |
+| 17 sample IDs, one request, 17 boards | Passed; one MSW-observed provider request; all 17 identities and first two departures match single-stop groups | Passed: 17/17 boards, 28 groups, zero mismatches across all 17 single-stop comparisons | Passed: 17/17 boards, 28 groups, no mismatches |
+| Existing `stopId` tests unchanged | Passed; original test file is byte-identical to the plan base | 17/17 Vienna grouped responses match the batch's first two departures | Single-stop comparisons unchanged; no mismatches in this run |
 | One sanitized failure log and 502 | Passed for batch 503/401/429, network failures, timeouts and invalid responses; retries bounded to two attempts | Failure injection is a fixture check | Not injected |
-| Provider age rather than receipt age (T16) | Passed with a response delayed ten seconds; timestamp remains the request start | Two requests return identical `fetchedAt`; second response is `x-vercel-cache: HIT`, `age: 1` | Awaiting merge |
-| 1–50 IDs | Passed for 1, 17 and 50; 0/empty entries/51 and ambiguous requests rejected before HERE | 50 accepted: 47 boards plus the same three missing Berlin IDs; every requested ID accounted for | Awaiting merge |
-| Two live locations | Not claimed locally; no provider credentials in checkout | Vienna and Berlin verified; details and one provider difference below | Awaiting merge |
+| Provider age rather than receipt age (T16) | Passed with a response delayed ten seconds; timestamp remains the request start | Two requests return identical `fetchedAt`; second response is `x-vercel-cache: HIT`, `age: 1` | Verified after merge; details below |
+| 1–50 IDs | Passed for 1, 17 and 50; 0/empty entries/51 and ambiguous requests rejected before HERE | 50 accepted: 47 boards plus the same three missing Berlin IDs; every requested ID accounted for | Verified after merge; details below |
+| Two live locations | Not claimed locally; no provider credentials in checkout | Vienna and Berlin verified; details and one provider difference below | Verified after merge; details below |
 
 Checks: `npm ci`, `npm run test:run` (**95 tests passed**), `npm run lint`, `npm run build`, and `git diff --check`. Native tests are not rerun for this backend-only phase. No screenshots or raw provider responses are added to Git.
 
@@ -47,6 +47,14 @@ The preview verification used **53 departure HTTP requests**: an access probe, t
 - **T4:** one provider request for a 17-platform batch; native opening/refresh counts belong to Phase 1.
 - **T16:** provider-call timestamp retained across response delay/CDN caching; app freshness consumption belongs to Phase 1.
 
+## Production verification, 16 November 2026
+
+The owner approved merging #26 and #27. Plan #26 landed as `e0ece6d7e92c9829030a98087e5b89ae45b33255`; Phase 0 was retargeted to `main` and merged as `fbce84061c45a797e6f3d53d986679e084d1234c`. Vercel then deployed the batch handler on the existing production host.
+
+At 18:56 CET, Vienna returned 17/17 boards and 28 groups, and Berlin returned 24/27 boards and 111 groups. Berlin had the same three absent IDs as preview. Every sampled line identity and first two times matched the concurrent single-stop comparison in this run. This does not erase the reproducible Berlin preview difference above. A wider Vienna query returned 26/26 boards. A CDN HIT with age one retained the provider timestamp. These checks used 47 departure HTTP requests; raw responses stay outside Git.
+
+Failure injection, provider quota/cost, load latency and capped-hub behavior were not tested on production.
+
 ## Landing and release order
 
-This draft PR targets `feat/ios-two-screens`. After preview acceptance, ask the owner to approve merging plan PR #26 into `main`, then retarget this Phase 0 PR to `main`, inspect its diff and checks, and merge it. Do not merge it into the already-merged plan branch. Verify both live locations on production after Vercel deploys. Later phase PRs follow the same retarget-to-`main` sequence. No merge, production deployment, version 1.2 preparation or TestFlight upload is authorized by this implementation phase.
+The backend is in production. Later native phases must each be retargeted to and merged into `main` in order with owner approval; merging into an already-merged phase branch does not update `main`. The app's version/build remain unchanged. Version 1.2 preparation, further merges and TestFlight uploads require a new owner instruction.

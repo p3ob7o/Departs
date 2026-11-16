@@ -33,12 +33,10 @@ final class TransitStore {
     private(set) var walks: [String: CachedWalk] = [:]
     private(set) var pins: [StopLineSelection] = []
     private(set) var isLoadingStops = false
-    private(set) var isLoadingDepartures = false
     private(set) var stopsError: String?
     private(set) var departuresError: String?
     private(set) var boardErrors: Set<String> = []
     private(set) var loadingBoards: Set<String> = []
-    private(set) var loadingWalks: Set<String> = []
     private(set) var areaRevision = 0
     private(set) var homeRestored = false
     var followsLocation = true
@@ -96,10 +94,6 @@ final class TransitStore {
             result.active = home.selections.filter { ids.contains($0.stop.id) }
             return result.active.isEmpty ? nil : result
         }
-    }
-    func group(containing stop: NearbyStop) -> StopGroup {
-        mapGroups.first { $0.stops.contains { $0.id == stop.id } }
-            ?? .init(id: stop.id, name: stop.name, stops: [stop])
     }
     var canSearchFarther: Bool { area != nil && radius < 1600 }
     var walkingOrigin: Coordinate? {
@@ -202,7 +196,6 @@ final class TransitStore {
             stops = []
             stopsCheckedAt = nil
             departuresError = nil
-            isLoadingDepartures = false
             homeRestored = false
             persistence.saveHome(home)
         }
@@ -255,11 +248,10 @@ final class TransitStore {
         let revision = areaRevision, requestID = UUID(), requestedStops = stops
         batchID = requestID
         lastBatchAttempt = now()
-        isLoadingDepartures = true
         let task = Task { [weak self] in
             guard let self else { return }
             defer {
-                if self.batchID == requestID { self.batchTask = nil; self.isLoadingDepartures = false }
+                if self.batchID == requestID { self.batchTask = nil }
             }
             do {
                 let response = try await self.client.batch(requestedStops.map(\.id))
@@ -348,10 +340,6 @@ final class TransitStore {
     func isBoardFresh(for selection: StopLineSelection, at date: Date) -> Bool {
         boards[selection.id]?.isFresh(at: date) == true && !boardErrors.contains(selection.id) && !savedBoards.contains(selection.id)
     }
-    func advice(for selection: StopLineSelection, at date: Date = .now) -> DepartureAdvice {
-        DepartureAdvice.make(board: boards[selection.id], walk: walk(for: selection.stop, at: date), location: location,
-                             requestFailed: !isBoardFresh(for: selection, at: date), now: date)
-    }
     func walk(for stop: NearbyStop, at date: Date = .now) -> CachedWalk? {
         guard let origin = walkingOrigin, let walk = walks[stop.id], walk.matches(origin, at: date) else { return nil }
         return walk
@@ -379,9 +367,8 @@ final class TransitStore {
         if let pending = walkRequests[stop.id], pending.origin.distance(to: origin) <= 40 { return }
         let requestID = UUID()
         walkRequests[stop.id] = (origin, requestID)
-        loadingWalks.insert(stop.id)
         defer {
-            if walkRequests[stop.id]?.id == requestID { walkRequests[stop.id] = nil; loadingWalks.remove(stop.id) }
+            if walkRequests[stop.id]?.id == requestID { walkRequests[stop.id] = nil }
         }
         do {
             let route = try await client.directions(origin, stop.location)

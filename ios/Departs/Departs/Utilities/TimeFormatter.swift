@@ -10,15 +10,6 @@ enum TimeFormatter {
         return seconds < 60 ? String(localized: "Now") : String(localized: "In \(duration)")
     }
 
-    static func freshness(_ checkedAt: Date, now: Date, fresh: Bool) -> String {
-        let minutes = max(0, Int(now.timeIntervalSince(checkedAt) / 60))
-        guard fresh else {
-            return String(localized: "Saved information · checked at \(checkedAt.formatted(date: .omitted, time: .shortened))")
-        }
-        return minutes == 0 ? String(localized: "Updated just now")
-            : String(localized: "Updated \(TransitFormat.minutes(minutes)) ago")
-    }
-
     private static let isoFormatter: ISO8601DateFormatter = {
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
@@ -45,20 +36,6 @@ enum TimeFormatter {
         formatter.timeZone = timeZone(from: isoString) ?? .current
 
         return formatter.string(from: date)
-    }
-
-    /// Returns relative time string for departures within 30 minutes, nil otherwise.
-    static func relativeTime(_ isoString: String, now: Date = .now) -> String? {
-        guard let date = parseISO(isoString) else { return nil }
-        let remaining = date.timeIntervalSince(now)
-        if remaining < 0 { return String(localized: "Departed") }
-        let minutes = Int(ceil(remaining / 60))
-        if minutes <= 0 {
-            return String(localized: "Now")
-        } else if minutes <= 30 {
-            return String(localized: "in \(TransitFormat.minutes(minutes))")
-        }
-        return nil
     }
 
     private static func timeZone(from isoString: String) -> TimeZone? {
@@ -103,8 +80,4 @@ enum TransitFormat {
             : String(localized: "\(duration) walk from this area")
     }
 
-    static func idleLines(_ count: Int, limited: Bool) -> String {
-        limited ? String(localized: "\(count) more lines")
-            : String(localized: "\(count) lines with nothing soon")
-    }
 }

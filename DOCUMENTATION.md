@@ -1,49 +1,47 @@
 # Departs implementation guide
 
-Departs answers “What is leaving near me?” in a native app requiring iOS 26 or later. The owner approved this minimum during the design implementation on 15 November 2026. iOS 27-only APIs require availability checks. The browser client has been retired. The backend remains on Vercel because installed iOS builds depend on it.
+Departs shows available transport nearby in a native iPhone app requiring iOS 26. iOS 27-only APIs require availability checks. The browser client is retired; the Vercel API remains required by installed builds.
 
 ## Native app
 
-`ios/Departs/Departs/` contains SwiftUI views, observable view models, Codable models, an `APIService` actor, and a CoreLocation service. MapKit renders the map; system appearance controls light and dark styling. There are no accounts, application database, or third-party iOS dependencies.
+`ios/Departs/Departs/` contains SwiftUI views, observable state, Codable models, an `APIService` actor and CoreLocation. Maps use `UIViewRepresentable` MapKit wrappers and system appearance. There are no third-party iOS dependencies.
 
-The flow is:
+`DepartsApp` owns one `TransitSession`, shared store, location service and refresh clock. Each `ContentView` owns a navigation stack and sheets. Home and line screens share the same shape: a square map above a list. At accessibility sizes the map scrolls with the content. The app target stays iPhone-only and portrait-only. Duo/iPad layouts require new plans; Mac, Vision Pro, scene configuration and required capabilities are unchanged.
 
-1. Restore saved stops, boards, and pinned directions synchronously, then request location without blocking navigation.
-2. Find stops within 400 metres and load nearby pins plus the first three provider stop boards. Refresh pins and visible stop sections; keep a 25-second throttle unless the user explicitly refreshes. Departure and walking queues run independently, in batches of three each.
-3. Show the next two times, live/scheduled labels, walking time, and leave-time advice when the board, location, and route are fresh enough.
-4. Open a line for up to four departures and walking navigation. An app-owned `TransitSession` shares one `TransitStore` and `LocationService` across panes and windows, so opening a board reuses the answer already shown. Each window retains its own selection and sheets in one `NavigationSplitView`, which collapses in compact width.
-5. Refresh visible panes on foreground return and every 30 seconds after the previous refresh completes, using one app-owned clock. Pull-to-refresh remains available. Saved times remain visible after failure, with an explicit saved-data label. List status includes the cycle's initial targets plus newly visible stops, so the status header cannot oscillate as its height changes.
+Home restores a published snapshot, fetches nearby platforms and sends their IDs in one departure batch. Selection uses returned departures within 60 minutes, physical-stop distance and stable service identities. Membership and boards publish together, after interaction ends. Ticks and failures never reorder rows. Partial results retain existing membership. One walking route per listed physical stop runs independently of departures, at most three requests at once.
 
-Users can pin a stop plus direction, open it via App Shortcuts, choose a place using MapKit search, or expand the nearby radius to 800 then 1600 metres. A map is created only when requested. See [the native behavior guide](docs/ios-fast-answers.md) for freshness rules and verification.
+The line screen starts with home's two times, then fetches four for its exact platform and direction. A home refresh cannot overwrite a four-time board or mark a failed line request fresh. The route is visible immediately, and a system toolbar button opens Apple Maps walking mode. Pins, App Shortcuts and `departs://pin` links preserve their stored identities.
 
-The committed app target supports iPhone, including landscape. Text columns cap at 640 points; maps fill their containers and the selected-stop card scrolls independently in compact height. iPad runs exercise the shared layout foundation using a command-line device-family override, not committed iPad support. Mac, Vision Pro, scene configuration and required device capabilities are unchanged. Product support for other devices belongs to the separate adaptation plans.
-
-The API host is compiled into `Services/APIService.swift`. `URLComponents` encodes station IDs and line/direction parameters. The native `NearbyStop.distance` is optional and `LineInfo.id` is computed from the line name and direction. Previews using `PreviewData` must stay within `#if DEBUG`.
+Fresh home times count from the provider timestamp, including CDN age. Failed or restored data shows clock times. Foreground refresh runs every 30 seconds with a 25-second recency throttle; explicit refresh bypasses it. See [native behavior](docs/ios-fast-answers.md) for the full rules and recovery states.
 
 ## Backend contract
 
-Next.js route handlers proxy to HERE and Mapbox and normalize their data. Provider credentials are server environment variables. Keep these paths and response shapes compatible with installed iOS builds:
+Next.js route handlers proxy HERE and Mapbox using server credentials. Keep `https://departs.vercel.app` and the installed-build responses compatible.
 
-| Endpoint | Query | Response | Provider |
-| --- | --- | --- | --- |
-| `/api/stops/nearby` | `lat`, `lon`; optional `radius` in metres (100–2000, default 400, backend PR #9) | Array of stops with `id`, `name`, `type`, `lines`, `location` and optional `distance` | HERE `/v8/stations` |
-| `/api/departures` | `stopId`; optional paired `lineName`, `direction` | Array of departures with `time`, `realTime`, `delay` and optional line metadata | HERE `/v8/departures` |
-| `/api/directions` | `from=lat,lon`, `to=lat,lon` | `{geometry, duration, distance}`; GeoJSON LineString, seconds, metres | Mapbox walking directions |
+| Endpoint | Query | Response |
+| --- | --- | --- |
+| `/api/stops/nearby` | `lat`, `lon`, optional `radius` 100–2000 m, default 400 | Up to 50 stops with `id`, `name`, `type`, `lines`, `location`, optional `distance` |
+| `/api/departures` | `stopId`, optional paired `lineName`, `direction` | Up to four departure records |
+| `/api/departures` | `stopId`, `groupBy=line` | Compatible grouped response with `groups` and `complete` |
+| `/api/departures` | `stopIds=a,b,c`, 1–50 IDs | `{fetchedAt, boards: [{stopId, groups}], missing}`; two departures per transport, 50 per platform |
+| `/api/directions` | `from=lat,lon`, `to=lat,lon` | First walking route `{geometry, duration, distance}`, in seconds/metres |
 
-The station limit is 50 and the departure limit is four. Cache headers are 24 hours for nearby stops, 30 seconds for departures and one hour for directions. They do not trigger client refreshes. Do not assume every operator supplies realtime data.
+The batch handler sends one provider request, retries once on network/5xx failure and returns 502 after final failure. Legacy calls keep their 500 failure contract. Logging contains only a fixed error class and optional numeric status, never the credential-bearing URL. `fetchedAt` is captured before the successful attempt; upstream `no-store` prevents a new timestamp wrapping a cached provider body.
 
-The website root `/` returns a plain-text notice that Departs is now an iOS app. It performs no provider calls. React remains a Next.js runtime dependency, but no React pages, browser maps, geolocation hooks, or browser test suite remain.
+HTTP cache lifetimes are 24 hours for stops, 30 seconds for departures and one hour for walks. They do not trigger native refreshes. Home has no fallback to an older backend. The provider can omit boards or cap away lines, and scheduled data does not imply realtime coverage.
+
+The website root returns a plain-text iOS retirement notice without provider calls. React remains a Next.js dependency, but there is no browser transit client.
 
 ## Development and verification
 
-Use the commands in [AGENTS.md](AGENTS.md). The backend uses Vitest in Node with MSW intercepting external providers. Native tests live in `ios/Departs/DepartsTests/`. Mocked tests require no real keys; live backend calls require `HERE_API_KEY` and `MAPBOX_SECRET_TOKEN`.
+Use [AGENTS.md](AGENTS.md) for commands and simulator rules. Vitest/MSW intercept external providers; native XCTest uses a small derived Vienna sample and a local fixture server. Live backend checks require provider credentials on the deployment, not embedded in the app.
 
-Running the backend locally does not automatically redirect `APIService`. Set `DEPARTS_API_BASE_URL` in a Debug scheme for integration checks; release builds always use the production host unless an instance is explicitly constructed with a different base URL in code. `DEPARTS_DEFAULTS_SUITE` provides isolated preferences for Debug UI tests. Neither environment override is compiled into release builds. Keep credentials out of test output.
+Debug builds accept API, preferences and place-search test overrides. `NSAllowsLocalNetworking` is included only by the Debug Info.plist preprocessor definition. Release contains no such overrides and loads production directly. Previews using `PreviewData` stay inside `#if DEBUG`.
 
-UI tests use `DEPARTS_TEST_VIEWPORT=1` only for exact container dimensions from 320 to 1200 points, driven by the local fixture server. That host is excluded from Release. Separate tests resize actual iPad windows; the iOS 27 simulator window manager imposes a 375-point minimum. Use separate derived-data directories for iPhone builds and iPad builds with `TARGETED_DEVICE_FAMILY="1,2"`.
+Run native suites with the runtime pinned and derived data outside the repository. Complete first boot before testing. Dark appearance requires the iOS 26.2 simulator. The German pseudolocalization script copies and expands the catalog outside Git; it reuses that destination's derived data. No German localization ships.
 
-Vercel deploys the backend from `main`. An iOS release is a separate Xcode/TestFlight/App Store operation. Deploying the backend does not update installed Swift code.
+Keep at most ten upright JPEG captures under 2 MB per phase PR. Export captures before deleting task-owned result bundles. Do not delete preexisting simulators, derived data or other users' outputs.
 
-## Current priorities
+Fixtures, preview and production establish different things. Each PR records all three explicitly. See the [Phase 3 validation](docs/plans/ios-two-screens-phase-3-validation.md) and [Phase 0 provider results](docs/plans/ios-two-screens-phase-0-validation.md).
 
-See [the iOS roadmap](docs/ios-roadmap.md). The [dated audit](docs/reviews/2026-11-15-project-audit.md) records the state before the iOS-only decision. Designs under `docs/archive/web/` are historical and are not implementation requirements.
+Vercel deploys from `main`. Each stacked PR must reach `main` in sequence, with owner approval. Native release is a separate operation. The batch backend is already deployed through #27; version 1.2 preparation and distribution await the owner.

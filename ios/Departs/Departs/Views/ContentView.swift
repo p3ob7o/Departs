@@ -101,25 +101,8 @@ struct ReadableList: ViewModifier {
 }
 
 #if DEBUG
-private struct ResizablePreview: View {
-    let width: CGFloat
-    @State private var session = TransitSession(store: PreviewData.makeStore())
-
-    var body: some View {
-        ContentView(session: session)
-            .environment(\.horizontalSizeClass, width < 700 ? .compact : .regular)
-            .environment(\.scenePhase, .inactive)
-            .task {
-                await session.store.updateLocation(.init(coordinate: PreviewData.userCoordinate,
-                                                         capturedAt: .now, accuracy: 10))
-            }
-    }
+#Preview("Home") {
+    ContentView(session: TransitSession(store: PreviewData.makeStore()))
+        .environment(\.scenePhase, .inactive)
 }
-
-#Preview("320 points", traits: .fixedLayout(width: 320, height: 667)) { ResizablePreview(width: 320) }
-#Preview("402 points", traits: .fixedLayout(width: 402, height: 874)) { ResizablePreview(width: 402) }
-#Preview("466 points", traits: .fixedLayout(width: 466, height: 956)) { ResizablePreview(width: 466) }
-#Preview("669 points · compact height", traits: .fixedLayout(width: 669, height: 375)) { ResizablePreview(width: 669) }
-#Preview("834 points", traits: .fixedLayout(width: 834, height: 1194)) { ResizablePreview(width: 834) }
-#Preview("1024 points", traits: .fixedLayout(width: 1024, height: 768)) { ResizablePreview(width: 1024) }
 #endif

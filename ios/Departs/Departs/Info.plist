@@ -19,10 +19,12 @@
 			</array>
 		</dict>
 	</array>
+#if DEPARTS_LOCAL_NETWORKING
 	<key>NSAppTransportSecurity</key>
 	<dict>
 		<key>NSAllowsLocalNetworking</key>
 		<true/>
 	</dict>
+#endif
 </dict>
 </plist>
