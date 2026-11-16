@@ -18,18 +18,8 @@ struct LocationFix {
 }
 
 struct DepartureBoard: Codable {
-    struct CoverageLimit: Codable {
-        /// Latest time represented by an incomplete provider response. It is
-        /// evidence about the returned board, not a guarantee of live coverage.
-        let before: String?
-        var message: String {
-            before.map { String(localized: "No departure listed before \(TimeFormatter.formatTime($0))") }
-                ?? String(localized: "Later departures aren't listed")
-        }
-    }
     let departures: [Departure]
     let checkedAt: Date
-    var coverageLimit: CoverageLimit? = nil
 
     func isFresh(at now: Date) -> Bool { checkedAt.isRecent(at: now, within: 60) }
 
@@ -151,9 +141,6 @@ struct HomeStopGroup: Codable, Identifiable {
     var stops: [NearbyStop]
     var active: [StopLineSelection] = []
     var hasMissingBoard = false
-    var options: [StopLineSelection] { active }
-    // The old detail uses this until its replacement in Phase 2.
-    var idle: [StopLineSelection] { [] }
     var coordinate: Coordinate {
         let count = Double(max(1, stops.count))
         return .init(lat: stops.reduce(0) { $0 + $1.location.lat } / count,
@@ -191,64 +178,6 @@ extension DepartureBoard {
         upcoming(at: checkedAt).contains {
             (TimeFormatter.parseISO($0.time)?.timeIntervalSince(checkedAt) ?? .infinity) <= TransitStore.runningHorizon
         }
-    }
-}
-
-struct DepartureAdvice: Equatable {
-    enum Kind { case leave, caution, unavailable }
-    let title: String
-    let detail: String
-    let kind: Kind
-    var departureTime: String? = nil
-
-    static let buffer: TimeInterval = 120
-
-    func isTooTight(_ departure: Departure) -> Bool {
-        guard kind != .unavailable else { return false }
-        if kind == .caution { return true }
-        guard let target = departureTime.flatMap(TimeFormatter.parseISO),
-              let time = TimeFormatter.parseISO(departure.time) else { return false }
-        return time < target
-    }
-
-    static func make(board: DepartureBoard?, walk: CachedWalk?, location: LocationFix?,
-                     requestFailed: Bool = false, now: Date = .now) -> DepartureAdvice {
-        guard let board, board.isFresh(at: now), !requestFailed else {
-            return .init(title: String(localized: "Refresh before you leave"),
-                         detail: String(localized: "Departure times need an update"), kind: .unavailable)
-        }
-        if let coverage = board.coverageLimit {
-            return .init(title: coverage.message, detail: String(localized: "Later times aren't listed in this timetable"), kind: .unavailable)
-        }
-        let departures = board.upcoming(at: now)
-        guard !departures.isEmpty else {
-            return .init(title: String(localized: "No upcoming departures"),
-                         detail: String(localized: "Try another line or search farther"), kind: .unavailable)
-        }
-        guard let location, location.isUsable(at: now) else {
-            return .init(title: String(localized: "Check your walking time"),
-                         detail: String(localized: "We need your current location to suggest when to leave."), kind: .unavailable)
-        }
-        guard let walk, walk.matches(location.coordinate, at: now), walk.route.duration.isFinite, walk.route.duration >= 0 else {
-            return .init(title: String(localized: "Check your walking time"),
-                         detail: String(localized: "Open walking directions to plan your arrival"), kind: .unavailable)
-        }
-        let required = walk.route.duration + buffer
-        guard let departure = departures.first(where: {
-            (TimeFormatter.parseISO($0.time)?.timeIntervalSince(now) ?? -.infinity) >= required
-        }), let time = TimeFormatter.parseISO(departure.time) else {
-            return .init(title: String(localized: "These departures look too tight"),
-                         detail: String(localized: "Allow \(TransitFormat.minutes(max(1, walk.route.walkingMinutes))) to walk, plus \(TransitFormat.minutes(Int(buffer / 60))) extra."), kind: .caution)
-        }
-        let leaveIn = max(0, Int(floor((time.timeIntervalSince(now) - required) / 60)))
-        let title = leaveIn == 0 ? String(localized: "Leave now")
-            : String(localized: "Leave in \(TransitFormat.minutes(leaveIn))")
-        let clock = TimeFormatter.formatTime(departure.time)
-        let extra = TransitFormat.minutes(Int(buffer / 60))
-        let detail = departure.realTime
-            ? String(localized: "For the \(clock) live departure. Includes \(extra) extra.")
-            : String(localized: "For the \(clock) scheduled departure. Includes \(extra) extra.")
-        return .init(title: title, detail: detail, kind: .leave, departureTime: departure.time)
     }
 }
 

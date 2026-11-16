@@ -1,50 +1,56 @@
 # Native fast answers
 
-## What users see
+Departs shows which transport is available around you. The [two-screen plan](plans/ios-two-screens.md), approved on 16 November 2026, replaces the former advice cards, idle disclosures and map sheets. Both screens have a square map above a short list. The app requires iOS 26 and supports iPhone in portrait.
 
-Departs opens with cached content when available, then finds nearby lines and fetches their departures. Nearby pins have loading priority, followed by the first three provider stop boards; additional stop sections load as they enter view. The optional grouped endpoint shares one request across a stop’s lines. Only a confirmed legacy array response enables per-line fallback, in batches of three. Missing lines in a capped grouped response stay collapsed with a calm coverage-bound message when expanded; they are not errors and do not trigger a refresh prompt. Network failures mark the rows failed and retry on a later refresh. Neither condition fans out into per-line calls. Pinning saves the exact stop, transport type, line, and direction. Nearby pins appear in their saved order in the Pinned section. “Pinned elsewhere” opens saved routes outside the current area. Swipe or hold a row to pin it; the detail screen retains its pin button.
+## Home selection and order
 
-Stop sections retain the provider's nearest-first order. At board arrival, services with a departure within 60 minutes are kept above the collapsed idle group. Expanded future-only rows show clock times without leave advice. Unknown or failed rows remain visible and never claim that nothing is running. Compact advice names the departure it uses; earlier departures that are too tight are struck through and described as too tight to VoiceOver.
+Home restores its last published list before networking. It then requests stops within 400 metres and fetches all their departure boards in one batch. Candidates come from actual departures within 60 minutes of the batch's `fetchedAt`, not the provider's stop-line metadata.
 
-The provider limits each platform board to 50 departures. `complete` checks those boards before flattening. For an omitted line, the app records the latest valid time in the grouped response and says "No departure listed before [time]". The bound describes returned timetable coverage; it does not promise a live departure or reveal later times. That limit already affects production's filtered calls. Extending coverage needs a server-side change verified with HERE credentials. The optional coverage field preserves decoding of older saved boards, and a subsequent complete response replaces it.
+Platforms with the same name within 150 metres form one physical stop. Sections follow computed straight-line distance from the search point. The nearest stop for a line contributes all its qualifying destinations. If it has only one, the next qualifying stop may contribute one different destination. A line uses at most two automatic stops, and a mode/line/destination appears once. Rows retain provider order. Walking time never changes selection or ordering.
 
-The detail screen reuses the same board and shows up to four departures. A line badge and full, wrapping direction lead the content so the rider can check the service before boarding, including at accessibility text sizes. The stop is named once, with the walk below the direction. Saved advice includes Refresh now. Show route map opens an interactive map sheet; other lines at the same physical stop reuse the list rows, with running lines first and idle lines collapsed. Departures skipped by the advice are struck through and labeled too tight. The standard walking-directions toolbar button shows its title and symbol and opens Apple Maps at the stop coordinate. Maps are optional and do not start loading on the main answer path.
+The snapshot contains rows and boards together. Countdown ticks never change membership or order. A failed refresh retains the whole list; a partial response updates available times while retaining membership and order until a complete response arrives. Publication waits until the list is no longer being touched.
 
-Search starts with Current location in its own section and the five most recently chosen areas under Recent places, stored locally and also listed in the title menu. Results identified by MapKit as public transport precede other categories without changing order within each category. One stops-map badge represents each merged list section; badges indicate extra lines and show a selection ring. Selecting one reveals its stop card and returns to the same list section. Both maps remain MapKit wrappers; their sheets fill the available container and show the search radius or walking route.
+Rows show a mode badge, destination and a single primary time. Fresh times read "Now" below one minute and "In N min" through 60 minutes. Saved times use the clock. Home has no live/scheduled label or leave advice. The common city prefix may be hidden visually when every destination shares it; VoiceOver always speaks the full destination.
 
-## Freshness and leave guidance
+Pinned directions come first, in pin order, with their stop name. Nearby pinned services suppress automatic duplicates. An idle pin stays dimmed with "Nothing soon"; other idle services disappear. "Pinned elsewhere" opens pins outside this area. Pin by swipe, long press or the line screen's system pin button.
 
-- A board is fresh for 60 seconds after a successful fetch. Failed refreshes immediately mark its previous data as saved, even within that interval. Stale cards show absolute times; expired departures disappear.
-- Boards restored from disk remain labeled as saved until successfully checked again, even if their previous fetch was recent.
-- A location must be at most two minutes old and accurate to 100 metres or better for leave-time advice.
-- A walking route is reused for ten minutes within 40 metres of its origin. Walking time rounds up. Routes farther than five kilometres from the origin are not requested.
-- Advice uses the first departure that allows the full walking duration plus a two-minute buffer. The leave countdown rounds down. The interface explains this allowance as “2 min extra” and explicitly identifies scheduled departures; these remain timetable estimates.
-- Missing location, a stale board, a failed refresh, or a mismatched route suppresses leave-time recommendations. Directions may still be shown from a manually searched area, with that origin labeled.
-- Visible answers refresh on foreground return and every 30 seconds after the previous refresh completes, while active. Countdown labels tick every 15 seconds. A pending location request times out after eight seconds; permission dialogs are not timed out.
+## Maps and the line screen
 
-These rules are estimates, not guarantees of boarding. No platform or station-entrance information is fabricated.
+Home's map shows the search radius and one label per listed physical stop, including nearby pins. A label contains up to three line badges, then a count. A single-row stop opens its line; a multi-row stop selects the pin and scrolls to the section. All map actions remain available in the list. Map tiles never block departures.
 
-## Data and network behavior
+The line screen opens with home's two times, then requests up to four for that exact platform, line and direction. Its square map immediately shows the walking route, or both endpoints while no route is available. The full direction wraps in the content as well as appearing in the navigation title. The stop appears once with walking time and distance; an area origin is identified as such.
 
-`DepartsApp` owns one `TransitSession` with a shared `TransitStore`, `LocationService` and refresh clock. Each window retains its own split-view selection, scroll targets and sheets. `TransitStore` is the single observable source for every list and detail pane. Its departure and walking queues live independently of any view task's cancellation and run three requests each at a time. Periodic and location refreshes demand nearby pins and currently visible sections in active windows, with a 25-second recency throttle; an explicit refresh bypasses recency. Scrolling through a stop does not add it to subsequent periodic refreshes. Countdown ticks never change the running/idle partition; fetched boards can change it, deferred until all interacting panes are idle. The view uses one published partition, including unknown rows. APIService coalesces matching URLs, limits each request to 12 seconds, and bypasses the local URL cache for departure refreshes. No periodic work is scheduled when all windows are inactive; already-started shared requests may finish and populate the cache.
+Each fresh departure shows its countdown and clock. Beyond 60 minutes only the clock remains. Live departures have a symbol and a delay from one full minute; scheduled times carry no marker. Saved data shows clock times and one Refresh action. The system toolbar opens Apple Maps in walking mode to the platform and pins the direction. There are no advice cards, crossed-out times or other-line sections.
 
-List-level freshness uses a stable set within each refresh cycle: its starting targets plus stops that become visible. A header changing height cannot remove a failed stop from that set and feed back into layout. The next cycle resets the status set. Network demand continues to use the live visible set.
+The map remains fixed through the largest standard text size. At accessibility sizes it stays square and scrolls away with the list. Map badge text caps at 18 pt; list text uses the full preferred size. Rows are single VoiceOver elements without decorative state. App-drawn controls have at least 44-pt targets; native toolbar accessibility frames do not measure their hit regions.
 
-UserDefaults stores pins, the last successful nearby snapshot, and the 40 newest boards. The in-memory cache retains all boards browsed during the session, including dense areas with more than 80 services. Boards older than one day are discarded on launch. Walks remain in memory only. Pins use length-prefixed service identities, so provider ordering and embedded punctuation do not break them. Area revisions reject older searches; route results are checked against the current walking origin. A failed refresh keeps the last useful answer.
+## Freshness, failures and recovery
 
-The wider-search feature requires backend PR #9. Its optional radius is bounded from 100 to 2000 metres; native search steps are 400, 800, and 1600. The existing response shape and production host are unchanged.
+- A board is fresh for 60 seconds. Home counts from the provider-attempt `fetchedAt`, so a CDN hit does not reset its age. The compatible per-line array has no timestamp and retains its existing receipt-based check time.
+- A failed refresh marks the previous answer saved immediately. Restored boards remain saved until successfully checked. Home and line have separate board ownership once the line request starts, so a two-time home refresh cannot replace four times or certify a failed line request.
+- Home keeps one saved/partial banner. A missing first-load platform gets one Retry row per physical stop, never one per line. A failed stops request has an error and Try again, distinct from no stops and nothing in the next hour.
+- No stops offers Search farther and Choose an area. No departures within the hour offers Search farther. Search expands explicitly from 400 to 800 to 1600 metres.
+- Denied location without an area offers Open Settings and Choose an area. Once an area is chosen, that notice disappears and the location button tells VoiceOver that location is off. Choosing another area resets the list and map.
+- A usable location is no more than two minutes old and accurate to 100 metres. Walking routes are reused for ten minutes within 40 metres of their origin. Walking minutes round up; routes farther than five kilometres are not requested.
+- Visible screens refresh on foreground return and every 30 seconds after the previous refresh finishes. Requests have a 25-second recency throttle; explicit refresh bypasses it. Countdowns tick every 15 seconds. Location requests time out after eight seconds, excluding permission dialogs.
 
-Before distributing the grouped-list client, merge the design stack in order and verify the optional grouped handler on production after Vercel deploys from `main`. Native distribution is a separate step. Legacy fallback preserves compatibility but increases requests for complete visible stop sections; a TestFlight build from a phase branch must not precede the grouped backend deployment. PR #21 records live-provider checks on its preview, which do not verify the production handler.
+The provider caps each platform at 50 departures. Two times per transport leave room for more services, but lines absent from a capped board are not discoverable. There is no per-line fallback for home. The provider can return different later times with two-per-transport and four-per-line requests, as observed on Berlin U2 in the preview check.
+
+## State and requests
+
+`DepartsApp` owns one `TransitSession` with a shared observable `TransitStore`, location service and refresh clock. `ContentView` owns navigation and sheets. Area and batch tasks belong to the store, with revision checks against stale results. Backgrounding removes refresh demand. APIService coalesces identical URLs, uses a 12-second timeout and bypasses the local URL cache for departures.
+
+Opening the Vienna sample costs six requests: one stops, one batch and four walking routes. Each home refresh costs one batch. Walks run up to three at once and do not block the list. Each listed physical stop uses its nearest platform for the walk; the line screen requests its own platform's route. A line request may reuse that walk.
+
+UserDefaults stores pins, five recent chosen areas, the last nearby response, the published home snapshot and the 40 newest line boards. Boards older than a day are discarded on launch. The in-memory cache has no old 80-board pruning rule. Walks stay in memory. Pin identities are length-prefixed and independent of provider ordering. Unknown deep-link IDs cannot load arbitrary stops.
 
 ## Shortcuts
 
-Pin a route, then add Departs' **Open pinned route** action in Apple's Shortcuts app and select the saved route. The action opens its board and refreshes it. Shortcuts can be added to the Home Screen using the system's controls. The app also accepts `departs://pin?id=<encoded saved identity>` for existing local pins; unknown IDs do not load arbitrary stops.
+Pin a direction, then select it in Departs' **Open pinned route** action in Shortcuts. The action opens the line and refreshes it. Existing `departs://pin?id=<encoded saved identity>` links still work. Intent execution and URL navigation are tested; Siri speech and discovery in Shortcuts need a signed physical-device check.
 
-The application declares its App Intent/entity metadata and updates suggestions when pins change. Voice invocation and Shortcuts discovery should also be checked on a signed physical-device build before distribution.
+## Verification and release
 
-## Verification
-
-The shared Departs scheme runs unit tests and UI tests:
+The shared scheme runs unit and UI tests. Pin the simulator runtime and keep one derived-data directory per destination outside Git:
 
 ```bash
 xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs \
@@ -52,24 +58,8 @@ xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs \
   -derivedDataPath /tmp/departs-iphone -parallel-testing-enabled NO test
 ```
 
-Unit tests cover catchability boundaries, stale/failing data, current-location requirements, caching, pin persistence, out-of-order requests, bounded loading, and independence from walking failures. UI tests start a local HTTP fixture server in the test runner, simulate location, and use separate preferences. They exercise the actual URLSession decoder and SwiftUI navigation, including pins across relaunch, direct entry, failed refresh/recovery, wider search, denied-location recovery, and accessibility text. Screenshots are saved in the test result bundle.
+The UI suite uses a local HTTP fixture server, simulated location and isolated preferences. It covers S1–S11, navigation, failure recovery, both map actions, pins and text sizes. Debug accepts `DEPARTS_API_BASE_URL`, `DEPARTS_DEFAULTS_SUITE` and the fixture place-search override. Release excludes these hooks and local-networking permission.
 
-Debug builds accept `DEPARTS_API_BASE_URL` for a local backend and `DEPARTS_DEFAULTS_SUITE` for isolated test preferences. Release builds ignore these environment variables. No provider credentials are embedded in the app.
+Use iOS 26.2 for dark-mode checks. Pseudolocalization copies the project outside Git and adds an expanded German test catalog there only. No German ships. See the [Phase 3 validation](plans/ios-two-screens-phase-3-validation.md) for commands, measured results and T1–T17 coverage, plus the [Phase 0 provider checks](plans/ios-two-screens-phase-0-validation.md).
 
-The committed project remains iPhone-only. The resize tests use an iPad destination with the command-line override `TARGETED_DEVICE_FAMILY="1,2"` and separate derived data. A Debug-only fixture host exercises exact widths of 320, 402, 466, 669, 834, 1024 and 1200 points; separate tests resize native windows and rotate an iPhone with a 375-point landscape height. Layout decisions use container dimensions and size classes, not device or screen checks.
-
-Before TestFlight distribution, verify live HERE/Mapbox coverage at representative stops, manual MapKit place search, Apple Maps walking handoff, App Shortcuts on a signed device, and real mobile-data startup time. Simulator fixtures cannot establish a three-second startup guarantee or realtime coverage.
-
-## Validation on 15 November 2026
-
-- 41 native unit tests and six UI flow tests passed on iPhone 17 Pro / iOS 26.4 with normal simulator signing.
-- An additional dark-mode pin, relaunch, and direct-entry UI run passed. Screenshots were reviewed at normal and the largest accessibility text size.
-- An unsigned Release build for a generic iOS device passed. App Intent metadata contains the pinned-route provider and action; normal simulator signing removes the registration error seen in unsigned simulator runs.
-- A live MapKit search for Volkstheater, Vienna returned places in a macOS API smoke check. Production HTTP checks returned nearby stops and a walking LineString; the sampled selected-line board was empty. These checks do not establish operator-wide coverage.
-- Backend PR #9 passed 62 tests with coverage, lint, and a production build. Its local HTTP handler rejected an out-of-range radius. Valid local provider calls could not be checked because this checkout has no `.env.local` credentials; mock route tests cover the expanded radius.
-
-The screenshots below use deterministic simulator fixtures, not live departure predictions:
-
-| Nearby answers | Pinned board in dark mode |
-| --- | --- |
-| ![Nearby departure card](screenshots/ios-fast-answers/nearby.png) | ![Pinned departure board](screenshots/ios-fast-answers/detail-dark.png) |
+Backend PRs #26 and #27 reached `main` and production before the new native client. Remaining phase PRs must each reach `main` in order; retarget the next to `main` after its base merges. Version 1.2 preparation and TestFlight distribution require a separate owner request. Simulator fixtures do not establish realtime coverage, mobile-data startup time, VoiceOver speech, haptics or GPS behavior.

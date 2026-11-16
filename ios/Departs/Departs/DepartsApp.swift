@@ -6,15 +6,7 @@ struct DepartsApp: App {
 
     var body: some Scene {
         WindowGroup {
-            #if DEBUG
-            if ProcessInfo.processInfo.environment["DEPARTS_TEST_VIEWPORT"] == "1" {
-                LayoutTestHost(session: session)
-            } else {
-                ContentView(session: session)
-            }
-            #else
             ContentView(session: session)
-            #endif
         }
     }
 }
@@ -121,40 +113,3 @@ final class TransitSession {
         else { await store.refreshAnswers(force: true) }
     }
 }
-
-#if DEBUG
-/// Exercise exact container sizes, including widths below the iPad window
-/// manager's minimum. Normal launches and Release builds never use this host.
-private struct LayoutTestHost: View {
-    let session: TransitSession
-    @State private var width: CGFloat = 320
-    @State private var height: CGFloat = 700
-
-    var body: some View {
-        GeometryReader { geometry in
-            ContentView(session: session)
-                .environment(\.horizontalSizeClass, width < 700 ? .compact : .regular)
-                .environment(\.verticalSizeClass, height <= 400 ? .compact : .regular)
-                .frame(width: min(width, geometry.size.width), height: min(height, geometry.size.height))
-                .accessibilityIdentifier("layout-viewport")
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-        }
-        .ignoresSafeArea(.keyboard)
-        .task {
-            guard let base = ProcessInfo.processInfo.environment["DEPARTS_API_BASE_URL"].flatMap(URL.init(string:)) else { return }
-            while !Task.isCancelled {
-                do {
-                    let (data, _) = try await URLSession.shared.data(from: base.appendingPathComponent("test/viewport"))
-                    let size = try JSONDecoder().decode(Viewport.self, from: data)
-                    if (320...1200).contains(size.width), (320...900).contains(size.height) {
-                        if width != size.width { width = size.width }
-                        if height != size.height { height = size.height }
-                    }
-                    try await Task.sleep(for: .milliseconds(200))
-                } catch { return }
-            }
-        }
-    }
-    private struct Viewport: Decodable { let width: Double; let height: Double }
-}
-#endif

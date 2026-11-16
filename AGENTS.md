@@ -37,9 +37,11 @@ The native MapKit map does not use a public Mapbox token. Local backend startup 
 
 - SwiftUI with `@Observable` view models, iOS 26+, zero third-party iOS dependencies. Guard iOS 27-only APIs with availability checks.
 - MapKit through `UIViewRepresentable` wrappers, system light/dark appearance.
-- `DepartsApp` owns one `TransitSession`, containing the shared `TransitStore`, `LocationService` and foreground refresh clock. Each `ContentView` owns its selection, split navigation, scroll targets and sheets. Visible panes contribute separately to refresh demand; closing or backgrounding a window removes only its demand.
-- The app target stays iPhone-only (`TARGETED_DEVICE_FAMILY = 1`). Landscape is enabled on iPhone. Test the resizable foundation on iPad with a command-line `TARGETED_DEVICE_FAMILY="1,2"` override and separate derived data; do not commit iPad, Mac or Vision Pro availability without the owner's decision in the adaptation plan.
-- Nearby pins and the first three provider stops load on open; subsequent refreshes demand pins and visible stop sections. Departure and walking queues are independent and each runs at most three requests at once. MapKit maps load on request.
+- `DepartsApp` owns one `TransitSession`, containing the shared `TransitStore`, `LocationService` and foreground refresh clock. Each `ContentView` owns a `NavigationStack`, selection and search/pins sheet. Home and line screens both place a square MapKit map above a short list. At accessibility text sizes the map scrolls away with the list.
+- The app target stays iPhone-only (`TARGETED_DEVICE_FAMILY = 1`), portrait only. The Duo and iPad plans need rewriting for this design. Do not commit iPad, Mac or Vision Pro availability or change scene/capability settings without the owner's decision.
+- Home requests every platform in the radius in one `stopIds` batch. `HomeSnapshot` publishes selection, ordering and boards together after interaction ends. Countdown ticks and failed requests never change membership or order. There is no per-line fallback or visibility-driven departure queue.
+- List candidates come from returned departures within 60 minutes, not stop line metadata. Merge same-name platforms within 150 m; order physical stops by computed distance. A service appears once. See `docs/plans/ios-two-screens.md` for the nearest-stop and second-direction rule.
+- Walking requests run up to three at once, one per listed physical stop, cached for ten minutes within 40 m of the origin. The line screen uses its own platform and four-departure request. Maps load immediately without blocking rows.
 - App Intents expose pinned stop/direction entities through Shortcuts. Keep their stable identities independent of provider ordering.
 - `APIService` is an actor using URLSession async/await.
 - iOS structure: `Models/`, `Services/`, `ViewModels/`, `Views/`, `Utilities/`, `Preview Content/`.
@@ -60,20 +62,24 @@ The native MapKit map does not use a public Mapbox token. Local backend startup 
 ## External APIs
 
 - HERE Transit v8: `/v8/stations` for nearby stops and `/v8/departures` for departures. Encode stop IDs using URL query parameters.
-- Search radius: 400 metres by default, up to 50 stops. Backend PR #9 adds an optional 100–2000 metre radius; native recovery steps are 400/800/1600. Departure API supports `stopId`, plus optional paired `lineName` and `direction` filters, and returns up to four departures.
+- Search radius: 400 metres by default, up to 50 stops; optional backend radius is 100–2000 metres and native steps are 400/800/1600. `stopId` plus optional paired `lineName` and `direction` returns up to four departures; `groupBy=line` stays compatible with installed builds. Additive `stopIds=a,b` accepts 1–50 IDs, asks for two departures per transport, and returns `{fetchedAt, boards, missing}`. Home freshness uses `fetchedAt`, including CDN age.
 - Mapbox Directions: walking profile. The route returns the unwrapped first route as `{geometry, duration, distance}`.
 - Cache headers do not make the native client refresh automatically.
 
 ## iOS simulator
 
 ```bash
-xcrun simctl location 'iPhone 17 Pro' set 48.20134,16.34941
-xcrun simctl privacy 'iPhone 17 Pro' grant location-always app.departs.Departs
+xcrun simctl location <SIMULATOR_UUID> set 48.20134,16.34941
+xcrun simctl privacy <SIMULATOR_UUID> grant location-always app.departs.Departs
 ```
+
+Boot new simulators fully with `xcrun simctl bootstatus <SIMULATOR_UUID> -b` before testing. Pin the OS because simulator names repeat. Use iOS 26.2 for dark appearance; iOS 27.0 did not apply it in testing. US units need `-AppleMeasurementUnits Inches -AppleMetricUnits NO` in addition to `-AppleLocale en_US`. Reuse one derived-data directory per destination, outside the repository. Export only a curated set of upright JPEGs, at most ten and under 2 MB per PR, then delete the result bundles. Delete only outputs and simulators created for the task; leave the owner's booted iPhone 17e alone.
+
+`NSAllowsLocalNetworking` and the API/preferences/search test overrides exist only in Debug. Release must load production directly. Check fixtures, preview and production separately in each PR; fixture success does not establish provider coverage.
 
 ## Deployment
 
-Vercel auto-deploys from `main`; the API host stays `https://departs.vercel.app`. Native changes require a separate iOS build and distribution through TestFlight/App Store.
+Vercel auto-deploys from `main`; the API host stays `https://departs.vercel.app`. Native changes require a separate iOS build and distribution through TestFlight/App Store. The batch endpoint from PR #27 is deployed; verify it before any distribution of the two-screen client. Each stacked phase must reach `main` in order, retargeting after its base merges. Merges, deployments, version preparation and uploads need the owner's approval.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

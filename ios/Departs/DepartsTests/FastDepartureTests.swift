@@ -140,7 +140,7 @@ final class FastDepartureTests: XCTestCase {
         let inside = platform("inside", meters: 20), outside = platform("outside", meters: 410)
         let values = [-1.0, 0, 60, 60.1, 166]
         let groups = values.enumerated().map { index, minutes in
-            GroupedDepartures.Group(line: service("\(index)", "End"), departures: [departure(minutes)])
+            BatchDepartures.Group(line: service("\(index)", "End"), departures: [departure(minutes)])
         }
         var api = client()
         api.stops = { _, _ in [inside, outside] }
@@ -475,16 +475,6 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertFalse(store.isBoardFresh(for: selection, at: instant))
         XCTAssertTrue(store.boardErrors.contains(selection.id))
     }
-    func testSkippedDepartureMarkersFollowAdviceAndDisappearWhenSaved() {
-        let board = DepartureBoard(departures: [departure(3), departure(13)], checkedAt: instant)
-        let walk = CachedWalk(origin: coordinate, route: route(), checkedAt: instant)
-        let advice = DepartureAdvice.make(board: board, walk: walk, location: fix, now: instant)
-        XCTAssertTrue(advice.isTooTight(board.departures[0]))
-        XCTAssertFalse(advice.isTooTight(board.departures[1]))
-        let saved = DepartureAdvice.make(board: board, walk: walk, location: fix, requestFailed: true, now: instant)
-        XCTAssertFalse(saved.isTooTight(board.departures[0]))
-    }
-
     @MainActor func testDisplayOnlyPrefixUsesThreeDistinctSharedDirections() {
         let directions = ["Paris Nord", "Paris Sud", "Paris Est"]
         XCTAssertEqual(NearbyStopsView.displayDirection("Paris Nord", among: directions), "Nord")
@@ -521,62 +511,6 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertFalse(restored.followsLocation)
     }
 
-    func testLeaveTimeSubtractsWalkingAndConservativeBuffer() {
-        let board = DepartureBoard(departures: [departure(7)], checkedAt: instant)
-        let walk = CachedWalk(origin: coordinate, route: route(), checkedAt: instant)
-        let advice = DepartureAdvice.make(board: board, walk: walk, location: fix, now: instant)
-        XCTAssertEqual(advice.title, "Leave in 2 min")
-        XCTAssertEqual(advice.kind, .leave)
-        XCTAssertTrue(advice.detail.contains("Includes 2 min extra"))
-    }
-
-    func testEarlierTightDepartureUsesLaterReachableService() {
-        let board = DepartureBoard(departures: [departure(1), departure(7)], checkedAt: instant)
-        let advice = DepartureAdvice.make(board: board, walk: .init(origin: coordinate, route: route(), checkedAt: instant), location: fix, now: instant)
-        XCTAssertEqual(advice.title, "Leave in 2 min")
-        XCTAssertTrue(advice.isTooTight(board.departures[0]))
-        XCTAssertEqual(advice.departureTime, board.departures[1].time)
-    }
-
-    func testAllTooSoonDoesNotTellUserToRun() {
-        let board = DepartureBoard(departures: [departure(1), departure(3)], checkedAt: instant)
-        let advice = DepartureAdvice.make(board: board, walk: .init(origin: coordinate, route: route(), checkedAt: instant), location: fix, now: instant)
-        XCTAssertEqual(advice.kind, .caution)
-        XCTAssertFalse(advice.title.contains("Leave"))
-    }
-
-    func testStaleOrFailedBoardNeverGivesLeaveAdvice() {
-        let walk = CachedWalk(origin: coordinate, route: route(), checkedAt: instant)
-        let old = DepartureBoard(departures: [departure(10)], checkedAt: instant.addingTimeInterval(-61))
-        XCTAssertEqual(DepartureAdvice.make(board: old, walk: walk, location: fix, now: instant).kind, .unavailable)
-        let fresh = DepartureBoard(departures: [departure(10)], checkedAt: instant)
-        XCTAssertEqual(DepartureAdvice.make(board: fresh, walk: walk, location: fix, requestFailed: true, now: instant).kind, .unavailable)
-    }
-
-    func testUnknownOldOrApproximateLocationDoesNotGiveLeaveAdvice() {
-        let board = DepartureBoard(departures: [departure(10)], checkedAt: instant)
-        let walk = CachedWalk(origin: coordinate, route: route(), checkedAt: instant)
-        let old = LocationFix(coordinate: coordinate, capturedAt: instant.addingTimeInterval(-121), accuracy: 10)
-        let approximate = LocationFix(coordinate: coordinate, capturedAt: instant, accuracy: 500)
-        for location in [nil, old, approximate] as [LocationFix?] {
-            XCTAssertEqual(DepartureAdvice.make(board: board, walk: walk, location: location, now: instant).kind, .unavailable)
-        }
-    }
-
-    func testWalkingRouteFromAnotherOriginCannotGiveAdvice() {
-        let board = DepartureBoard(departures: [departure(10)], checkedAt: instant)
-        let walk = CachedWalk(origin: .init(lat: 48.3, lon: 16.4), route: route(), checkedAt: instant)
-        XCTAssertEqual(DepartureAdvice.make(board: board, walk: walk, location: fix, now: instant).kind, .unavailable)
-    }
-
-    func testScheduledAdviceIsExplicitAndWalkingMinutesRoundUp() {
-        let board = DepartureBoard(departures: [departure(10, live: false)], checkedAt: instant)
-        let walk = CachedWalk(origin: coordinate, route: route(181), checkedAt: instant)
-        let advice = DepartureAdvice.make(board: board, walk: walk, location: fix, now: instant)
-        XCTAssertTrue(advice.detail.contains("scheduled departure"))
-        XCTAssertEqual(walk.route.walkingMinutes, 4)
-    }
-
     func testBoardExcludesExpiredAndInvalidTimesAndSortsUpcoming() {
         let invalid = Departure(time: "invalid", realTime: true, delay: nil)
         let board = DepartureBoard(departures: [departure(12), departure(-1), invalid, departure(3)], checkedAt: instant)
@@ -607,7 +541,6 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertEqual(calls, 0)
         XCTAssertNil(store.location)
         XCTAssertFalse(store.isBoardFresh(for: selection, at: instant))
-        XCTAssertEqual(store.advice(for: selection, at: instant).kind, .unavailable)
     }
 
     @MainActor func testPinSurvivesRelaunchAndUnpinPersists() {

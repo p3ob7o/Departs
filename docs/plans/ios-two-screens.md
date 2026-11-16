@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | Proposal. This branch changes no app code. |
+| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). |
 | Date | 16 November 2026 |
 | Based on | Departs 1.1 (6), `main` at `6430c94` |
 | Branch | `feat/ios-two-screens` |
@@ -42,7 +42,7 @@ Paolo made these on 16 November 2026. They are settled.
 | O8 | Pins stay for now. A pinned line with nothing soon is still shown, dimmed. The owner is undecided about pins as a whole. |
 | O9 | iPhone Duo and iPad will put map and list side by side, later. |
 
-Where this plan fills a gap the owner did not decide, it says so and lists the choice under [Assumptions to confirm](#assumptions-to-confirm) as A1 to A9.
+Where this plan fills a gap the owner did not decide, it says so and lists the choice under [Accepted choices](#accepted-choices) as A1 to A9.
 
 ## The two screens
 
@@ -332,9 +332,9 @@ Acceptance:
 - A Release build contains no test hooks and loads production directly.
 - No build is uploaded to TestFlight before the backend is in production.
 
-## Assumptions to confirm
+## Accepted choices
 
-These fill gaps in the owner's decisions. Each has this plan's choice. Paolo can overrule any of them.
+These filled gaps in the owner's initial decisions. Paolo reviewed A1–A9 on 16 November and asked for all nine to be implemented unchanged. They are settled for this work.
 
 | ID | Question | This plan's choice |
 | --- | --- | --- |

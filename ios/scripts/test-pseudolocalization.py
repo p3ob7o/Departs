@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Build a disposable German stress catalog; never add German to the product.
 
-Usage: python3 ios/scripts/test-pseudolocalization.py SIMULATOR_UUID OUTPUT_PREFIX
-The copied project, derived data, logs and result bundle live outside the repo.
+Usage: python3 ios/scripts/test-pseudolocalization.py SIMULATOR_UUID OS OUTPUT_PREFIX DERIVED_DATA
+The copied project, logs and result bundle live outside the repo. Reuse the
+destination's derived data, with no other build running there at the same time.
 """
 import copy
 import json
@@ -13,9 +14,11 @@ import subprocess
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-device, output = sys.argv[1:]
+device, os_version, output, derived = sys.argv[1:]
 prefix = Path(output).resolve()
+derived = Path(derived).resolve()
 assert not prefix.is_relative_to(ROOT), "Keep test builds outside the repository"
+assert not derived.is_relative_to(ROOT), "Keep derived data outside the repository"
 project = prefix / "project"
 assert not project.exists(), "Choose a fresh output prefix"
 shutil.copytree(ROOT / "ios/Departs", project)
@@ -23,19 +26,15 @@ shutil.copytree(ROOT / "ios/Departs", project)
 # These phrases stress German word lengths and sentence order. The remaining
 # strings are bounded, accented English with added length, not a translation.
 german = {
-    "Within %1$@ · %2$@": "Im Umkreis von %1$@ · %2$@",
-    "Within %@": "Im Umkreis von %@",
-    "Leave in %@": "Losgehen in %@",
-    "Leave now": "Jetzt losgehen",
+    "Near you": "In deiner Umgebung",
+    "In %@": "In %@",
+    "Now": "Jetzt",
     "Walking directions": "Wegbeschreibung zu Fuß",
-    "Show route map": "Karte des Fußwegs anzeigen",
-    "Next departures": "Nächste Abfahrtsmöglichkeiten",
     "%@ walk": "%@ Fußweg",
     "%@ walk from this area": "%@ Fußweg ab diesem Suchgebiet",
-    "%lld line with nothing soon": "%lld Linie ohne baldige Abfahrt",
-    "%lld lines with nothing soon": "%lld Linien ohne baldige Abfahrt",
-    "For the %1$@ scheduled departure. Includes %2$@ extra.": "Für die planmäßige Abfahrt um %1$@. Mit %2$@ zusätzlicher Zeit.",
-    "For the %1$@ live departure. Includes %2$@ extra.": "Für die aktuelle Abfahrt um %1$@. Mit %2$@ zusätzlicher Zeit.",
+    "Nothing soon": "Keine baldige Abfahrt",
+    "Nothing leaves here in the next hour": "Hier fährt in der nächsten Stunde nichts ab",
+    "Saved times from %@ · Refresh": "Gespeicherte Zeiten von %@ · Aktualisieren",
 }
 accents = str.maketrans("aeiouAEIOU", "áëïöüÁËÏÖÜ")
 placeholder = re.compile(r"(%(?:\d+\$)?(?:lld|ld|d|@)|\$\{[^}]+\})")
@@ -70,8 +69,8 @@ for name in ("Localizable", "InfoPlist"):
 
 command = [
     "xcodebuild", "-project", str(project / "Departs.xcodeproj"), "-scheme", "Departs",
-    "-destination", f"platform=iOS Simulator,id={device},OS=27.0",
-    "-derivedDataPath", str(prefix / "derived"),
+    "-destination", f"platform=iOS Simulator,id={device},OS={os_version}",
+    "-derivedDataPath", str(derived),
     "-resultBundlePath", str(prefix.with_suffix(".xcresult")),
     "-parallel-testing-enabled", "NO", "-collect-test-diagnostics", "never",
     "-only-testing:DepartsUITests/DepartsUITests/testGermanRegionWithExpandedPseudoLocalization",

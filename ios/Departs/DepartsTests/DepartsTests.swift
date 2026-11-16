@@ -2,6 +2,19 @@ import XCTest
 @testable import Departs
 
 final class DepartsTests: XCTestCase {
+    func testAppConfigurationStaysIPhoneOnlyPortraitAndLocalNetworkingIsDebugOnly() {
+        let info = Bundle.main.infoDictionary!
+        XCTAssertEqual(info["UIDeviceFamily"] as? [Int], [1])
+        XCTAssertEqual(info["UISupportedInterfaceOrientations"] as? [String], ["UIInterfaceOrientationPortrait"])
+        XCTAssertEqual(info["MinimumOSVersion"] as? String, "26.0")
+        let transport = info["NSAppTransportSecurity"] as? [String: Any]
+        #if DEBUG
+        XCTAssertEqual(transport?["NSAllowsLocalNetworking"] as? Bool, true)
+        #else
+        XCTAssertNil(transport?["NSAllowsLocalNetworking"])
+        #endif
+    }
+
 
     // MARK: - Model Decoding
 
@@ -153,25 +166,7 @@ final class DepartsTests: XCTestCase {
         XCTAssertEqual(queryItems?.first { $0.name == "direction" }?.value, "Hässelby strand")
     }
 
-    func testRelativeTimeAdvancesWithTheClock() {
-        let departure = "2026-11-15T10:02:00Z"
-        XCTAssertEqual(TimeFormatter.relativeTime(departure, now: TimeFormatter.parseISO("2026-11-15T10:00:00Z")!), "in 2 min")
-        XCTAssertEqual(TimeFormatter.relativeTime(departure, now: TimeFormatter.parseISO("2026-11-15T10:01:00Z")!), "in 1 min")
-        XCTAssertEqual(TimeFormatter.relativeTime(departure, now: TimeFormatter.parseISO(departure)!), "Now")
-        XCTAssertEqual(TimeFormatter.relativeTime(departure, now: TimeFormatter.parseISO("2026-11-15T10:03:00Z")!), "Departed")
-    }
-
-    func testRelativeTimeDoesNotCallAnOldDepartureNow() {
-        XCTAssertEqual(TimeFormatter.relativeTime("2024-01-15T10:00:00Z"), "Departed")
-    }
-
     // MARK: - StopPalette
-
-    func testFreshnessUsesWholeMinutesAndPreservesSavedState() {
-        let checked = Date(timeIntervalSince1970: 1000)
-        XCTAssertEqual(TimeFormatter.freshness(checked, now: checked.addingTimeInterval(59), fresh: true), "Updated just now")
-        XCTAssertEqual(TimeFormatter.freshness(checked, now: checked.addingTimeInterval(120), fresh: false), "Saved information · checked at \(checked.formatted(date: .omitted, time: .shortened))")
-    }
 
     func testDistancesUseTheLocalesMeasurementSystem() {
         XCTAssertEqual(TransitFormat.distance(400, locale: Locale(identifier: "de_DE")), "400 m")
@@ -179,12 +174,6 @@ final class DepartsTests: XCTestCase {
         XCTAssertEqual(TransitFormat.distance(400, locale: Locale(identifier: "en_GB")), "450 yd")
         XCTAssertEqual(TransitFormat.minutes(3, locale: Locale(identifier: "de_DE")), "3 Min.")
         XCTAssertEqual(TransitFormat.minutes(3, locale: Locale(identifier: "en_US")), "3 min")
-    }
-
-    func testIdleLineCountUsesSingularAndPluralCatalogForms() {
-        XCTAssertEqual(TransitFormat.idleLines(1, limited: false), "1 line with nothing soon")
-        XCTAssertEqual(TransitFormat.idleLines(2, limited: false), "2 lines with nothing soon")
-        XCTAssertEqual(TransitFormat.idleLines(1, limited: true), "1 more line")
     }
 
     func testPaletteCount() {

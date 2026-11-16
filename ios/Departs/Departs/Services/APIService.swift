@@ -28,11 +28,6 @@ actor APIService {
         components.port = base.port
         guard let url = components.url else { throw APIError.invalidURL }
         if let task = requests[url] { return try await task.value }
-        #if DEBUG
-        if ProcessInfo.processInfo.environment["DEPARTS_TRACE_REQUESTS"] == "1" {
-            print("DEPARTS_REQUEST \(Date().timeIntervalSince1970) \(url.path)?\(url.query ?? "")")
-        }
-        #endif
         let session = session
         let task = Task<Data, Error> {
             var request = URLRequest(url: url)
@@ -66,14 +61,6 @@ actor APIService {
         let response = try decoder.decode(BatchDepartures.self, from: bytes)
         guard TimeFormatter.parseISO(response.fetchedAt) != nil else { throw APIError.requestFailed }
         return response
-    }
-
-    func fetchGroupedDepartures(stopId: String) async throws -> GroupedDepartures {
-        var components = URLComponents(url: try Self.departuresURL(stopId: stopId), resolvingAgainstBaseURL: false)!
-        components.queryItems = (components.queryItems ?? []) + [URLQueryItem(name: "groupBy", value: "line")]
-        let bytes = try await data(at: components.url!, refresh: true)
-        if (try? decoder.decode([Departure].self, from: bytes)) != nil { throw APIError.groupedUnavailable }
-        return try decoder.decode(GroupedDepartures.self, from: bytes)
     }
 
     func fetchDirections(from: Coordinate, to: Coordinate) async throws -> WalkingRoute {
@@ -145,35 +132,24 @@ enum APIError: LocalizedError {
     case requestFailed
     case invalidStopId
     case invalidURL
-    case groupedUnavailable
 
     var errorDescription: String? {
         switch self {
         case .requestFailed: String(localized: "Couldn't connect. Please try again.")
         case .invalidStopId: String(localized: "This stop couldn't be found. Choose another stop.")
         case .invalidURL: String(localized: "Couldn't load this request. Please try again.")
-        case .groupedUnavailable: String(localized: "This server uses individual departure boards.")
         }
     }
 }
 
-struct GroupedDepartures: Decodable {
+struct BatchDepartures: Codable {
     struct Group: Codable {
         let line: LineInfo
         let departures: [Departure]
     }
-    let groups: [Group]
-    var complete: Bool? = nil
-    var latestListedTime: String? {
-        groups.flatMap(\.departures).filter { TimeFormatter.parseISO($0.time) != nil }
-            .max { TimeFormatter.parseISO($0.time)! < TimeFormatter.parseISO($1.time)! }?.time
-    }
-}
-
-struct BatchDepartures: Codable {
     struct Board: Codable {
         let stopId: String
-        let groups: [GroupedDepartures.Group]
+        let groups: [Group]
     }
     let fetchedAt: String
     let boards: [Board]

@@ -2,35 +2,34 @@
 
 ## Product direction
 
-Departs is used in a pinch, on the go. Prioritize the time it takes to find a useful departure over maps, configuration, or additional screens. The owner retired the browser client on 15 November 2026; iOS is the sole product client. The Vercel API remains required infrastructure at the existing host.
+On 16 November 2026 the owner defined Departs as two screens showing which transport is available around you. Each screen has a square map above a short list. Home shows nearby lines leaving within an hour, once per destination at the nearest qualifying stop. A row opens the line's walking map and next four departures. The [approved plan](plans/ios-two-screens.md) specifies the exact selection rules, states and acceptance gates.
 
-The web retirement and runtime dependency patches are merged. Historical designs and the original review remain in `docs/archive/web/` and `docs/reviews/2026-11-15-project-audit.md`.
+The owner retired the browser client on 15 November. iOS is the sole product client; the Vercel API remains at its existing host for installed builds. Historical web designs stay in `docs/archive/web/`.
 
-## Seven improvements in the native fast-answer implementation
+## Current implementation
 
-1. **Answers on the opening screen.** Next two departure times, line, direction, stop, and walking time. Maps are secondary and created on demand.
-2. **Conservative leave guidance.** Subtract walking time and a two-minute buffer from the first reachable departure. Explain when an earlier service looks too tight; withhold advice when data or location cannot support it.
-3. **Useful content immediately.** Restore the last area, boards, and pins before networking. Keep results visible while location and fresh times arrive.
-4. **Automatic freshness.** Refresh visible answers on foreground return and periodically while active. Keep rows stable, coalesce duplicate loads, and label saved information.
-5. **Pinned stop and direction.** Local favorites, one-tap boards, and an App Shortcut that opens the selected pin directly. No account, widget extension, or notification permission required.
-6. **Recovery on the go.** Manual place/address/stop search without location permission, explicit 400 → 800 → 1600 metre search expansion, retry actions, and saved boards after failed refreshes.
-7. **Clear boarding and walking information.** Prominent stop and direction, clear live/scheduled labels, and a persistent walking-directions action to the exact stop coordinate. Do not invent platform or entrance data the provider does not supply.
+- Home selects the eight rows in the Vienna sample from 17 platforms. A single batch replaces departure fan-out; opening takes one stops request, one batch and one walk per listed physical stop.
+- Fresh rows show a single countdown. Saved rows retain their position and show clock times with a recovery action. Cached content appears before networking.
+- The line screen keeps the full destination visible, shows up to four departures and opens Apple Maps walking directions to the platform. Live times carry a symbol and full-minute delay. There is no scheduled label or leave advice.
+- Local pins, recent-area search, App Shortcuts and explicit wider search remain. Pins are still a product trial under O8.
+- Both screens support accessibility text, with the map scrolling away at accessibility sizes. iPhone returns to portrait only. iOS 26 remains the minimum.
 
-See [implementation behavior and checks](ios-fast-answers.md). These features require a new native binary; a merged PR does not update installed apps.
+See [native behavior](ios-fast-answers.md) and the [final validation](plans/ios-two-screens-phase-3-validation.md). The old fast-answer roadmap's advice, optional-map and split-view work is superseded.
 
-## Release status on 15 November 2026
+## Release sequence
 
-- [Backend PR #9](https://github.com/p3ob7o/Departs/pull/9) and [native PR #15](https://github.com/p3ob7o/Departs/pull/15) are merged. Production HTTP checks passed for nearby stops, selected-line departures, wider search, and walking directions. Native PR #15 supersedes [PR #10](https://github.com/p3ob7o/Departs/pull/10).
-- **Departs 1.1 (5)** is uploaded to TestFlight, processed as `VALID`, and available for internal testing. App Store Connect confirmed the previous release was 1.0 (4). [Release PR #16](https://github.com/p3ob7o/Departs/pull/16) records the new version and supersedes the build-4 bookkeeping in [PR #7](https://github.com/p3ob7o/Departs/pull/7).
-- Validation passed: 41 native unit tests, six native UI tests, 62 backend tests, backend type checking/lint/build, a distribution-signed Release package, and Apple's package validation. The Release app also displayed live-fetched departures and walking/leave guidance in the simulator.
-- Complete physical-device acceptance, including Shortcuts, real GPS, and mobile-data startup time, before expanding the cohort. External testing is awaiting beta-review submission; no public App Store release has been submitted.
+The test baseline is Departs 1.1 (6). This work leaves version and build settings unchanged. The next product version is 1.2 under decision A9, to be prepared only when the owner asks.
 
-## Adoption work after validation
+Plan PR #26 and additive backend PR #27 have merged into `main`; Vienna and Berlin production checks passed. Native home PR #28, line PR #29 and the final cleanup phase remain stacked draft work. Each must land in `main` in order, retargeting after the previous merge. Merging into an already-merged phase branch does not update `main`.
 
-- Recruit a small TestFlight cohort around stops with verified realtime coverage. Observe whether users can find a reachable departure without opening multiple boards.
-- Measure cold and warm time to first useful answer on a physical phone and ordinary mobile data. Three seconds is a target, not a measured promise from simulator fixtures.
-- Verify accessibility text sizes, VoiceOver order, reduced location accuracy, foreground return, and poor connectivity on device.
-- Add native sharing and an installation fallback once there is a public distribution URL. Keep the destination small; a browser transit app is outside scope.
-- Establish provider usage alerts and request limits before wider distribution. Add CI once the simulator/runtime and signing setup are selected.
+No TestFlight upload is part of implementation. Before distribution, check the batch endpoint on production, finish physical-device acceptance, and obtain the owner's release approval. Backend deployment and native distribution are separate operations.
 
-No analytics SDK or tracking service is added by this implementation.
+## Next decisions and checks
+
+- Rewrite the [iPhone Duo plan, PR #18](https://github.com/p3ob7o/Departs/pull/18) and [iPad plan, PR #19](https://github.com/p3ob7o/Departs/pull/19) for map and list side by side. Both predate this design. Device support and the Xcode upgrade remain outside this work.
+- Check map selection, long destinations and empty nighttime results on a phone. Observe whether people find the available service without opening several lines.
+- Verify VoiceOver speech, haptics, GPS accuracy, foreground return, Shortcuts discovery and Home Screen icon appearances on a signed device.
+- Measure cold/warm startup on mobile data and provider quota/cost under the batch model. Check a capped hub and operators with realtime coverage. The Vienna sample supplied scheduled data only.
+- Decide whether to keep pins after observing use. Widgets, Live Activities, notifications, accounts, German and journey planning remain out of scope.
+
+No analytics SDK or tracking service is added.
