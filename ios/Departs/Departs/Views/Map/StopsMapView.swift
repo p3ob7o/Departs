@@ -44,6 +44,7 @@ struct StopsMapView: UIViewRepresentable {
         let coordinate: CLLocationCoordinate2D
         let stopId: String
         let transportLabel: String
+        var spokenLabel = ""
         let isUser: Bool
 
         init(coordinate: CLLocationCoordinate2D, stopId: String, transportLabel: String, isUser: Bool) {
@@ -80,6 +81,7 @@ struct StopsMapView: UIViewRepresentable {
                 transportLabel: stop.type.label,
                 isUser: false
             )
+            pin.spokenLabel = "\(stop.name), \(stop.type.displayName), \(stop.lines.map { $0.name + " toward " + $0.direction }.joined(separator: ", "))"
             map.addAnnotation(pin)
         }
     }
@@ -124,6 +126,8 @@ struct StopsMapView: UIViewRepresentable {
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: id)
                 ?? MKAnnotationView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
+            view.isAccessibilityElement = true
+            view.accessibilityLabel = annotation.spokenLabel
 
             let size: CGFloat = 24
             let dot = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
@@ -178,6 +182,8 @@ struct StopsMapView: UIViewRepresentable {
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: id)
                 ?? MKAnnotationView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
+            view.isAccessibilityElement = true
+            view.accessibilityLabel = annotation.spokenLabel
 
             let size: CGFloat = 30
             let circle = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))

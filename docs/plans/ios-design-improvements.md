@@ -6,6 +6,7 @@
 | Date | 15 November 2026 |
 | Evaluated build | `c1439c4`. `main` has since moved to `a310461` (1.1 build 5 release bookkeeping, no view changes). |
 | Branch | `feat/ios-design-improvements` |
+| Implementation minimum | iOS 26, approved by the owner on 15 November 2026. Guard iOS 27-only APIs with availability checks. The evaluation measurements below remain the original baseline. |
 | Follow-on plans | [iPhone Duo adaptation](iphone-duo-adaptation.md) and [iPad adaptation](ipad-adaptation.md), each on a branch based on this one |
 
 ## Summary
@@ -338,7 +339,7 @@ Acceptance: the UI tests pass on an iPhone and an iPad destination. Resizing a w
 | 5 | Accent: stay with system blue or derive an accent from the icon. | Keep system blue for controls in this pass. Use the icon's hues for mode badges. |
 | 6 | Hide a city prefix shared by all directions. | Yes, display only. |
 | 7 | Search placement: a toolbar button, or the system search field in the bottom toolbar. | Prototype both. The bottom field keeps the main recovery action in thumb reach. |
-| 8 | Maps: keep the `UIViewRepresentable` wrappers or move to SwiftUI `Map` (iOS 17) for selection and accessibility. This changes a documented architecture choice. | Evaluate in Phase 3 before committing. |
+| 8 | Maps: keep the `UIViewRepresentable` wrappers or move to SwiftUI `Map` for selection and accessibility. Both are available at the iOS 26 minimum. This changes a documented architecture choice. | Owner chose to keep the wrappers. Ask before changing this architecture. |
 | 9 | German localization. | Make strings localizable in Phase 4. Ship German after Phase 2 settles. |
 | 10 | Landscape on iPhone. | Enable at the end of Phase 5. |
 
