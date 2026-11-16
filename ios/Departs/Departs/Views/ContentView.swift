@@ -5,52 +5,36 @@ struct ContentView: View {
     @Environment(\.scenePhase) private var scenePhase
     @State private var windowID = UUID()
     @State private var selected: StopLineSelection?
-    @State private var sheet: PresentedSheet?
+    @State private var showsDistantPins = false
     @State private var navigation = RouteNavigation.shared
 
     private var store: TransitStore { session.store }
     private var demandKey: String { "\(scenePhase)-\(selected?.id ?? "")" }
-    private enum PresentedSheet: Identifiable {
-        case search, distantPins
-        var id: String {
-            switch self {
-            case .search: "search"
-            case .distantPins: "pins"
-            }
-        }
-    }
 
     var body: some View {
         NavigationStack {
             NearbyStopsView(
                 store: store, locationState: session.locationService.state,
-                onSelect: select, onSearch: { sheet = .search }, onLocate: session.locate,
-                onRefresh: session.refresh, onChooseArea: chooseArea,
-                onDistantPins: { sheet = .distantPins }, interactionID: "\(windowID)-list")
+                onSelect: select, onLocate: session.locate, onRefresh: session.refresh,
+                onDistantPins: { showsDistantPins = true }, interactionID: "\(windowID)-list")
                 .navigationDestination(item: $selected) { selection in
                     DepartureDetailView(selection: selection, store: store)
                 }
         }
-        .sheet(item: $sheet) { presented in
-            switch presented {
-            case .search:
-                AreaSearchView(near: store.area?.coordinate, recentAreas: store.recentAreas,
-                               onLocate: { sheet = nil; session.locate() }, onSelect: chooseArea)
-            case .distantPins:
-                NavigationStack {
-                    List(store.distantPins) { selection in
-                        Button {
-                            sheet = nil
-                            select(selection)
-                        } label: {
-                            Text("\(selection.line.name) toward \(selection.line.direction) · \(selection.stop.name)")
-                                .frame(minHeight: 44)
-                        }
+        .sheet(isPresented: $showsDistantPins) {
+            NavigationStack {
+                List(store.distantPins) { selection in
+                    Button {
+                        showsDistantPins = false
+                        select(selection)
+                    } label: {
+                        Text("\(selection.line.name) toward \(selection.line.direction) · \(selection.stop.name)")
+                            .frame(minHeight: 44)
                     }
-                    .modifier(ReadableList())
-                    .navigationTitle("Pinned elsewhere").navigationBarTitleDisplayMode(.inline)
-                    .toolbar { Button("Done", systemImage: "checkmark") { sheet = nil } }
                 }
+                .modifier(ReadableList())
+                .navigationTitle("Pinned elsewhere").navigationBarTitleDisplayMode(.inline)
+                .toolbar { Button("Done", systemImage: "checkmark") { showsDistantPins = false } }
             }
         }
         .onChange(of: session.locationService.state) { _, _ in session.receivedLocation() }
@@ -81,11 +65,6 @@ struct ContentView: View {
         guard let key = navigation.pinnedRouteID else { return }
         if let pin = store.pins.first(where: { $0.id == key }) { select(pin) }
         navigation.pinnedRouteID = nil
-    }
-    private func chooseArea(_ area: SearchArea) {
-        sheet = nil
-        selected = nil
-        session.chooseArea(area)
     }
 }
 

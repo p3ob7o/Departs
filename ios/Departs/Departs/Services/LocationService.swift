@@ -8,7 +8,8 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         case requesting
         case located(Coordinate)
         case denied
-        case failed(String)
+        /// No fix in time, an error, or a fix too coarse to say what is within reach.
+        case failed
     }
 
     private(set) var state: State = .idle
@@ -29,11 +30,16 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         if status == .notDetermined {
             manager.requestWhenInUseAuthorization()
         } else if status == .denied || status == .restricted {
-            timeout?.cancel()
-            state = .denied
+            deny()
         } else {
             beginLocationRequest()
         }
+    }
+
+    private func deny() {
+        timeout?.cancel()
+        fix = nil
+        state = .denied
     }
 
     private func beginLocationRequest() {
@@ -41,7 +47,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
         timeout = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(8))
             guard !Task.isCancelled, let self, case .requesting = self.state else { return }
-            self.state = .failed(String(localized: "Location is taking too long. Choose an area to continue."))
+            self.state = .failed
         }
         manager.requestLocation()
     }
@@ -55,8 +61,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
                 beginLocationRequest()
             }
         case .denied, .restricted:
-            timeout?.cancel()
-            state = .denied
+            deny()
         default:
             break
         }
@@ -67,15 +72,25 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
               location.horizontalAccuracy >= 0,
               location.timestamp.isRecent(at: .now, within: 120) else { return }
         timeout?.cancel()
-        fix = LocationFix(coordinate: Coordinate(lat: location.coordinate.latitude, lon: location.coordinate.longitude),
-                          capturedAt: location.timestamp, accuracy: location.horizontalAccuracy)
-        state = .located(Coordinate(lat: location.coordinate.latitude, lon: location.coordinate.longitude))
+        var accuracy = location.horizontalAccuracy
+        #if DEBUG
+        // The simulator only ever reports a precise fix. UI tests set this to
+        // get the coarse one that Precise Location off produces on a phone.
+        if let coarse = ProcessInfo.processInfo.environment["DEPARTS_TEST_LOCATION_ACCURACY"].flatMap(Double.init) { accuracy = coarse }
+        #endif
+        let candidate = LocationFix(coordinate: Coordinate(lat: location.coordinate.latitude, lon: location.coordinate.longitude),
+                                    capturedAt: location.timestamp, accuracy: accuracy)
+        // The store ignores a fix it cannot use. Reporting it as located would
+        // leave home waiting for departures that are never requested.
+        guard candidate.isUsable(at: .now) else { state = .failed; return }
+        fix = candidate
+        state = .located(candidate.coordinate)
     }
 
     func locationManager(_ manager: CLLocationManager, didFailWithError error: Error) {
         if case .requesting = state {
             timeout?.cancel()
-            state = .failed(error.localizedDescription)
+            state = .failed
         }
     }
 }

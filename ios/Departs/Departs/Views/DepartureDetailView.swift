@@ -67,7 +67,7 @@ struct DepartureDetailView: View {
     }
 
     private func map(width: CGFloat, walk: CachedWalk?, at date: Date) -> some View {
-        RouteMapView(userCoordinate: (store.walkingOrigin ?? selection.stop.location).clLocationCoordinate2D,
+        RouteMapView(userCoordinate: store.walkingOrigin?.clLocationCoordinate2D,
                      stop: selection.stop, stopColor: StopPalette.modeColor(selection.line.type),
                      walkingRoute: walk?.route, line: selection.line,
                      originIsCurrentLocation: store.location?.isUsable(at: date) == true)
@@ -91,7 +91,9 @@ struct DepartureDetailView: View {
         if let walk {
             return String(localized: "\(selection.stop.name) · \(TransitFormat.walk(walk.route, fromCurrentLocation: current)) · \(TransitFormat.distance(walk.route.distance))")
         }
-        return current ? selection.stop.name : String(localized: "\(selection.stop.name) · from this area")
+        // No origin at all: a pinned route opened while location is off.
+        return current || store.walkingOrigin == nil ? selection.stop.name
+            : String(localized: "\(selection.stop.name) · from this area")
     }
 
     private func refreshButton(savedAt: Date?) -> some View {

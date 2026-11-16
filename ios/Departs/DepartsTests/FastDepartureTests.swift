@@ -28,7 +28,7 @@ final class FastDepartureTests: XCTestCase {
     private func client() -> TransitClient {
         let stops = [stop()]; let departures = [departure(7), departure(12)]; let walk = route()
         let fetchedAt = instant.ISO8601Format()
-        return .init(stops: { _, _ in stops }, departures: { _ in departures }, directions: { _, _ in walk },
+        return .init(stops: { _ in stops }, departures: { _ in departures }, directions: { _, _ in walk },
                      batch: { ids in .init(fetchedAt: fetchedAt, boards: ids.map {
                          .init(stopId: $0, groups: [.init(line: stops[0].lines[0], departures: departures)])
                      }, missing: []) })
@@ -38,7 +38,6 @@ final class FastDepartureTests: XCTestCase {
         return TransitStore(client: client ?? self.client(), persistence: storage ?? persistence(), now: { date })
     }
     private var fix: LocationFix { .init(coordinate: coordinate, capturedAt: instant, accuracy: 10) }
-    private var area: SearchArea { .init(coordinate: coordinate, name: "Near you", source: .location) }
 
     private func sampleStops() throws -> [NearbyStop] {
         try JSONDecoder().decode([NearbyStop].self, from: JSONSerialization.data(withJSONObject: TransitSample.stops))
@@ -50,7 +49,7 @@ final class FastDepartureTests: XCTestCase {
     private func sampleClient() throws -> TransitClient {
         var api = client()
         let stops = try sampleStops(), response = try sampleBatch()
-        api.stops = { _, _ in stops }
+        api.stops = { _ in stops }
         api.batch = { _ in response }
         return api
     }
@@ -143,11 +142,11 @@ final class FastDepartureTests: XCTestCase {
             BatchDepartures.Group(line: service("\(index)", "End"), departures: [departure(minutes)])
         }
         var api = client()
-        api.stops = { _, _ in [inside, outside] }
+        api.stops = { _ in [inside, outside] }
         let response = BatchDepartures(fetchedAt: instant.ISO8601Format(), boards: [.init(stopId: inside.id, groups: groups)], missing: [])
         api.batch = { ids in XCTAssertEqual(ids, [inside.id]); return response }
         let store = makeStore(api)
-        await store.loadArea(area)
+        await store.loadArea(coordinate)
         XCTAssertEqual(store.displayedOptions.map(\.line.name), ["1", "2"])
         XCTAssertEqual(store.stops.map(\.id), [inside.id])
     }
@@ -156,7 +155,7 @@ final class FastDepartureTests: XCTestCase {
         var api = try sampleClient(), stopCalls = 0, batchCalls = 0, walkCalls = 0, detailCalls = 0
         let stops = try sampleStops(), response = try sampleBatch(), route = route()
         let walks = expectation(description: "one route per listed physical stop"); walks.expectedFulfillmentCount = 4
-        api.stops = { _, _ in stopCalls += 1; return stops }
+        api.stops = { _ in stopCalls += 1; return stops }
         api.batch = { ids in batchCalls += 1; XCTAssertEqual(ids.count, 17); return response }
         api.departures = { _ in detailCalls += 1; return [] }
         api.directions = { _, _ in walkCalls += 1; walks.fulfill(); return route }
@@ -177,7 +176,7 @@ final class FastDepartureTests: XCTestCase {
         api.batch = { _ in if failed { throw APIError.requestFailed }; return response }
         api.departures = { _ in individualCalls += 1; return [] }
         let store = makeStore(api)
-        await store.loadArea(area)
+        await store.loadArea(coordinate)
         let selections = store.displayedOptions, times = selections.map { store.home.boards[$0.id]!.departures.map(\.time) }
         failed = true
         await store.refreshAnswers(force: true)
@@ -201,7 +200,7 @@ final class FastDepartureTests: XCTestCase {
         var api = try sampleClient()
         api.batch = { _ in response }
         let store = makeStore(api)
-        await store.loadArea(area)
+        await store.loadArea(coordinate)
         let before = store.displayedOptions.map(\.id)
         response = try sampleBatch(missing: ["77704_312"], changed: true)
         await store.refreshAnswers(force: true)
@@ -216,7 +215,7 @@ final class FastDepartureTests: XCTestCase {
         let response = try sampleBatch(missing: ["77704_312", "77704_313", "77704_311", "77704_310"])
         var api = try sampleClient(); api.batch = { _ in response }
         let store = makeStore(api)
-        await store.loadArea(area)
+        await store.loadArea(coordinate)
         XCTAssertEqual(store.groups.filter(\.hasMissingBoard).count, 1)
         XCTAssertEqual(store.groups.first?.name, "Siebensterngasse")
         XCTAssertTrue(store.groups.first!.active.isEmpty)
@@ -226,7 +225,7 @@ final class FastDepartureTests: XCTestCase {
         let response = try sampleBatch(at: instant.addingTimeInterval(-30))
         var api = try sampleClient(); api.batch = { _ in response }
         let store = makeStore(api)
-        await store.loadArea(area)
+        await store.loadArea(coordinate)
         let selection = store.displayedOptions[0]
         XCTAssertTrue(store.isHomeBoardFresh(for: selection, at: instant))
         XCTAssertFalse(store.isHomeBoardFresh(for: selection, at: instant.addingTimeInterval(31)))
@@ -236,7 +235,7 @@ final class FastDepartureTests: XCTestCase {
     @MainActor func testRelaunchShowsExactSavedListImmediatelyUntilRevalidation() async throws {
         let disk = persistence(), api = try sampleClient()
         let first = makeStore(api, persistence: disk)
-        await first.loadArea(area)
+        await first.loadArea(coordinate)
         first.togglePin(first.displayedOptions[0])
         let savedIDs = first.displayedOptions.map(\.id)
         let restored = makeStore(api, persistence: disk)
@@ -252,7 +251,7 @@ final class FastDepartureTests: XCTestCase {
         var response = try sampleBatch(), time = instant
         var api = try sampleClient(); api.batch = { _ in response }
         let store = TransitStore(client: api, persistence: persistence(), now: { time })
-        await store.loadArea(area)
+        await store.loadArea(coordinate)
         let before = store.displayedOptions.map(\.id), firstTime = store.home.boards[before[0]]!.departures[0].time
         time.addTimeInterval(1800)
         for selection in store.displayedOptions {
@@ -275,7 +274,7 @@ final class FastDepartureTests: XCTestCase {
         var finish: CheckedContinuation<BatchDepartures, Error>!
         api.batch = { _ in calls += 1; return try await withCheckedThrowingContinuation { finish = $0; begun.fulfill() } }
         let store = makeStore(api)
-        let first = Task { await store.loadArea(area) }
+        let first = Task { await store.loadArea(coordinate) }
         await fulfillment(of: [begun], timeout: 2)
         first.cancel()
         let second = Task { await store.refreshAnswers(force: true) }
@@ -288,10 +287,10 @@ final class FastDepartureTests: XCTestCase {
     }
 
     @MainActor func testFailedFirstStopsRequestHasErrorAndNoFalseEmptyBoard() async {
-        var api = client(); api.stops = { _, _ in throw APIError.requestFailed }
+        var api = client(); api.stops = { _ in throw APIError.requestFailed }
         api.batch = { _ in XCTFail("No departures without stops"); throw APIError.requestFailed }
         let store = makeStore(api)
-        await store.loadArea(area)
+        await store.loadArea(coordinate)
         XCTAssertNotNil(store.stopsError)
         XCTAssertNil(store.stopsCheckedAt)
         XCTAssertNil(store.home.checkedAt)
@@ -299,13 +298,13 @@ final class FastDepartureTests: XCTestCase {
     }
 
     @MainActor func testEmptyStopsAndEmptyDeparturesAreDifferentStates() async throws {
-        var api = client(); api.stops = { _, _ in [] }
+        var api = client(); api.stops = { _ in [] }
         let noStops = makeStore(api)
-        await noStops.loadArea(area)
+        await noStops.loadArea(coordinate)
         XCTAssertNotNil(noStops.stopsCheckedAt); XCTAssertTrue(noStops.stops.isEmpty)
         api = try sampleClient(); let empty = try sampleBatch(empty: true); api.batch = { _ in empty }
         let noDepartures = makeStore(api)
-        await noDepartures.loadArea(area)
+        await noDepartures.loadArea(coordinate)
         XCTAssertEqual(noDepartures.stops.count, 17)
         XCTAssertNotNil(noDepartures.home.checkedAt); XCTAssertTrue(noDepartures.displayedOptions.isEmpty)
         XCTAssertFalse(noDepartures.needsListRefresh(at: instant))
@@ -317,7 +316,7 @@ final class FastDepartureTests: XCTestCase {
         let pin = StopLineSelection(stop: stops[0], line: night, lineIndex: 1)
         disk.savePins([pin])
         let store = makeStore(try sampleClient(), persistence: disk)
-        await store.loadArea(area)
+        await store.loadArea(coordinate)
         XCTAssertEqual(store.nearbyPins.map(\.id), [pin.id])
         let content = HomeRowContent(board: store.home.boards[pin.id], fresh: true, pinned: true, now: instant)
         XCTAssertTrue(content.idle); XCTAssertEqual(content.answer, "Nothing soon")
@@ -326,7 +325,7 @@ final class FastDepartureTests: XCTestCase {
 
     @MainActor func testMapUsesOnlyListedLinesAndOneAnnotationPerPhysicalStop() async throws {
         let store = makeStore(try sampleClient())
-        await store.loadArea(area)
+        await store.loadArea(coordinate)
         XCTAssertEqual(store.mapGroups.count, 4)
         XCTAssertEqual(store.mapGroups[0].lines.map(\.name), ["13A", "49"])
         XCTAssertEqual(store.mapGroups[1].active.count, 1)
@@ -345,7 +344,7 @@ final class FastDepartureTests: XCTestCase {
             return try await withCheckedThrowingContinuation { finishes.append($0); started.fulfill() }
         }
         let store = makeStore(api)
-        await store.loadArea(area)
+        await store.loadArea(coordinate)
         await fulfillment(of: [started], timeout: 2)
         let before = store.displayedOptions.map(\.id)
         XCTAssertEqual(before.count, 8)
@@ -452,7 +451,7 @@ final class FastDepartureTests: XCTestCase {
         api.batch = { _ in if fail { throw APIError.requestFailed }; return batch }
         api.departures = { _ in values }
         let store = makeStore(api)
-        await store.loadArea(area)
+        await store.loadArea(coordinate)
         let selection = store.displayedOptions[0]
         fail = true
         await store.refreshAnswers(force: true)
@@ -466,7 +465,7 @@ final class FastDepartureTests: XCTestCase {
         var api = try sampleClient()
         api.departures = { _ in throw APIError.requestFailed }
         let store = makeStore(api)
-        await store.loadArea(area)
+        await store.loadArea(coordinate)
         let selection = store.displayedOptions[0]
         await store.refreshBoard(selection)
         XCTAssertTrue(store.boardErrors.contains(selection.id))
@@ -480,35 +479,6 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertEqual(NearbyStopsView.displayDirection("Paris Nord", among: directions), "Nord")
         XCTAssertEqual(NearbyStopsView.displayDirection("Paris Nord", among: Array(directions.prefix(2))), "Paris Nord")
         XCTAssertEqual(NearbyStopsView.displayDirection("Paris Nord", among: directions + ["Lyon Centre"]), "Paris Nord")
-    }
-
-    @MainActor func testRecentAreasKeepFiveUniqueChoicesAcrossRelaunch() async {
-        let storage = persistence()
-        let store = makeStore(persistence: storage)
-        for index in 0..<7 {
-            await store.loadArea(.init(coordinate: coordinate, name: "Place \(index)", source: .chosen))
-        }
-        await store.loadArea(.init(coordinate: coordinate, name: "Place 4", source: .chosen))
-        await store.loadArea(area)
-        let restored = makeStore(persistence: storage)
-        XCTAssertEqual(restored.recentAreas.map(\.name), ["Place 4", "Place 6", "Place 5", "Place 3", "Place 2"])
-    }
-
-    @MainActor func testSearchPromotesTransitWithoutReorderingEqualCategories() {
-        let places = [false, true, false, true].enumerated().map { index, transit in
-            PlaceResult(id: "\(index)", name: "Place \(index)", subtitle: "", coordinate: coordinate, transit: transit)
-        }
-        XCTAssertEqual(AreaSearchModel.transitFirst(places).map(\.id), ["1", "3", "0", "2"])
-    }
-
-    @MainActor func testChosenAreaRestoresWithoutFollowingDevice() async {
-        let storage = persistence()
-        let store = makeStore(persistence: storage)
-        let chosen = SearchArea(coordinate: coordinate, name: "Chosen place", source: .chosen)
-        await store.loadArea(chosen)
-        let restored = makeStore(persistence: storage)
-        XCTAssertEqual(restored.area, chosen)
-        XCTAssertFalse(restored.followsLocation)
     }
 
     func testBoardExcludesExpiredAndInvalidTimesAndSortsUpcoming() {
@@ -528,12 +498,12 @@ final class FastDepartureTests: XCTestCase {
     @MainActor func testCacheAndPinsAreAvailableBeforeAnyNetworkCall() {
         let disk = persistence()
         let selection = stop().lineSelections[0]
-        disk.saveNearby(.init(area: area, radius: 400, stops: [stop()], checkedAt: instant))
+        disk.saveNearby(.init(center: coordinate, stops: [stop()], checkedAt: instant))
         disk.saveBoards([selection.id: .init(departures: [departure(7)], checkedAt: instant)])
         disk.savePins([selection])
         var calls = 0
         var api = client()
-        api.stops = { _, _ in calls += 1; return [] }
+        api.stops = { _ in calls += 1; return [] }
         let store = makeStore(api, persistence: disk)
         XCTAssertEqual(store.stops.count, 1)
         XCTAssertEqual(store.boards[selection.id]?.departures.count, 1)
@@ -565,48 +535,111 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertEqual(store.boards[selection.id]?.departures.count, 2)
     }
 
-    @MainActor func testOlderAreaResponseCannotReplaceNewSearch() async {
+    @MainActor func testOlderAreaResponseCannotReplaceTheAreaTheRiderMovedTo() async {
         let started = expectation(description: "old area started")
         var finishOld: CheckedContinuation<[NearbyStop], Error>!
         let newest = stop("new")
         var api = client()
-        api.stops = { coordinate, _ in
+        api.stops = { coordinate in
             if coordinate.lat == 48 {
                 return try await withCheckedThrowingContinuation { finishOld = $0; started.fulfill() }
             }
             return [newest]
         }
         let store = makeStore(api)
-        let old = Task { await store.loadArea(.init(coordinate: .init(lat: 48, lon: 16), name: "Old area", source: .chosen)) }
+        let old = Task { await store.loadArea(.init(lat: 48, lon: 16)) }
         await fulfillment(of: [started], timeout: 2)
-        await store.loadArea(.init(coordinate: coordinate, name: "New area", source: .chosen))
+        await store.loadArea(coordinate)
         finishOld.resume(returning: [stop("old")])
         await old.value
-        XCTAssertEqual(store.area?.name, "New area")
+        XCTAssertEqual(store.center, coordinate)
         XCTAssertEqual(store.stops.map(\.id), ["new"])
         XCTAssertFalse(store.isLoadingStops)
     }
 
-    @MainActor func testBackgroundLocationDoesNotReplaceChosenArea() async {
-        let store = makeStore()
-        let chosen = SearchArea(coordinate: .init(lat: 52, lon: 13), name: "Berlin", source: .chosen)
-        await store.loadArea(chosen)
+    @MainActor func testNewFixAtTheSameSpotKeepsTheListAndRefreshesOldStopsInPlace() async throws {
+        var time = instant
+        var api = try sampleClient(), centers: [Coordinate] = [], rowsWhileReloading: [Int] = []
+        let stops = try sampleStops()
+        weak var observed: TransitStore?
+        api.stops = { center in
+            centers.append(center)
+            rowsWhileReloading.append(observed?.displayedOptions.count ?? -1)
+            return stops
+        }
+        let store = TransitStore(client: api, persistence: persistence(), now: { time })
+        observed = store
         await store.updateLocation(fix)
-        XCTAssertEqual(store.area, chosen)
-        XCTAssertNotNil(store.location)
+        let revision = store.areaRevision
+        XCTAssertEqual(store.displayedOptions.count, 8)
+        // On a phone, two fixes at one spot never have identical coordinates.
+        time.addTimeInterval(301)
+        let fiveMetresNorth = Coordinate(lat: coordinate.lat + 5.0 / 111_200, lon: coordinate.lon)
+        await store.updateLocation(.init(coordinate: fiveMetresNorth, capturedAt: time, accuracy: 10))
+        XCTAssertEqual(store.areaRevision, revision, "The list must not start over when the rider has not moved")
+        XCTAssertEqual(store.center, coordinate)
+        XCTAssertEqual(centers, [coordinate, coordinate], "Old stops are refreshed for the same centre")
+        XCTAssertEqual(rowsWhileReloading, [0, 8], "Rows stay on screen during that refresh")
+        XCTAssertEqual(store.location?.coordinate, fiveMetresNorth, "Walking still starts from the newest fix")
+        let twoHundredMetresNorth = Coordinate(lat: coordinate.lat + 200.0 / 111_200, lon: coordinate.lon)
+        await store.updateLocation(.init(coordinate: twoHundredMetresNorth, capturedAt: time, accuracy: 10))
+        XCTAssertEqual(store.areaRevision, revision + 1, "A real move is a new area")
+        XCTAssertEqual(store.center, twoHundredMetresNorth)
     }
 
-    @MainActor func testSearchFartherIsExplicitAndBounded() async {
-        var radii: [Int] = []
-        var api = client()
-        api.stops = { _, radius in radii.append(radius); return [] }
-        let store = makeStore(api)
-        await store.loadArea(area)
-        await store.searchFarther()
-        await store.searchFarther()
-        await store.searchFarther()
-        XCTAssertEqual(radii, [400, 800, 1600])
-        XCTAssertFalse(store.canSearchFarther)
+    @MainActor func testFailedStopsRefreshAtTheSameSpotKeepsTheListAndStillUpdatesTimes() async throws {
+        var time = instant
+        var api = try sampleClient(), failStops = false, batchCalls = 0
+        let stops = try sampleStops(), response = try sampleBatch()
+        api.stops = { _ in if failStops { throw APIError.requestFailed }; return stops }
+        api.batch = { _ in batchCalls += 1; return response }
+        let store = TransitStore(client: api, persistence: persistence(), now: { time })
+        await store.updateLocation(fix)
+        time.addTimeInterval(301)
+        failStops = true
+        await store.updateLocation(.init(coordinate: coordinate, capturedAt: time, accuracy: 10))
+        XCTAssertNil(store.stopsError)
+        XCTAssertFalse(store.isLoadingStops)
+        XCTAssertEqual(store.displayedOptions.count, 8)
+        XCTAssertEqual(batchCalls, 2)
+    }
+
+    @MainActor func testSearchedPlaceAndWiderRadiusSavedByEarlierBuildsAreNotRestored() throws {
+        let disk = persistence()
+        // What 1.2 (7) saved after "Search farther" at a searched place.
+        let place: [String: Any] = ["coordinate": ["lat": 52.52, "lon": 13.405], "name": "Berlin", "source": "chosen"]
+        let nearby: [String: Any] = ["area": place, "radius": 1600, "stops": TransitSample.stops,
+                                     "checkedAt": instant.timeIntervalSinceReferenceDate]
+        disk.defaults.set(try JSONSerialization.data(withJSONObject: nearby), forKey: "departs.nearby.v1")
+        disk.defaults.set(try JSONSerialization.data(withJSONObject: [place]), forKey: "departs.recentAreas.v1")
+        let store = makeStore(persistence: disk)
+        XCTAssertNil(store.center)
+        XCTAssertTrue(store.stops.isEmpty)
+        XCTAssertNil(disk.defaults.data(forKey: "departs.nearby.v1"))
+        XCTAssertNil(disk.defaults.data(forKey: "departs.recentAreas.v1"))
+    }
+
+    @MainActor func testLocationTurnedOffForgetsTheAreaAndKeepsPinnedRoutes() async throws {
+        let disk = persistence(), response = try sampleBatch()
+        var api = try sampleClient(), batchCalls = 0
+        api.batch = { _ in batchCalls += 1; return response }
+        let store = makeStore(api, persistence: disk)
+        await store.updateLocation(fix)
+        let pin = store.displayedOptions[0]
+        store.togglePin(pin)
+        XCTAssertEqual(store.nearbyPins.map(\.id), [pin.id])
+        store.clearArea()
+        XCTAssertNil(store.center); XCTAssertNil(store.location)
+        XCTAssertNil(store.walkingOrigin, "A pinned route opened now has no walk to show")
+        XCTAssertTrue(store.stops.isEmpty); XCTAssertTrue(store.displayedOptions.isEmpty); XCTAssertTrue(store.mapGroups.isEmpty)
+        XCTAssertEqual(store.distantPins.map(\.id), [pin.id], "Pinned routes stay reachable")
+        let calls = batchCalls
+        await store.refreshAnswers(force: true)
+        XCTAssertEqual(batchCalls, calls, "Nothing is requested for a place the rider may have left")
+        let relaunched = makeStore(api, persistence: disk)
+        XCTAssertNil(relaunched.center)
+        XCTAssertTrue(relaunched.displayedOptions.isEmpty)
+        XCTAssertEqual(relaunched.pins.map(\.id), [pin.id])
     }
 
     @MainActor func testConcurrentBoardLoadsCoalesceAndFreshDataIsReused() async {
@@ -651,7 +684,7 @@ final class FastDepartureTests: XCTestCase {
         var requested: [String] = []
         let departures = [departure(7)]
         var api = client()
-        api.stops = { _, _ in nearbyCalls += 1; return [] }
+        api.stops = { _ in nearbyCalls += 1; return [] }
         api.departures = { selection in requested.append(selection.id); return departures }
         let store = makeStore(api)
         let selection = stop().lineSelections[0]
@@ -670,10 +703,11 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertNil(RouteNavigation.pinID(from: URL(string: "departs://pin?id=")!))
     }
 
-    func testNearbyURLIncludesExplicitRadiusWithoutChangingHost() throws {
-        let url = try APIService.nearbyStopsURL(lat: 48.2, lon: 16.3, radius: 800)
+    func testNearbyURLAlwaysAsksForFourHundredMetres() throws {
+        let url = try APIService.nearbyStopsURL(lat: 48.2, lon: 16.3)
         XCTAssertEqual(url.host, "departs.vercel.app")
-        XCTAssertEqual(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "radius" }?.value, "800")
+        XCTAssertEqual(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "radius" }?.value, "400")
+        XCTAssertEqual(TransitStore.radius, 400)
     }
 
 }

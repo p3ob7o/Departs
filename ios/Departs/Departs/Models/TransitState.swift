@@ -1,12 +1,5 @@
 import Foundation
 
-struct SearchArea: Codable, Equatable {
-    enum Source: String, Codable { case location, chosen }
-    let coordinate: Coordinate
-    let name: String
-    let source: Source
-}
-
 struct LocationFix {
     let coordinate: Coordinate
     let capturedAt: Date
@@ -41,9 +34,9 @@ struct CachedWalk: Codable {
     }
 }
 
+/// The last place the rider was, and the stops within reach of it.
 struct NearbySnapshot: Codable {
-    let area: SearchArea
-    let radius: Int
+    let center: Coordinate
     let stops: [NearbyStop]
     let checkedAt: Date
 }

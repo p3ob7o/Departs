@@ -12,19 +12,20 @@ struct TransitPersistence {
     }
 
     private static let pinsKey = "departs.pins.v1"
-    private static let snapshotKey = "departs.nearby.v1"
+    private static let snapshotKey = "departs.nearby.v2"
     private static let boardsKey = "departs.boards.v1"
 
-    func loadRecentAreas() -> [SearchArea] {
-        let areas: [SearchArea] = read("departs.recentAreas.v1") ?? []
-        return Array(areas.filter { $0.source == .chosen && $0.coordinate.isValid }.prefix(5))
+    /// Builds up to 1.2 (7) could save a searched place, a wider radius and
+    /// recent places. None of them may return as "the last area".
+    func removeRetiredData() {
+        ["departs.nearby.v1", "departs.recentAreas.v1"].forEach(defaults.removeObject(forKey:))
     }
-    func saveRecentAreas(_ areas: [SearchArea]) { write(Array(areas.prefix(5)), key: "departs.recentAreas.v1") }
 
     func loadPins() -> [StopLineSelection] { read(Self.pinsKey) ?? [] }
     func savePins(_ pins: [StopLineSelection]) { write(pins, key: Self.pinsKey) }
     func loadNearby() -> NearbySnapshot? { read(Self.snapshotKey) }
     func saveNearby(_ snapshot: NearbySnapshot) { write(snapshot, key: Self.snapshotKey) }
+    func clearNearby() { defaults.removeObject(forKey: Self.snapshotKey) }
     func loadBoards() -> [String: DepartureBoard] { read(Self.boardsKey) ?? [:] }
     func loadHome() -> HomeSnapshot? { read("departs.home.v2") }
     func saveHome(_ snapshot: HomeSnapshot) { write(snapshot, key: "departs.home.v2") }

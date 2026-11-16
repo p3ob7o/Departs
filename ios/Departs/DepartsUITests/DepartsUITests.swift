@@ -15,7 +15,6 @@ final class DepartsUITests: XCTestCase {
         wait(for: [ready], timeout: 5)
         app = XCUIApplication()
         app.launchEnvironment["DEPARTS_API_BASE_URL"] = server.baseURL
-        app.launchEnvironment["DEPARTS_TEST_PLACE_SEARCH"] = "1"
         app.launchEnvironment["DEPARTS_DEFAULTS_SUITE"] = "departs-ui-\(UUID().uuidString)"
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         XCUIDevice.shared.orientation = .portrait
@@ -142,18 +141,29 @@ final class DepartsUITests: XCTestCase {
         waitForRows()
     }
 
-    func testNoStopsOffersWiderSearchAndAreaChoice() {
+    func testHomeOffersOnlyTheLocationButtonAndNoWiderSearch() {
+        launch(); waitForRows()
+        XCTAssertTrue(app.navigationBars["Near you"].exists)
+        XCTAssertEqual(app.navigationBars.firstMatch.buttons.count, 1, "No search button and no title menu")
+        // A system toolbar item: its accessibility frame is not its hit region.
+        XCTAssertTrue(app.buttons["locate"].label.contains("Following your location"))
+        for _ in 0..<3 { nearbyList.swipeUp() }
+        XCTAssertFalse(app.buttons["search-farther"].exists)
+        XCTAssertFalse(app.buttons["Choose an area"].exists)
+        XCTAssertEqual(server.radii, [400])
+        capture("Home end of list")
+    }
+
+    func testNoStopsSaysSoAndOffersNoOtherSearch() {
         server.setEmptyStops(true)
         launch()
         XCTAssertTrue(app.staticTexts["empty-stops"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["empty-stops"].label.hasPrefix("No stops within "))
-        let farther = app.buttons["search-farther"]
-        assertTarget(farther)
-        assertTarget(app.buttons["Choose an area"])
+        XCTAssertFalse(app.buttons["search-farther"].exists)
+        XCTAssertFalse(app.buttons["Choose an area"].exists)
         capture("Home no stops")
-        farther.tap()
-        waitUntil { self.server.radii.contains(800) }
-        XCTAssertEqual(server.radii, [400, 800])
+        pullToRefresh(waitForRequest: false)
+        XCTAssertEqual(Set(server.radii), [400])
         XCTAssertEqual(server.batchCount, 0)
     }
 
@@ -163,34 +173,101 @@ final class DepartsUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["empty-departures"].waitForExistence(timeout: 10))
         XCTAssertEqual(app.staticTexts["empty-departures"].label, "Nothing leaves here in the next hour")
         XCTAssertEqual(rows.count, 0)
-        assertTarget(app.buttons["search-farther"])
+        XCTAssertFalse(app.buttons["search-farther"].exists)
         XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "stop-map-pin").count, 0)
     }
 
-    func testDeniedLocationOffersSettingsAndChosenAreaRemovesNotice() {
+    func testLocationOffShowsSettingsAndPinnedRoutesOnly() {
+        launch(); waitForRows()
+        rows.firstMatch.swipeLeft()
+        app.buttons["pin-route"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Pinned"].waitForExistence(timeout: 5))
+        app.terminate()
+        app.resetAuthorizationStatus(for: .location)
         launch(allowLocation: false)
         XCTAssertTrue(app.staticTexts["location-status"].waitForExistence(timeout: 8))
+        XCTAssertTrue(app.staticTexts["location-status"].label.hasPrefix("Location is off"))
         assertTarget(app.buttons["Open Settings"])
-        capture("Home location denied")
-        chooseArea()
-        waitForRows()
-        XCTAssertFalse(app.staticTexts["location-status"].exists)
+        XCTAssertEqual(rows.count, 0, "No departures for a place the rider may have left")
+        XCTAssertEqual(app.descendants(matching: .any).matching(identifier: "stop-map-pin").count, 0)
+        XCTAssertEqual(app.navigationBars.firstMatch.buttons.count, 1)
         XCTAssertTrue(app.buttons["locate"].label.contains("Location is off"))
+        XCTAssertFalse(app.buttons["Choose an area"].exists)
+        capture("Home location off")
+        let batches = server.batchCount
+        let elsewhere = app.buttons["Pinned elsewhere (1)"]
+        assertTarget(elsewhere)
+        elsewhere.tap()
+        let pinned = app.buttons.matching(NSPredicate(format: "label CONTAINS '13A toward Wien Skodagasse'")).firstMatch
+        XCTAssertTrue(pinned.waitForExistence(timeout: 5))
+        pinned.tap()
+        waitUntil { self.lineRows.count == 4 }
+        XCTAssertEqual(app.staticTexts["detail-stop-name"].label, "Siebensterngasse")
+        XCTAssertTrue(app.descendants(matching: .any)["route-platform"].exists)
+        XCTAssertFalse(app.descendants(matching: .any)["route-origin"].exists, "No walk can start from an unknown place")
+        XCTAssertEqual(server.batchCount, batches)
+        capture("Line pinned with location off")
     }
 
-    func testChoosingAreaResetsListToTopAndSearchTextIsNotTinted() {
+    func testMovingToAnotherPlaceResetsTheListToTheTopAndLooksThere() {
         launch(); waitForRows()
         nearbyList.swipeUp()
         nearbyList.swipeUp()
-        chooseArea(captureSearch: true)
-        waitForRows()
-        waitUntil { self.server.centers.last.map { abs($0.0 - 48.204) < 0.00001 } == true }
-        XCTAssertTrue(app.navigationBars["New area"].waitForExistence(timeout: 5), app.debugDescription)
+        XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 48.204, longitude: 16.357))
+        app.buttons["locate"].tap()
+        waitUntil(timeout: 20) { self.server.centers.last.map { abs($0.0 - 48.204) < 0.0002 && abs($0.1 - 16.357) < 0.0002 } == true }
         let first = rows.matching(NSPredicate(format: "label CONTAINS 'Skodagasse'")).firstMatch
-        XCTAssertTrue(nearbyList.frame.contains(first.frame), "Changing area must reveal the first row again")
+        XCTAssertTrue(first.waitForExistence(timeout: 12), app.debugDescription)
+        XCTAssertTrue(nearbyList.frame.contains(first.frame), "A new area must reveal the first row again")
         XCTAssertLessThan(first.frame.minY - nearbyList.frame.minY, 65)
-        XCTAssertTrue(server.centers.last.map { abs($0.0 - 48.204) < 0.00001 && abs($0.1 - 16.357) < 0.00001 } == true)
-        capture("Home changed area at top")
+        XCTAssertEqual(Set(server.radii), [400])
+        XCTAssertTrue(app.navigationBars["Near you"].exists)
+        capture("Home after moving")
+    }
+
+    func testCoarseFixExplainsItselfAndAPreciseOneRecovers() {
+        // What Precise Location off produces: a fix arrives, too coarse to use.
+        app.launchEnvironment["DEPARTS_TEST_LOCATION_ACCURACY"] = "800"
+        launch()
+        let status = app.staticTexts["location-status"]
+        XCTAssertTrue(status.waitForExistence(timeout: 12), app.debugDescription)
+        XCTAssertTrue(status.label.hasPrefix("Couldn't find your location"))
+        XCTAssertFalse(app.staticTexts["Finding departures…"].exists)
+        assertTarget(app.buttons["Try again"])
+        assertTarget(app.buttons["Open Settings"])
+        XCTAssertTrue(app.buttons["locate"].label.contains("Location not found"))
+        XCTAssertEqual(rows.count, 0)
+        XCTAssertEqual(server.radii, [], "Nothing is searched from a place this uncertain")
+        capture("Home location not found")
+        app.buttons["Try again"].tap()
+        XCTAssertTrue(status.waitForExistence(timeout: 12), "Still coarse: the explanation returns")
+        XCTAssertEqual(server.radii, [])
+        app.terminate()
+        app.launchEnvironment["DEPARTS_TEST_LOCATION_ACCURACY"] = nil
+        app.launch()
+        waitForRows()
+        XCTAssertFalse(status.exists)
+        XCTAssertTrue(app.navigationBars["Near you"].exists)
+    }
+
+    func testCoarseFixKeepsTheLastAreaAndNamesWhereTheWalkStarts() {
+        launch(); waitForRows()
+        app.terminate()
+        app.launchEnvironment["DEPARTS_TEST_LOCATION_ACCURACY"] = "800"
+        app.launch()
+        XCTAssertTrue(app.navigationBars["Last area"].waitForExistence(timeout: 8))
+        waitForRows()
+        waitUntil(timeout: 15) { self.rows.firstMatch.label.contains(". In ") || self.rows.firstMatch.label.contains(". Now.") }
+        XCTAssertTrue(app.buttons["locate"].label.contains("Showing your last area"))
+        XCTAssertFalse(app.staticTexts["location-status"].exists, "A saved area is more use than an apology")
+        XCTAssertTrue(app.navigationBars["Last area"].exists)
+        rows.firstMatch.tap()
+        waitUntil { self.lineRows.count == 4 }
+        let origin = app.descendants(matching: .any)["route-origin"]
+        XCTAssertTrue(origin.waitForExistence(timeout: 5))
+        XCTAssertEqual(origin.label, "Last location")
+        XCTAssertTrue(app.staticTexts["detail-stop-name"].label.contains("from this area"))
+        capture("Line from the last area")
     }
 
     func testMapOneRowOpensLineAndSeveralRowsScrollAndSelect() {
@@ -208,6 +285,20 @@ final class DepartsUITests: XCTestCase {
         single.tap()
         XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
         XCTAssertTrue(app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS '48A'")).firstMatch.exists)
+    }
+
+    func testLocationButtonBringsAPannedMapBack() {
+        launch(); waitForRows()
+        let label = app.buttons.matching(NSPredicate(format: "identifier == 'stop-map-pin' AND label CONTAINS 'Subway U3'")).firstMatch
+        XCTAssertTrue(label.waitForExistence(timeout: 8))
+        let home = label.frame
+        homeMap.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
+            .press(forDuration: 0.1, thenDragTo: homeMap.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.6)),
+                   withVelocity: .slow, thenHoldForDuration: 0.3)
+        waitUntil { !label.exists || abs(label.frame.midX - home.midX) > 30 || abs(label.frame.midY - home.midY) > 30 }
+        app.buttons["locate"].tap()
+        waitUntil { label.exists && abs(label.frame.midX - home.midX) < 3 && abs(label.frame.midY - home.midY) < 3 }
+        XCTAssertEqual(Set(server.radii), [400], "Returning to the circle searches nothing new")
     }
 
     func testCountdownLeavesOrderUntouchedAndRowsSpeakNoDecorativeState() {
@@ -369,12 +460,18 @@ final class DepartsUITests: XCTestCase {
     func testWalkingDirectionsOpensAppleMaps() {
         launch(); waitForRows(); rows.firstMatch.tap()
         XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
+        // Maps plans a walk only with its own location permission. On a new
+        // simulator grant it first: xcrun simctl privacy <id> grant location com.apple.Maps.
+        // Granting it through the prompt makes iOS ask about Maps widgets later,
+        // on top of whichever test is running.
         app.buttons["walking-directions"].tap()
         let maps = XCUIApplication(bundleIdentifier: "com.apple.Maps")
         XCTAssertTrue(maps.wait(for: .runningForeground, timeout: 10))
-        for title in ["Continue", "Allow Once", "Not Now"] {
-            let button = maps.buttons[title].firstMatch
-            if button.waitForExistence(timeout: 1) { button.tap() }
+        // A new simulator shows Maps' own first-run sheets, in an order that varies.
+        for _ in 0..<4 {
+            let prompts = ["Continue", "Not Now"].map { maps.buttons[$0].firstMatch }
+            guard let prompt = prompts.first(where: { $0.waitForExistence(timeout: 1) }) else { break }
+            prompt.tap()
         }
         // Maps 26 exposes a waypoint cell and a labeled segmented button;
         // Maps 27 exposes the destination and mode as identified buttons.
@@ -391,15 +488,14 @@ final class DepartsUITests: XCTestCase {
         print("APPLE_MAPS walkingSelected=\(walk.isSelected) destination=\(destination.label)")
     }
 
-    func testLineWithoutWalkingRouteShowsBothEndpointsAndAreaOrigin() {
+    func testLineWithoutWalkingRouteStillShowsBothEndpoints() {
         server.setDirectionsFailed(true)
-        launch(allowLocation: false)
-        chooseArea(); waitForRows(); rows.firstMatch.tap()
+        launch(); waitForRows(); rows.firstMatch.tap()
         waitUntil { self.lineRows.count == 4 }
-        XCTAssertTrue(app.staticTexts["detail-stop-name"].label.contains("from this area"))
+        XCTAssertEqual(app.staticTexts["detail-stop-name"].label, "Siebensterngasse")
         let origin = app.descendants(matching: .any)["route-origin"]
         XCTAssertTrue(origin.exists)
-        XCTAssertEqual(origin.label, "Searched area")
+        XCTAssertEqual(origin.label, "Walking start")
         XCTAssertTrue(app.descendants(matching: .any)["route-platform"].exists)
         XCTAssertTrue(lineMap.exists)
         capture("Line without walking route")
@@ -503,18 +599,6 @@ final class DepartsUITests: XCTestCase {
                    withVelocity: .slow, thenHoldForDuration: 0.5)
         if waitForRequest { waitUntil { self.server.batchCount > count } }
     }
-    private func chooseArea(captureSearch: Bool = false) {
-        app.buttons["choose-area"].tap()
-        let query = app.textFields["area-query"]
-        XCTAssertTrue(query.waitForExistence(timeout: 5))
-        query.tap(); query.typeText("New area")
-        if app.keyboards.buttons["Search"].exists { app.keyboards.buttons["Search"].tap() }
-        let result = app.buttons["area-result"].firstMatch
-        XCTAssertTrue(result.waitForExistence(timeout: 5))
-        assertTarget(result)
-        if captureSearch { capture("Search result contrast") }
-        result.tap()
-    }
     private func launch(allowLocation: Bool = true) {
         app.launch()
         let alert = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch
@@ -613,8 +697,6 @@ private final class TransitFixtureServer {
     private func response(to url: URLComponents) -> Any {
         func value(_ name: String) -> String? { url.queryItems?.first { $0.name == name }?.value }
         switch url.path {
-        case "/test/places":
-            return [["name": "New area", "coordinate": ["lat": 48.204, "lon": 16.357], "source": "chosen"]]
         case "/api/stops/nearby":
             requestedRadii.append(Int(value("radius") ?? "0") ?? 0)
             let lat = Double(value("lat") ?? "0")!, lon = Double(value("lon") ?? "0")!

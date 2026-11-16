@@ -4,8 +4,9 @@ import MapKit
 struct StopsMapView: UIViewRepresentable {
     let userCoordinate: CLLocationCoordinate2D?
     let groups: [TransitStore.StopGroup]
-    var radius: Int = 400
     var selectedStopID: String? = nil
+    /// Changes when the rider asks for the map to return to the searched circle.
+    var recenter = 0
     var onSelect: (String?) -> Void = { _ in }
 
     func makeUIView(context: Context) -> MKMapView {
@@ -24,17 +25,25 @@ struct StopsMapView: UIViewRepresentable {
         context.coordinator.onSelect = onSelect
         context.coordinator.restoringSelection = true
         defer { context.coordinator.restoringSelection = false }
+        let radius = Double(TransitStore.radius)
         if let userCoordinate {
             let center = Coordinate(lat: userCoordinate.latitude, lon: userCoordinate.longitude)
-            if context.coordinator.regionCenter != center || context.coordinator.radius != radius {
+            let moved = context.coordinator.regionCenter != center
+            if moved || context.coordinator.recenter != recenter {
                 map.setRegion(MKCoordinateRegion(center: userCoordinate,
-                    latitudinalMeters: Double(radius) * 2.4, longitudinalMeters: Double(radius) * 2.4), animated: false)
-                context.coordinator.regionCenter = center
-                context.coordinator.radius = radius
-                map.removeOverlays(map.overlays)
-                map.addOverlay(MKCircle(center: userCoordinate, radius: CLLocationDistance(radius)))
+                    latitudinalMeters: radius * 2.4, longitudinalMeters: radius * 2.4), animated: !moved)
             }
+            if moved {
+                context.coordinator.regionCenter = center
+                map.removeOverlays(map.overlays)
+                map.addOverlay(MKCircle(center: userCoordinate, radius: radius))
+            }
+        } else if context.coordinator.regionCenter != nil {
+            // Location was turned off: no circle may claim an area is searched.
+            context.coordinator.regionCenter = nil
+            map.removeOverlays(map.overlays)
         }
+        context.coordinator.recenter = recenter
 
         let groupsByID = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, $0) })
         for pin in map.annotations.compactMap({ $0 as? StopAnnotation }) {
@@ -77,7 +86,7 @@ struct StopsMapView: UIViewRepresentable {
     final class Coordinator: NSObject, MKMapViewDelegate {
         var onSelect: (String?) -> Void = { _ in }
         var regionCenter: Coordinate?
-        var radius: Int?
+        var recenter = 0
         var restoringSelection = false
 
         func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {

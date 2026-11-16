@@ -4,15 +4,14 @@ struct NearbyStopsView: View {
     @Bindable var store: TransitStore
     let locationState: LocationService.State
     let onSelect: (StopLineSelection) -> Void
-    let onSearch: () -> Void
     let onLocate: () -> Void
     let onRefresh: () async -> Void
-    var onChooseArea: (SearchArea) -> Void = { _ in }
     var onDistantPins: () -> Void = {}
     var interactionID = "nearby"
     @Environment(\.dynamicTypeSize) private var textSize
     @Environment(\.openURL) private var openURL
     @State private var selectedMapStop: String?
+    @State private var recenter = 0
     @State private var countdownStart = Date.now
 
     var body: some View {
@@ -69,9 +68,6 @@ struct NearbyStopsView: View {
                                     .id(group.id)
                                 }
                             }
-                            if store.canSearchFarther, !store.isLoadingStops, store.home.checkedAt != nil {
-                                searchFarther
-                            }
                         }
                         .listStyle(.plain)
                         .id(store.areaRevision)
@@ -93,18 +89,13 @@ struct NearbyStopsView: View {
         }
         .navigationTitle(areaTitle)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarTitleMenu {
-            Button("Current location", systemImage: "location", action: onLocate)
-            ForEach(Array(store.recentAreas.enumerated()), id: \.offset) { _, area in
-                Button(area.name, systemImage: "clock.arrow.circlepath") { onChooseArea(area) }
-            }
-            Button("Search for a place…", systemImage: "magnifyingglass", action: onSearch)
-        }
         .toolbar {
-            ToolbarItemGroup(placement: .topBarTrailing) {
-                Button("Choose area", systemImage: "magnifyingglass", action: onSearch)
-                    .accessibilityIdentifier("choose-area")
-                Button("Use my location", systemImage: store.followsLocation ? "location.fill" : "location", action: onLocate)
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Use my location", systemImage: showsCurrentLocation ? "location.fill" : "location") {
+                    // The only way back after panning the map away.
+                    recenter += 1
+                    onLocate()
+                }
                     .accessibilityLabel(String(localized: "Use my location. \(locationValue)."))
                     .accessibilityIdentifier("locate")
             }
@@ -112,8 +103,8 @@ struct NearbyStopsView: View {
     }
 
     private func map(width: CGFloat, proxy: ScrollViewProxy) -> some View {
-        StopsMapView(userCoordinate: store.area?.coordinate.clLocationCoordinate2D, groups: store.mapGroups,
-                     radius: store.radius, selectedStopID: selectedMapStop) { selected in
+        StopsMapView(userCoordinate: store.center?.clLocationCoordinate2D, groups: store.mapGroups,
+                     selectedStopID: selectedMapStop, recenter: recenter) { selected in
             selectedMapStop = selected
             guard let group = store.mapGroups.first(where: { $0.id == selected }) else { return }
             if group.active.count == 1, let selection = group.active.first { onSelect(selection) }
@@ -127,31 +118,30 @@ struct NearbyStopsView: View {
     }
 
     @ViewBuilder private func states(at date: Date) -> some View {
-        if let error = store.stopsError {
+        if locationState == .denied {
+            Text("Location is off. Turn it on to see what leaves near you.").accessibilityIdentifier("location-status")
+            settingsButton
+        } else if let error = store.stopsError {
             Text(error).accessibilityIdentifier("stops-error")
             Button { Task { await onRefresh() } } label: {
                 Label("Try again", systemImage: "arrow.clockwise").frame(minHeight: 44)
             }.foregroundStyle(.tint)
-        } else if locationState == .denied, store.area == nil {
-            Text("Location is off. Choose an area or use a pinned route.").accessibilityIdentifier("location-status")
-            Button { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } } label: {
-                Label("Open Settings", systemImage: "gear").frame(minHeight: 44)
+        } else if locationState == .failed, store.center == nil {
+            // Without a position there is nothing to show. Precise Location
+            // off is the lasting cause, so Settings is offered beside a retry.
+            Text("Couldn't find your location. Check that Precise Location is on.").accessibilityIdentifier("location-status")
+            Button(action: onLocate) {
+                Label("Try again", systemImage: "arrow.clockwise").frame(minHeight: 44)
             }.foregroundStyle(.tint)
-            chooseAreaButton
+            settingsButton
         } else if store.home.checkedAt == nil, store.departuresError != nil {
             Button { Task { await onRefresh() } } label: {
                 Label("Couldn't load departures · Retry", systemImage: "arrow.clockwise").frame(minHeight: 44)
             }.foregroundStyle(.tint).accessibilityIdentifier("refresh-list")
-        } else if store.isLoadingStops || store.home.checkedAt == nil && (store.stopsCheckedAt == nil || !store.stops.isEmpty) {
+        } else if store.home.checkedAt == nil, store.isLoadingStops || store.stopsCheckedAt == nil || !store.stops.isEmpty {
             Label("Finding departures…", systemImage: "clock").accessibilityIdentifier("board-status")
-            if case .failed = locationState, store.area == nil {
-                Text("Couldn't find your location. Choose an area or try again.")
-                chooseAreaButton
-            }
         } else if store.stops.isEmpty {
-            Text("No stops within \(TransitFormat.distance(Double(store.radius)))").accessibilityIdentifier("empty-stops")
-            if store.canSearchFarther { searchFarther }
-            chooseAreaButton
+            Text("No stops within \(TransitFormat.distance(Double(TransitStore.radius)))").accessibilityIdentifier("empty-stops")
         } else {
             if store.needsListRefresh(at: date) { refreshBanner }
             if store.displayedOptions.isEmpty, store.home.missing.isEmpty {
@@ -173,22 +163,20 @@ struct NearbyStopsView: View {
         .foregroundStyle(.tint)
         .accessibilityIdentifier("refresh-list")
     }
-    private var chooseAreaButton: some View {
-        Button(action: onSearch) { Label("Choose an area", systemImage: "magnifyingglass").frame(minHeight: 44) }
-            .foregroundStyle(.tint)
+    private var settingsButton: some View {
+        Button { if let url = URL(string: UIApplication.openSettingsURLString) { openURL(url) } } label: {
+            Label("Open Settings", systemImage: "gear").frame(minHeight: 44)
+        }.foregroundStyle(.tint)
     }
-    private var searchFarther: some View {
-        Button { Task { await store.searchFarther() } } label: {
-            Label("Search farther · \(TransitFormat.distance(store.radius == 400 ? 800 : 1600))", systemImage: "arrow.up.left.and.arrow.down.right")
-                .frame(minHeight: 44)
-        }.foregroundStyle(.tint).disabled(store.isLoadingStops).accessibilityIdentifier("search-farther")
-    }
+    private var showsCurrentLocation: Bool { store.location?.isUsable(at: .now) == true }
     private var areaTitle: String {
-        store.area?.source == .chosen ? store.area!.name : store.location?.isUsable(at: .now) == true ? String(localized: "Near you") : store.area == nil ? "Departs" : String(localized: "Last area")
+        showsCurrentLocation ? String(localized: "Near you") : store.center == nil ? "Departs" : String(localized: "Last area")
     }
     private var locationValue: String {
-        locationState == .denied ? String(localized: "Location is off") : store.followsLocation
-            ? String(localized: "Following your location") : String(localized: "Showing a chosen or saved area")
+        if locationState == .denied { return String(localized: "Location is off") }
+        if showsCurrentLocation { return String(localized: "Following your location") }
+        if store.center != nil { return String(localized: "Showing your last area") }
+        return locationState == .failed ? String(localized: "Location not found") : String(localized: "Finding your location")
     }
     private func row(_ selection: StopLineSelection, at date: Date, showStop: Bool = false) -> some View {
         StopRowView(selection: selection, board: store.home.boards[selection.id],

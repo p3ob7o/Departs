@@ -5,7 +5,7 @@ enum PreviewData {
     @MainActor static func makeStore() -> TransitStore {
         let storage = TransitPersistence(defaults: UserDefaults(suiteName: "departs-preview-\(UUID())")!)
         let client = TransitClient(
-            stops: { _, _ in stops },
+            stops: { _ in stops },
             departures: { selection in
                 [7, 12, 20].map { minutes in
                     Departure(time: Date.now.addingTimeInterval(Double(minutes * 60)).ISO8601Format(),

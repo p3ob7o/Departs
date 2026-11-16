@@ -2,12 +2,12 @@
 
 | | |
 | --- | --- |
-| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). |
+| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). |
 | Date | 16 November 2026 |
 | Based on | Departs 1.1 (6), `main` at `6430c94` |
 | Branch | `feat/ios-two-screens` |
 | Replaces | The list, detail and map design in [ios-design-improvements.md](ios-design-improvements.md): its sections 1 to 5 and 7, and the split view and landscape work of its Phase 5 |
-| Keeps | That plan's accessibility repairs, string catalog, icon variants, mode colors, search with recent places, pins, and the 60-second freshness rule |
+| Keeps | That plan's accessibility repairs, string catalog, icon variants, mode colors, pins, and the 60-second freshness rule. Search with recent places was kept at first and removed by O11 |
 | Affects | The iPhone Duo and iPad plans (PRs #18 and #19). Both must be rewritten on top of this plan |
 
 ## Summary
@@ -44,13 +44,36 @@ Paolo made these on 16 November 2026. They are settled.
 
 Where this plan fills a gap the owner did not decide, it says so and lists the choice under [Accepted choices](#accepted-choices) as A1 to A9.
 
+## Amendment: around you only
+
+After Departs 1.2 (7) reached TestFlight, Paolo added three decisions on the evening of 16 November 2026. They are settled, and they ship as Departs 1.2 (8).
+
+| ID | Decision |
+| --- | --- |
+| O10 | The search radius is 400 m, always. "This app is minimalistic and opinionated. It looks in a 400m radius, period." The "Search farther" link and its 800 m and 1600 m steps go. |
+| O11 | Place search goes entirely: the search button, the title menu, recent places and every "Choose an area" action. The app shows only what is around you. |
+| O12 | With location off, the app shows pinned routes only. |
+
+These follow from the three decisions and were chosen while implementing them. Paolo has not reviewed them one by one.
+
+| ID | Question | Choice |
+| --- | --- | --- |
+| A10 | What stays in the top bar | The location button, as in the option Paolo picked. It asks for a new fix and brings a panned map back to the circle. The title is plain text |
+| A11 | What "pinned routes only" means for the last area | With location off the last area is forgotten, not refreshed. Pinned routes stay behind "Pinned elsewhere (n)". A pinned line opened then shows its stop without a walking origin |
+| A12 | No usable fix: none within 8 seconds, an error, or accuracy worse than 100 m, which is what Precise Location off produces | Without a saved area: "Couldn't find your location. Check that Precise Location is on.", with "Try again" and "Open Settings". With a saved area the list stays, titled "Last area". Before, home waited on "Finding departures…" for a request that was never made |
+| A13 | Saved data from 1.2 (7) that describes a searched place or a wider radius | Discarded on first launch |
+| A14 | The backend | Unchanged. The app still sends `radius=400`. The endpoint keeps accepting 100 to 2000 m for installed builds |
+| A15 | A new fix at the same spot | Within 150 m the centre of the area stays, and stops older than five minutes are refreshed in place. Found by the test of 1.2 (7): on a phone the list was emptied and reloaded about every five minutes, because two fixes never have identical coordinates |
+
+The home sketch, the states table and the risks below are updated. The phases, test findings and appendices keep their original wording as a record. T6, T7 and T12 concerned search results and a chosen area. They no longer apply.
+
 ## The two screens
 
 ### Home
 
 ```
 ┌──────────────────────────────────────────┐
-│ Near you ▾                       ⌕   ➤   │  title menu · search · locate
+│ Near you                             ➤   │  title · locate (O11)
 ├──────────────────────────────────────────┤
 │                                          │
 │              ▐13A·49▌                    │
@@ -150,11 +173,13 @@ The freshness rules in [ios-fast-answers.md](../ios-fast-answers.md) stay: a boa
 | S4 | A refresh failed | The same rows in the same order, with clock times. One banner row: "Saved times from 13:15 · Refresh" |
 | S5 | A response lacks some platforms | Rows from those platforms as in S4. Banner: "Some times couldn't update · Retry". A stop with nothing saved gets one row under its header: "Couldn't load this stop · Retry". Never one row per line |
 | S6 | The stops request failed on first load | The error and "Try again". Not "No stops in this area", and not "Checking departures…" |
-| S7 | No stop inside the radius | "No stops within 400 m", with "Search farther" and "Choose an area" |
-| S8 | Stops, but nothing within 60 minutes | "Nothing leaves here in the next hour", with "Search farther" |
-| S9 | Location denied, no area chosen | The explanation, "Open Settings" and "Choose an area" |
-| S10 | Location denied, area chosen | No notice. The location button reports "Location is off" to VoiceOver |
-| S11 | The area changes | The list returns to the top and the map recenters |
+| S7 | No stop inside the radius | "No stops within 400 m". No other search is offered (O10, O11) |
+| S8 | Stops, but nothing within 60 minutes | "Nothing leaves here in the next hour". No other search is offered (O10) |
+| S9 | Location off | The explanation and "Open Settings". No departures and no map labels. Pinned routes stay reachable. The location button reports "Location is off" to VoiceOver (O12, A11) |
+| S10 | Location denied, area chosen | Removed with place search (O11) |
+| S11 | The rider moves more than 150 m | The list returns to the top and the map recenters. A fix closer than that changes neither (A15) |
+| S12 | No usable fix, nothing saved | "Couldn't find your location. Check that Precise Location is on.", with "Try again" and "Open Settings" (A12) |
+| S13 | No usable fix, an area saved | The saved rows, titled "Last area", with their times updating. Walks are measured "from this area" |
 
 "Try again", "Retry", "Refresh" and "Open Settings" are drawn as buttons, in the tint color with a symbol.
 
@@ -352,7 +377,8 @@ These filled gaps in the owner's initial decisions. Paolo reviewed A1–A9 on 16
 
 - **A line's other direction can be missed.** Rule 5 hides a direction when the nearest stop serves one direction with two destinations and the opposite direction leaves from a differently named stop. Check with the one-way pairs around the test location before release.
 - **One request, one failure.** A failed departures call now affects the whole list. Rules 9 and 20 keep the last list on screen, and the server retries once.
-- **Night.** With idle lines hidden, state S8 will be common at night. Its wording and "Search farther" need a check on a device.
+- **Night.** With idle lines hidden, state S8 will be common at night. Since O10 it offers nothing else to do. Its wording needs a check on a device.
+- **Location is the only input.** Since O11 there is no way around a missing or coarse fix. States S9, S12 and S13 cover it. They need a check on a device, indoors and with Precise Location off.
 - **Less room for the list.** The square map leaves 356 pt on an iPhone 17 Pro and 218 pt on a 667-pt display.
 - **Provider limits.** The number of ids per HERE call and its cost per call are unverified until Phase 0.
 - **Large hubs.** A platform with more than 25 lines and destinations can still exceed the 50-departure cap. Lines beyond it are not listed. No such platform is in the sample.

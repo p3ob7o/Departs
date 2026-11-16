@@ -21,7 +21,6 @@ final class TransitSession {
     private var windows: [UUID: WindowDemand] = [:]
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var locationTask: Task<Void, Never>?
-    @ObservationIgnored private var areaTask: Task<Void, Never>?
     @ObservationIgnored private var lastLocationDate: Date?
 
     struct WindowDemand {
@@ -66,6 +65,11 @@ final class TransitSession {
     }
 
     func receivedLocation() {
+        if locationService.state == .denied {
+            locationTask?.cancel()
+            store.clearArea()
+            return
+        }
         guard !windows.isEmpty, let fix = locationService.fix,
               fix.capturedAt != lastLocationDate else { return }
         lastLocationDate = fix.capturedAt
@@ -76,6 +80,8 @@ final class TransitSession {
     func refreshVisibleAnswers() async {
         let demands = Array(windows.values)
         guard !demands.isEmpty else { return }
+        // Before anything is requested: with location off there is no area.
+        if locationService.state == .denied { store.clearArea() }
         var seen = Set<String>()
         let selections = demands.compactMap(\.selection).filter { seen.insert($0.id).inserted }
         let showsList = demands.contains { $0.showsList }
@@ -91,25 +97,17 @@ final class TransitSession {
         }
     }
 
-    func chooseArea(_ area: SearchArea) {
-        locationTask?.cancel()
-        areaTask?.cancel()
-        areaTask = Task { await store.loadArea(area) }
-    }
-
     func locate() {
-        store.followsLocation = true
         locationService.requestLocation()
         if let fix = locationService.fix, fix.isUsable(at: .now) {
-            areaTask?.cancel()
             locationTask?.cancel()
             locationTask = Task { await store.updateLocation(fix) }
         }
     }
 
     func refresh() async {
-        if store.followsLocation { locationService.requestLocation() }
-        if let area = store.area, store.stopsError != nil { await store.loadArea(area, radius: store.radius, forceRefresh: true) }
+        locationService.requestLocation()
+        if let center = store.center, store.stopsError != nil { await store.loadArea(center, forceRefresh: true) }
         else { await store.refreshAnswers(force: true) }
     }
 }
