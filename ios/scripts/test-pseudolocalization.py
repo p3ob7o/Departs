@@ -34,8 +34,8 @@ german = {
     "%@ walk from this area": "%@ Fußweg ab diesem Suchgebiet",
     "%lld line with nothing soon": "%lld Linie ohne baldige Abfahrt",
     "%lld lines with nothing soon": "%lld Linien ohne baldige Abfahrt",
-    "For the %1$@ scheduled arrival. Includes %2$@ extra.": "Für die planmäßige Ankunft um %1$@. Mit %2$@ zusätzlicher Zeit.",
-    "For the %1$@ live arrival. Includes %2$@ extra.": "Für die aktuelle Ankunft um %1$@. Mit %2$@ zusätzlicher Zeit.",
+    "For the %1$@ scheduled departure. Includes %2$@ extra.": "Für die planmäßige Abfahrt um %1$@. Mit %2$@ zusätzlicher Zeit.",
+    "For the %1$@ live departure. Includes %2$@ extra.": "Für die aktuelle Abfahrt um %1$@. Mit %2$@ zusätzlicher Zeit.",
 }
 accents = str.maketrans("aeiouAEIOU", "áëïöüÁËÏÖÜ")
 placeholder = re.compile(r"(%(?:\d+\$)?(?:lld|ld|d|@)|\$\{[^}]+\})")

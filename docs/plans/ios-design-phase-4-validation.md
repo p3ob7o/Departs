@@ -11,7 +11,7 @@ This phase makes the interface localizable, explains departure advice in everyda
 | Distance at 400 metres | Always “400 m” | German locale: “400 m”; US: “1,300 ft”; UK: “450 yd”; explicit metric override of US locale: “400 m” |
 | Walking duration | Hard-coded “3 min” | Foundation duration formatting: “3 min” in English, “3 Min.” in German; upward walking rounding unchanged |
 | Advice copy | “scheduled estimate · 2 min buffer”; “Saved prediction” | “scheduled departure. Includes 2 min extra”; “Last known departure” |
-| Advice detail at largest text, 402 pt | Six lines in the Phase 3 review | Four lines / 232.7 pt in the final 01:04 AM fixture capture; clock length can change wrapping |
+| Advice detail at largest text, 402 pt | Six lines in the Phase 3 review | Five lines / 290.7 pt with the reviewed “scheduled departure” wording; 375 pt uses six lines / 348.5 pt. The map action remains reachable by scrolling above the toolbar. |
 | Fixture density, 402 / 375 pt | Phase 2: first row 167.3 / 125.5 pt, 8 / 7 full options | Unchanged: 167.3 / 125.5 pt, 8 / 7 full options |
 | Expanded German layout | No catalog or test | Disposable German pseudolocalization build, default and largest accessibility text, with screenshots exported from native tests |
 | Default icon | One 1024 × 1024 PNG | Byte-identical SHA-256: d434b6d1494b397ad0427b3b5c6cd75028a579d1f95da01dfd3eb2d78039d0a3 |
@@ -68,6 +68,8 @@ Native unit/UI checks use Xcode 27.0, the pinned iOS 27.0 simulator runtime, nor
 - After the search-label adjustment: **68 unit tests and all three affected search UI flows passed**, including choosing a place, denied-location recovery and walking handoff. Result bundle: /tmp/departs-p4-search-finished-402.xcresult.
 - **German pseudolocalization UI checks passed at both widths**, at default and largest accessibility text sizes, including the search sheet and the native toolbar overflow menu. Final bundles: /tmp/departs-p4-german-402-label.xcresult and /tmp/departs-p4-german-375-finished.xcresult.
 - Catalog compilation, app-icon asset compilation, source hash/pixel checks and git diff whitespace checks passed. Only English resources are included in the normal app.
+
+Review follow-up: the four timetable labels now consistently say **departure**; “plan your arrival” still refers to the rider reaching the stop. List status uses the stable per-cycle set described above. **69 unit tests and all 14 UI tests passed on both phone sizes** after these changes (`/tmp/departs-p4-reviewed.xcresult`, `/tmp/departs-p4-reviewed-375.xcresult`). Both German stress builds passed again (`/tmp/departs-p4-german-reviewed-402.xcresult`, `/tmp/departs-p4-german-reviewed-375.xcresult`). The normal and pseudolocalized fixture captures in this document were replaced with exports from those runs. Density is unchanged at 8 / 7 complete options and 167.3 / 125.5 pt for the first row.
 
 Production checks are read-only app launches at 48.20134, 16.34941 around 00:41–00:42 Vienna time on 16 November 2026, at default and largest accessibility text sizes. These verify the current production API's legacy fallback and actual list content. They do not verify deployment of the grouped handler.
 
