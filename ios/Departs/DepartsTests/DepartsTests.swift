@@ -167,6 +167,12 @@ final class DepartsTests: XCTestCase {
 
     // MARK: - StopPalette
 
+    func testFreshnessUsesWholeMinutesAndPreservesSavedState() {
+        let checked = Date(timeIntervalSince1970: 1000)
+        XCTAssertEqual(TimeFormatter.freshness(checked, now: checked.addingTimeInterval(59), fresh: true), "Updated just now")
+        XCTAssertEqual(TimeFormatter.freshness(checked, now: checked.addingTimeInterval(120), fresh: false), "Saved information · updated 2 min ago")
+    }
+
     func testPaletteCount() {
         XCTAssertEqual(StopPalette.colors.count, 10)
     }

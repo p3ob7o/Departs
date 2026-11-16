@@ -35,7 +35,7 @@ The native MapKit map does not use a public Mapbox token. Local backend startup 
 
 ## Architecture
 
-- SwiftUI with `@Observable` view models, iOS 17+, zero third-party iOS dependencies.
+- SwiftUI with `@Observable` view models, iOS 26+, zero third-party iOS dependencies. Guard iOS 27-only APIs with availability checks.
 - MapKit through `UIViewRepresentable` wrappers, system light/dark appearance.
 - `ContentView` switches between nearby stops and a selected stop/line departure board.
 - `APIService` is an actor using URLSession async/await.

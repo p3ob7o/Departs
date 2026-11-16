@@ -37,13 +37,24 @@ final class DepartsUITests: XCTestCase {
         XCTAssertTrue(option.waitForExistence(timeout: 12))
         XCTAssertTrue(app.staticTexts["Then · Scheduled"].waitForExistence(timeout: 8))
         XCTAssertFalse(app.maps.firstMatch.exists, "A map must not delay the opening answer")
+        for identifier in ["choose-area", "pin-route", "search-farther"] {
+            let control = app.buttons[identifier].firstMatch
+            XCTAssertGreaterThanOrEqual(control.frame.height, 44, identifier)
+            XCTAssertGreaterThanOrEqual(control.frame.width, 44, identifier)
+            print("TARGET \(identifier): \(control.frame)")
+        }
+        for title in ["Nearby", "Pinned (0)"] {
+            let control = app.buttons[title]
+            XCTAssertGreaterThanOrEqual(control.frame.height, 44)
+            print("TARGET filter: \(control.frame)")
+        }
         capture("Nearby departures")
         app.buttons["pin-route"].firstMatch.tap()
         XCTAssertTrue(app.buttons["unpin-route"].firstMatch.exists)
         app.terminate()
         app.launch()
         XCTAssertTrue(app.buttons["unpin-route"].firstMatch.waitForExistence(timeout: 5))
-        app.segmentedControls.buttons["Pinned (1)"].tap()
+        app.buttons["Pinned (1)"].tap()
         XCTAssertEqual(app.buttons.matching(identifier: "departure-option").count, 1)
 
         let id = ["fixture-stop", "tram", "49", "Hütteldorf"].map { "\($0.utf8.count):\($0)" }.joined()

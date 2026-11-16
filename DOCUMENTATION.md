@@ -1,6 +1,6 @@
 # Departs implementation guide
 
-Departs answers “What is leaving near me?” in a native iOS app. The browser client has been retired. The backend remains on Vercel because installed iOS builds depend on it.
+Departs answers “What is leaving near me?” in a native app requiring iOS 26 or later. The owner approved this minimum during the design implementation on 15 November 2026. iOS 27-only APIs require availability checks. The browser client has been retired. The backend remains on Vercel because installed iOS builds depend on it.
 
 ## Native app
 

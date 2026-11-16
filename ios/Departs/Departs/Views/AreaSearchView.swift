@@ -70,8 +70,7 @@ struct AreaSearchView: View {
                         .textInputAutocapitalization(.words).submitLabel(.search)
                         .focused($queryFocused)
                         .accessibilityIdentifier("area-query")
-                } footer: {
-                    Text("Choose where to look for departures. No location permission needed.")
+
                 }
                 if model.loading { ProgressView("Finding places…") }
                 if let error = model.error { Text(error).foregroundStyle(.secondary) }
