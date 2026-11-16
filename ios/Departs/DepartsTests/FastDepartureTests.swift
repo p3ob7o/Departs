@@ -1,4 +1,5 @@
 import XCTest
+import Observation
 @testable import Departs
 
 final class FastDepartureTests: XCTestCase {
@@ -157,6 +158,73 @@ final class FastDepartureTests: XCTestCase {
         requested = []
         await store.refreshAnswers(force: true)
         XCTAssertEqual(Set(requested), ["s9", "s11"], "Explicit refresh bypasses recency, but not visibility")
+    }
+
+    @MainActor func testSavedHeaderKeepsItsStatusWhenItPushesEveryRowOffscreen() async {
+        let disk = persistence()
+        let stop = stop()
+        let selected = stop.lineSelections[0]
+        disk.saveNearby(.init(area: area, radius: 400, stops: [stop], checkedAt: instant))
+        disk.saveBoards([selected.id: .init(departures: [departure(7)], checkedAt: instant)])
+        let store = makeStore(persistence: disk)
+        store.setVisible([stop], elementID: "row", visible: true)
+        XCTAssertTrue(store.needsListRefresh(at: instant))
+        store.setVisible([stop], elementID: "row", visible: false)
+        XCTAssertTrue(store.needsListRefresh(at: instant), "An empty viewport is not evidence of fresh data")
+        await store.refreshAnswers()
+        XCTAssertFalse(store.needsListRefresh(at: instant), "Opening refresh must revalidate cached boards even with only the header visible")
+    }
+
+    @MainActor func testFailedHeaderAtViewportEdgeCannotToggleListFreshness() async {
+        var time = instant
+        let fresh = stop("fresh"), failed = stop("failed")
+        let nearby = [fresh, failed]
+        var requested: [String] = []
+        var api = client()
+        let line = self.line, departures = [departure(7)]
+        api.stops = { _, _ in nearby }
+        api.grouped = { id in
+            requested.append(id)
+            if id == "failed" { throw URLError(.notConnectedToInternet) }
+            return .init(groups: [.init(line: line, departures: departures)], complete: true)
+        }
+        let store = TransitStore(client: api, persistence: persistence(), now: { time })
+        await store.loadArea(area)
+        store.setVisible([fresh], elementID: "row-fresh", visible: true)
+        store.setVisible([failed], elementID: "header-at-bottom-edge", visible: true)
+        XCTAssertTrue(store.needsListRefresh(at: time))
+
+        // Adding Refresh now pushes only the failed section header offscreen.
+        // Its failed status must survive that visibility change, even though
+        // a fresh row still occupies the viewport.
+        for _ in 0..<3 {
+            store.setVisible([failed], elementID: "header-at-bottom-edge", visible: false)
+            XCTAssertTrue(store.needsListRefresh(at: time))
+            XCTAssertEqual(store.displayedOptions.map(\.stop.id), ["fresh", "failed"])
+            store.setVisible([failed], elementID: "header-at-bottom-edge", visible: true)
+        }
+        store.setVisible([failed], elementID: "header-at-bottom-edge", visible: false)
+        time.addTimeInterval(30)
+        requested = []
+        await store.refreshAnswers()
+        XCTAssertEqual(requested, ["fresh"], "Stable status must not expand the request set")
+        XCTAssertFalse(store.needsListRefresh(at: time), "The next cycle may discard stops no longer in view")
+    }
+
+    @MainActor func testRepeatedVisibilityCallbacksDoNotRepublishTheList() async {
+        let stop = stop()
+        let store = makeStore()
+        await store.loadArea(area)
+        store.setVisible([stop], elementID: "row", visible: true)
+        let changed = expectation(description: "Repeated visibility must not invalidate the list")
+        changed.isInverted = true
+        withObservationTracking {
+            _ = store.displayedOptions
+        } onChange: {
+            changed.fulfill()
+        }
+        store.setVisible([stop], elementID: "row", visible: true)
+        await fulfillment(of: [changed], timeout: 0.05)
     }
 
     @MainActor func testLegacyRefreshStaysBoundedAfterScrollingEveryStop() async {
@@ -411,14 +479,15 @@ final class FastDepartureTests: XCTestCase {
         let advice = DepartureAdvice.make(board: board, walk: walk, location: fix, now: instant)
         XCTAssertEqual(advice.title, "Leave in 2 min")
         XCTAssertEqual(advice.kind, .leave)
-        XCTAssertTrue(advice.detail.contains("2 min buffer"))
+        XCTAssertTrue(advice.detail.contains("Includes 2 min extra"))
     }
 
     func testEarlierTightDepartureUsesLaterReachableService() {
         let board = DepartureBoard(departures: [departure(1), departure(7)], checkedAt: instant)
         let advice = DepartureAdvice.make(board: board, walk: .init(origin: coordinate, route: route(), checkedAt: instant), location: fix, now: instant)
         XCTAssertEqual(advice.title, "Leave in 2 min")
-        XCTAssertTrue(advice.detail.contains("Earlier departure is tight"))
+        XCTAssertTrue(advice.isTooTight(board.departures[0]))
+        XCTAssertEqual(advice.departureTime, board.departures[1].time)
     }
 
     func testAllTooSoonDoesNotTellUserToRun() {
@@ -456,7 +525,7 @@ final class FastDepartureTests: XCTestCase {
         let board = DepartureBoard(departures: [departure(10, live: false)], checkedAt: instant)
         let walk = CachedWalk(origin: coordinate, route: route(181), checkedAt: instant)
         let advice = DepartureAdvice.make(board: board, walk: walk, location: fix, now: instant)
-        XCTAssertTrue(advice.detail.contains("scheduled estimate"))
+        XCTAssertTrue(advice.detail.contains("scheduled departure"))
         XCTAssertEqual(walk.route.walkingMinutes, 4)
     }
 

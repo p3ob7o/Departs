@@ -18,7 +18,7 @@ Search starts with Current location in its own section and the five most recentl
 - Boards restored from disk remain labeled as saved until successfully checked again, even if their previous fetch was recent.
 - A location must be at most two minutes old and accurate to 100 metres or better for leave-time advice.
 - A walking route is reused for ten minutes within 40 metres of its origin. Walking time rounds up. Routes farther than five kilometres from the origin are not requested.
-- Advice uses the first departure that allows the full walking duration plus a two-minute buffer. The leave countdown rounds down. Scheduled services are explicitly identified as scheduled estimates.
+- Advice uses the first departure that allows the full walking duration plus a two-minute buffer. The leave countdown rounds down. The interface explains this allowance as “2 min extra” and explicitly identifies scheduled arrivals; these remain timetable estimates.
 - Missing location, a stale board, a failed refresh, or a mismatched route suppresses leave-time recommendations. Directions may still be shown from a manually searched area, with that origin labeled.
 - Visible answers refresh on foreground return and every 30 seconds after the previous refresh completes, while active. Countdown labels tick every 15 seconds. A pending location request times out after eight seconds; permission dialogs are not timed out.
 

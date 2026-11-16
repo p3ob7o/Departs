@@ -39,6 +39,7 @@ struct ContentView: View {
         }
         .onChange(of: navigation.pinnedRouteID) { _, _ in openRequestedPin() }
         .onChange(of: store.pins) { _, _ in DepartsShortcuts.updateAppShortcutParameters() }
+        .sensoryFeedback(.selection, trigger: store.pins.map(\.id))
         .onOpenURL { url in
             guard let key = RouteNavigation.pinID(from: url) else { return }
             navigation.pinnedRouteID = key

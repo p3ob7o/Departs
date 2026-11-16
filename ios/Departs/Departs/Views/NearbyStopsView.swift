@@ -16,10 +16,11 @@ struct NearbyStopsView: View {
     @State private var scrollTarget: String?
     @State private var showingDistantPins = false
     @State private var expandedIdle: Set<String> = []
+    @State private var countdownStart = Date.now
 
     var body: some View {
         ScrollViewReader { proxy in
-        TimelineView(.periodic(from: .now, by: 15)) { timeline in
+        TimelineView(.periodic(from: countdownStart, by: 15)) { timeline in
             // Board arrivals also redraw between ticks. Do not compare a new
             // check timestamp with an older timeline tick and call it saved.
             let date = max(timeline.date, Date.now)
@@ -79,7 +80,7 @@ struct NearbyStopsView: View {
                             DisclosureGroup(isExpanded: Binding(get: { expandedIdle.contains(group.id) }, set: { if $0 { expandedIdle.insert(group.id) } else { expandedIdle.remove(group.id) } })) {
                                 ForEach(idle) { row($0, at: date, idle: true) }
                             } label: {
-                                Text(idle.contains { store.boards[$0.id]?.coverageLimit != nil } ? "\(idle.count) more lines" : "\(idle.count) lines with nothing soon")
+                                Text(TransitFormat.idleLines(idle.count, limited: idle.contains { store.boards[$0.id]?.coverageLimit != nil }))
                                     .font(.subheadline).frame(minHeight: 44)
                             }
                             .modifier(VisibleStops(store: store, stops: group.stops, token: "idle-\(group.id)"))
@@ -89,7 +90,7 @@ struct NearbyStopsView: View {
                         HStack {
                             Text(group.name).fontWeight(.semibold).fixedSize(horizontal: false, vertical: true)
                             if !textSize.isAccessibilitySize, let walk = group.stops.compactMap({ store.walk(for: $0, at: date) }).min(by: { $0.route.duration < $1.route.duration }) {
-                                Text(store.location?.isUsable(at: date) == true ? "· \(max(1, walk.route.walkingMinutes)) min walk" : "· \(max(1, walk.route.walkingMinutes)) min walk from this area").fontWeight(.regular)
+                                Text("· \(TransitFormat.walk(walk.route, fromCurrentLocation: store.location?.isUsable(at: date) == true))").fontWeight(.regular)
                             }
                         }
                         .font(.subheadline).textCase(nil)
@@ -114,7 +115,7 @@ struct NearbyStopsView: View {
                 }
                 if store.canSearchFarther {
                     Button { Task { await store.searchFarther() } } label: {
-                        Text("Search farther · \(store.radius == 400 ? "800 m" : "1.6 km")").frame(minHeight: 44)
+                        Text("Search farther · \(TransitFormat.distance(store.radius == 400 ? 800 : 1600))").frame(minHeight: 44)
                     }.foregroundStyle(.tint).disabled(store.isLoadingStops).accessibilityIdentifier("search-farther")
                 }
             }
@@ -140,7 +141,7 @@ struct NearbyStopsView: View {
                 Button("Choose area", systemImage: "magnifyingglass", action: onSearch)
                     .accessibilityIdentifier("choose-area")
                 Button("Use my location", systemImage: store.followsLocation ? "location.fill" : "location", action: onLocate)
-                    .accessibilityValue(store.followsLocation ? "Following your location" : "Showing a chosen or saved area")
+                    .accessibilityValue(store.followsLocation ? String(localized: "Following your location") : String(localized: "Showing a chosen or saved area"))
                 Button("Show nearby map", systemImage: "map") { showingMap = true }
             }
         }
@@ -192,7 +193,7 @@ struct NearbyStopsView: View {
     }
 
     private var areaTitle: String {
-        store.area?.source == .chosen ? store.area!.name : store.location?.isUsable(at: .now) == true ? "Near you" : store.area == nil ? "Departs" : "Last area"
+        store.area?.source == .chosen ? store.area!.name : store.location?.isUsable(at: .now) == true ? String(localized: "Near you") : store.area == nil ? "Departs" : String(localized: "Last area")
     }
 
     private func row(_ selection: StopLineSelection, at date: Date, pinnedSection: Bool = false, idle: Bool = false) -> some View {
@@ -220,8 +221,13 @@ struct NearbyStopsView: View {
         let boards = store.displayedOptions.compactMap { store.boards[$0.id] }
         let timestamp = boards.map(\.checkedAt).min()
         let fresh = !needsRefresh(at: date)
-        let status = timestamp.map { TimeFormatter.freshness($0, now: date, fresh: fresh) } ?? (fresh ? "Checking departures…" : "Couldn't update departures")
-        return "Within \(store.radius) m · \(status)"
+        let radius = TransitFormat.distance(Double(store.radius))
+        if textSize.isAccessibilitySize && fresh {
+            return String(localized: "Within \(radius)")
+        }
+        let status = timestamp.map { TimeFormatter.freshness($0, now: date, fresh: fresh) }
+            ?? (fresh ? String(localized: "Checking departures…") : String(localized: "Couldn't update departures"))
+        return String(localized: "Within \(radius) · \(status)")
     }
 }
 

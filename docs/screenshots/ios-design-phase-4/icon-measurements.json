@@ -1,0 +1,58 @@
+{
+  "source_sha256": "d434b6d1494b397ad0427b3b5c6cd75028a579d1f95da01dfd3eb2d78039d0a3",
+  "transparent_ground_pixels": 981928,
+  "sizes": [
+    {
+      "points": 60,
+      "scale": 2,
+      "wordmark_height_pt": 9.84,
+      "line_thickness_pt": 0.35,
+      "stop_diameter_pt": 1.7
+    },
+    {
+      "points": 40,
+      "scale": 2,
+      "wordmark_height_pt": 6.56,
+      "line_thickness_pt": 0.23,
+      "stop_diameter_pt": 1.13
+    },
+    {
+      "points": 29,
+      "scale": 2,
+      "wordmark_height_pt": 4.76,
+      "line_thickness_pt": 0.17,
+      "stop_diameter_pt": 0.82
+    },
+    {
+      "points": 60,
+      "scale": 3,
+      "wordmark_height_pt": 9.84,
+      "line_thickness_pt": 0.35,
+      "stop_diameter_pt": 1.7
+    },
+    {
+      "points": 40,
+      "scale": 3,
+      "wordmark_height_pt": 6.56,
+      "line_thickness_pt": 0.23,
+      "stop_diameter_pt": 1.13
+    },
+    {
+      "points": 29,
+      "scale": 3,
+      "wordmark_height_pt": 4.76,
+      "line_thickness_pt": 0.17,
+      "stop_diameter_pt": 0.82
+    }
+  ],
+  "source_geometry_px": {
+    "wordmark_bbox": [
+      113,
+      260,
+      913,
+      428
+    ],
+    "line_thickness": 6,
+    "stop_diameter": 29
+  }
+}

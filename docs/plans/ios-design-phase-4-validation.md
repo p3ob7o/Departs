@@ -1,0 +1,87 @@
+# Phase 4: content, motion and identity
+
+This phase makes the interface localizable, explains departure advice in everyday language, animates countdown digits and adds selection feedback for pins. It derives dark and tinted icons from the owner's existing PNG without redrawing any artwork. System accent remains the control color.
+
+## Acceptance and measurements
+
+| Measure | Baseline | Result |
+| --- | --- | --- |
+| Localizable copy | No String Catalog; assembled English fragments | 129 keys in Localizable.xcstrings, plus location permission in InfoPlist.xcstrings; complete messages with reorderable arguments |
+| Count forms | “1 lines” | Catalog singular/plural forms for idle and additional lines |
+| Distance at 400 metres | Always “400 m” | German locale: “400 m”; US: “1,300 ft”; UK: “450 yd”; explicit metric override of US locale: “400 m” |
+| Walking duration | Hard-coded “3 min” | Foundation duration formatting: “3 min” in English, “3 Min.” in German; upward walking rounding unchanged |
+| Advice copy | “scheduled estimate · 2 min buffer”; “Saved prediction” | “scheduled departure. Includes 2 min extra”; “Last known departure” |
+| Advice detail at largest text, 402 pt | Six lines in the Phase 3 review | Five lines / 290.7 pt with the reviewed “scheduled departure” wording; 375 pt uses six lines / 348.5 pt. The map action remains reachable by scrolling above the toolbar. |
+| Fixture density, 402 / 375 pt | Phase 2: first row 167.3 / 125.5 pt, 8 / 7 full options | Unchanged: 167.3 / 125.5 pt, 8 / 7 full options |
+| Expanded German layout | No catalog or test | Disposable German pseudolocalization build, default and largest accessibility text, with screenshots exported from native tests |
+| Default icon | One 1024 × 1024 PNG | Byte-identical SHA-256: d434b6d1494b397ad0427b3b5c6cd75028a579d1f95da01dfd3eb2d78039d0a3 |
+| Appearance variants | None | Dark: only the 981,928 exact ground pixels made transparent. Tinted: deterministic grayscale with Gray Gamma 2.2 profile. Both remain 1024 × 1024 |
+
+The pseudolocalization script copies the native project outside the repository and adds a bounded German stress catalog there. Selected phrases use German word order and lengths; remaining strings use accented, expanded English. This is a layout fixture, not a German translation. Only English ships. Xcode's double-length option on this runtime left format tokens in interpolations/plurals, so those captures were discarded in favor of a real compiled catalog. The search instructions are a wrapping label above the input, since even a vertical TextField truncates its placeholder at large sizes. Typed queries can grow vertically. Native navigation titles retain the system's truncation and overflow behavior; full task instructions and service directions remain in the content.
+
+At accessibility sizes, fresh rows keep the badge, direction, answer and times. Live/scheduled wording remains in the spoken label and detail; saved/failed markers remain visible. The context line retains the radius while fresh, and still shows saved information and refresh recovery when needed. This keeps the answer visible with expanded text instead of shrinking its font.
+
+Visibility callbacks ignore unchanged state. List freshness uses the targets captured at the start of a refresh cycle, plus stops that become visible during that cycle. Leaving view never removes a stop from this status set; only the next refresh or a new area resets it. This removes the layout feedback path where a failed section header at the bottom edge could repeatedly appear and disappear as Refresh now changed the header's height. Requests still use pins and the live viewport, so status stability does not expand request volume. An opening refresh revalidates the first three boards even with only a tall saved-state header visible. Regression tests cover the bottom-edge case, empty viewports and duplicate callbacks. Countdown schedules retain a stable start date, and numeric transitions use Reduce Motion to disable animation. Pin changes trigger system selection feedback.
+
+## Icon review
+
+The asset-catalog implementation follows Apple's [current appearance instructions](https://developer.apple.com/documentation/xcode/configuring-your-app-icon): transparent dark ground and grayscale tinted input. Apple's [icon guidance](https://developer.apple.com/design/human-interface-guidelines/app-icons) still supports bitmap icons and applies the final system mask. No corners or lighting effects are baked into these variants.
+
+The script at ios/scripts/derive-icon-appearances.py checks the source hash, preserves every RGB pixel in the dark variant, generates the grayscale variant, and exports unmodified-artwork size studies. It uses Pillow 13.0.0 as a local tool, not an app dependency. No image model was used.
+
+| Icon size | Wordmark height | Route-line thickness | Stop diameter |
+| --- | --- | --- | --- |
+| 60 pt | 9.84 pt | 0.35 pt | 1.70 pt |
+| 40 pt | 6.56 pt | 0.23 pt | 1.13 pt |
+| 29 pt | 4.76 pt | 0.17 pt | 0.82 pt |
+
+These measurements scale the source artwork's 168-pixel wordmark height, 6-pixel line and 29-pixel dots. Captures include both 2× and 3× rendering. The wordmark is recognizable at 60 pt; reading it and distinguishing the route details becomes harder at 40 and 29 pt. Proposal for a later owner-led brand review: explore a source-artwork variant with a larger route motif and fewer small details, while reviewing the wordmark's role at these sizes. No lettering, geometry or default artwork changes are included here.
+
+![Derived icon appearances](../screenshots/ios-design-phase-4/icon-appearance-review.png)
+![Unchanged artwork at 60, 40 and 29 points, 3×](../screenshots/ios-design-phase-4/icon-small-sizes-3x.png)
+![Unchanged artwork at 60, 40 and 29 points, 2×](../screenshots/ios-design-phase-4/icon-small-sizes-2x.png)
+
+## Captures
+
+| Screen | Before: Phase 3 | After: Phase 4 |
+| --- | --- | --- |
+| List, default | ![Before list](../screenshots/ios-design-phase-3/nearby-departures.jpg) | ![After list](../screenshots/ios-design-phase-4/nearby-departures.jpg) |
+| List, largest text | ![Before large list](../screenshots/ios-design-phase-3/nearby-at-accessibility-text-size.jpg) | ![After large list](../screenshots/ios-design-phase-4/nearby-at-accessibility-text-size.jpg) |
+| Detail, default | ![Before detail](../screenshots/ios-design-phase-3/pinned-departure-detail.jpg) | ![After detail](../screenshots/ios-design-phase-4/pinned-departure-detail.jpg) |
+| Detail, largest text | ![Before large detail](../screenshots/ios-design-phase-3/detail-at-accessibility-text-size.jpg) | ![After large detail](../screenshots/ios-design-phase-4/detail-at-accessibility-text-size.jpg) |
+
+![Shorter advice at the largest text size](../screenshots/ios-design-phase-4/advice-at-accessibility-text-size.jpg)
+
+| German stress layout | Largest accessibility text |
+| --- | --- |
+| [Expanded list](https://github.com/p3ob7o/Departs/blob/8bebd302f470f17692eb19601f5a74fc3c06aee6/docs/screenshots/ios-design-phase-4/german-region-expanded-pseudo-list.png) | ![Expanded large list](../screenshots/ios-design-phase-4/german-region-expanded-pseudo-accessibility-list.jpg) |
+| [Expanded detail](https://github.com/p3ob7o/Departs/blob/8bebd302f470f17692eb19601f5a74fc3c06aee6/docs/screenshots/ios-design-phase-4/german-region-expanded-pseudo-detail.png) | ![Expanded large advice](../screenshots/ios-design-phase-4/german-region-expanded-pseudo-accessibility-advice.jpg) |
+| [Expanded search](https://github.com/p3ob7o/Departs/blob/8bebd302f470f17692eb19601f5a74fc3c06aee6/docs/screenshots/ios-design-phase-4/german-region-expanded-pseudo-search.png) | [Expanded large search](https://github.com/p3ob7o/Departs/blob/8bebd302f470f17692eb19601f5a74fc3c06aee6/docs/screenshots/ios-design-phase-4/german-region-expanded-pseudo-accessibility-search.png) |
+
+The 375-point equivalents are preserved in the full capture archive, prefixed with 375-. Long German phrases wrap and can hyphenate at accessibility sizes. The map action remains wholly reachable above the walking toolbar; its largest stress-case height is 311.5 pt, without reducing the content font.
+
+## Verification scope
+
+Native unit/UI checks use Xcode 27.0, the pinned iOS 27.0 simulator runtime, normal simulator signing and derived data outside the repository. The existing countdown-order and arrival-during-scroll tests remain in the suite. No native dependency, version/build number or API contract changes.
+
+- Full native runs: **68 unit tests and 14 UI tests passed on both 402 × 874 and 375 × 667 pt destinations**. Result bundles: /tmp/departs-p4-accepted-402.xcresult and /tmp/departs-p4-accepted-375.xcresult.
+- After the search-label adjustment: **68 unit tests and all three affected search UI flows passed**, including choosing a place, denied-location recovery and walking handoff. Result bundle: /tmp/departs-p4-search-finished-402.xcresult.
+- **German pseudolocalization UI checks passed at both widths**, at default and largest accessibility text sizes, including the search sheet and the native toolbar overflow menu. Final bundles: /tmp/departs-p4-german-402-label.xcresult and /tmp/departs-p4-german-375-finished.xcresult.
+- Catalog compilation, app-icon asset compilation, source hash/pixel checks and git diff whitespace checks passed. Only English resources are included in the normal app.
+
+Review follow-up: the four timetable labels now consistently say **departure**; “plan your arrival” still refers to the rider reaching the stop. List status uses the stable per-cycle set described above. **69 unit tests and all 14 UI tests passed on both phone sizes** after these changes (`/tmp/departs-p4-reviewed.xcresult`, `/tmp/departs-p4-reviewed-375.xcresult`). Both German stress builds passed again (`/tmp/departs-p4-german-reviewed-402.xcresult`, `/tmp/departs-p4-german-reviewed-375.xcresult`). The normal and pseudolocalized fixture captures in this document were replaced with exports from those runs. Density is unchanged at 8 / 7 complete options and 167.3 / 125.5 pt for the first row.
+
+Production checks are read-only app launches at 48.20134, 16.34941 around 00:41–00:42 Vienna time on 16 November 2026, at default and largest accessibility text sizes. These verify the current production API's legacy fallback and actual list content. They do not verify deployment of the grouped handler.
+
+| Production, default | Production, largest text |
+| --- | --- |
+| [Production list](https://github.com/p3ob7o/Departs/blob/8bebd302f470f17692eb19601f5a74fc3c06aee6/docs/screenshots/ios-design-phase-4/live-list.png) | [Production large list](https://github.com/p3ob7o/Departs/blob/8bebd302f470f17692eb19601f5a74fc3c06aee6/docs/screenshots/ios-design-phase-4/live-list-accessibility.png) |
+
+There are no backend changes in this phase. Phase 2's preview-provider evidence remains separate from production. The grouped endpoint must deploy to production before any build containing this list is distributed; the legacy fallback has a higher request cost. No release or TestFlight upload was performed. Haptic feel, VoiceOver use and Home Screen appearance should still be reviewed on a physical device.
+
+
+## Evidence storage
+
+This phase keeps **10 curated images** in Git. Screenshots are stored upright at 2× as optimized JPEGs (quality 70); Phase 4's three icon-review panels remain lossless PNGs at their original pixel dimensions. No app artwork or application code was changed by this curation. Measurements refer to the original test exports.
+
+The [full Phase 4 capture set](https://github.com/p3ob7o/Departs/tree/8bebd302f470f17692eb19601f5a74fc3c06aee6/docs/screenshots/ios-design-phase-4) is preserved at commit `8bebd302f470f17692eb19601f5a74fc3c06aee6` on **`evidence/ios-design-improvements`**, an evidence-only branch that must never be merged. Unembedded captures and earlier review versions are excluded from the rewritten phase history. Original filenames in capture manifests refer to that archive. The UI tests can regenerate the captures.
