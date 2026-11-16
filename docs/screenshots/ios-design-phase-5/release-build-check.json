@@ -1,0 +1,19 @@
+{
+  "UIDeviceFamily": [
+    1
+  ],
+  "MinimumOSVersion": "26.0",
+  "CFBundleShortVersionString": "1.1",
+  "CFBundleVersion": "5",
+  "UISupportedInterfaceOrientations": [
+    "UIInterfaceOrientationPortrait",
+    "UIInterfaceOrientationLandscapeLeft",
+    "UIInterfaceOrientationLandscapeRight"
+  ],
+  "UIApplicationSceneManifest": {
+    "UIApplicationSupportsMultipleScenes": true,
+    "UISceneConfigurations": {}
+  },
+  "releaseBuild": "passed",
+  "layoutTestHostInRelease": false
+}

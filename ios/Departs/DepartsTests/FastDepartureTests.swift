@@ -121,11 +121,11 @@ final class FastDepartureTests: XCTestCase {
         current = instant.addingTimeInterval(900)
         _ = store.advice(for: stop().lineSelections[0], at: current)
         XCTAssertEqual(store.groups.flatMap(\.active).map(\.id), original, "A countdown tick must not move rows")
-        store.interacting = true
+        store.setInteracting(true, presentationID: "test")
         response = []
         await store.refreshBoard(stop().lineSelections[0], force: true)
         XCTAssertEqual(store.groups.flatMap(\.active).map(\.id), original)
-        store.interacting = false
+        store.setInteracting(false, presentationID: "test")
         XCTAssertTrue(store.groups.flatMap(\.active).isEmpty)
     }
 
@@ -173,6 +173,92 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertTrue(store.needsListRefresh(at: instant), "An empty viewport is not evidence of fresh data")
         await store.refreshAnswers()
         XCTAssertFalse(store.needsListRefresh(at: instant), "Opening refresh must revalidate cached boards even with only the header visible")
+    }
+
+    @MainActor func testAnotherWindowEnteringForegroundRefreshesWithoutWaitingForTheClock() async {
+        let current = Date.now
+        var time = current
+        var requests = 0
+        let firstRefresh = expectation(description: "First active window refreshes")
+        let secondRefresh = expectation(description: "Second active window refreshes immediately")
+        var api = client()
+        let line = self.line, departures = [departure(7)]
+        api.grouped = { _ in
+            requests += 1
+            if requests == 2 { firstRefresh.fulfill() }
+            if requests == 3 { secondRefresh.fulfill() }
+            return .init(groups: [.init(line: line, departures: departures)], complete: true)
+        }
+        let store = TransitStore(client: api, persistence: persistence(), now: { time })
+        await store.updateLocation(.init(coordinate: coordinate, capturedAt: current, accuracy: 10))
+        let session = TransitSession(store: store)
+        let first = UUID(), second = UUID()
+        defer {
+            session.updateWindow(first, active: false, showsList: false, selection: nil)
+            session.updateWindow(second, active: false, showsList: false, selection: nil)
+        }
+        time.addTimeInterval(30)
+        session.updateWindow(first, active: true, showsList: true, selection: nil)
+        await fulfillment(of: [firstRefresh], timeout: 2)
+        await store.refreshAnswers()
+        time.addTimeInterval(30)
+        session.updateWindow(second, active: true, showsList: true, selection: nil)
+        await fulfillment(of: [secondRefresh], timeout: 2)
+        XCTAssertEqual(requests, 3)
+    }
+
+    @MainActor func testWindowsContributeIndependentVisibilityAndResumeTheirOwnViewport() async {
+        var time = instant
+        let nearby = (0..<8).map { stop("s\($0)") }
+        var requested: [String] = []
+        var api = client()
+        let line = self.line, departures = [departure(7)]
+        api.stops = { _, _ in nearby }
+        api.grouped = { id in
+            requested.append(id)
+            return .init(groups: [.init(line: line, departures: departures)], complete: true)
+        }
+        let store = TransitStore(client: api, persistence: persistence(), now: { time })
+        await store.loadArea(area)
+        store.setVisible([nearby[4]], elementID: "first-window-row", visible: true)
+        store.setVisible([nearby[7]], elementID: "second-window-row", visible: true)
+        await store.refreshAnswers()
+        time.addTimeInterval(30)
+        requested = []
+        store.setPresentationActive(false, presentationID: "first-window")
+        await store.refreshAnswers()
+        XCTAssertEqual(requested, ["s7"])
+        time.addTimeInterval(30)
+        requested = []
+        store.setPresentationActive(true, presentationID: "first-window")
+        await store.refreshAnswers()
+        XCTAssertEqual(Set(requested), ["s4", "s7"], "Foreground return retains that window's viewport")
+        store.clearPresentation("first-window")
+        time.addTimeInterval(30)
+        requested = []
+        await store.refreshAnswers()
+        XCTAssertEqual(requested, ["s7"], "Closing one window cannot remove another window's demand")
+    }
+
+    @MainActor func testEndingOnePanesInteractionDoesNotReleaseAnothersDeferredPartition() async {
+        var api = client()
+        var received: [Departure] = [departure(7)]
+        api.departures = { _ in received }
+        let store = makeStore(api)
+        await store.loadArea(area)
+        let option = stop().lineSelections[0]
+        XCTAssertEqual(store.groups[0].active.count, 1)
+        store.setInteracting(true, presentationID: "first-window-list")
+        store.setInteracting(true, presentationID: "second-window-detail")
+        received = []
+        await store.refreshBoard(option, force: true)
+        store.clearPresentation("first-window")
+        XCTAssertTrue(store.interacting)
+        XCTAssertEqual(store.groups[0].active.count, 1)
+        store.setInteracting(false, presentationID: "second-window-detail")
+        XCTAssertFalse(store.interacting)
+        XCTAssertEqual(store.groups[0].active.count, 0)
+        XCTAssertEqual(store.groups[0].idle.count, 1)
     }
 
     @MainActor func testFailedHeaderAtViewportEdgeCannotToggleListFreshness() async {
@@ -359,13 +445,13 @@ final class FastDepartureTests: XCTestCase {
         let loading = Task { await store.loadArea(area) }
         await fulfillment(of: [started], timeout: 2)
         let before = store.groups[0].active.map(\.id)
-        store.interacting = true
+        store.setInteracting(true, presentationID: "test")
         finish.resume(returning: .init(groups: [], complete: true))
         await loading.value
         XCTAssertNotNil(store.boards[before[0]])
         XCTAssertEqual(store.groups[0].active.map(\.id), before)
         XCTAssertTrue(store.groups[0].idle.isEmpty)
-        store.interacting = false
+        store.setInteracting(false, presentationID: "test")
         XCTAssertTrue(store.groups[0].active.isEmpty)
         XCTAssertEqual(store.groups[0].idle.map(\.id), before)
     }

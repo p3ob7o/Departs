@@ -1,0 +1,19 @@
+{
+  "capturedAt": "2026-11-16T01:12:00.681155+00:00",
+  "coordinate": {
+    "lat": 48.20134,
+    "lon": 16.34941
+  },
+  "host": "https://departs.vercel.app",
+  "postDiskCleanup": true,
+  "nearby": {
+    "status": 200,
+    "shape": "array",
+    "count": 17
+  },
+  "grouped": {
+    "status": 200,
+    "shape": "array",
+    "count": 4
+  }
+}

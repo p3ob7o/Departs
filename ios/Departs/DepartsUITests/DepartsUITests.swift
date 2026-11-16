@@ -25,6 +25,7 @@ final class DepartsUITests: XCTestCase {
 
     override func tearDownWithError() throws {
         app.terminate()
+        XCUIDevice.shared.orientation = .portrait
         let maps = XCUIApplication(bundleIdentifier: "com.apple.Maps")
         if maps.state != .notRunning { maps.terminate() }
         dismissMapsPrompt()
@@ -88,7 +89,7 @@ final class DepartsUITests: XCTestCase {
         let rows = app.buttons.matching(identifier: "departure-option")
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'Live'")).firstMatch.waitForExistence(timeout: 12))
         let disclosure = app.buttons["2 lines with nothing soon"].firstMatch
-        for _ in 0..<3 where !disclosure.isHittable { app.swipeUp() }
+        for _ in 0..<3 where !disclosure.isHittable { nearbyList.swipeUp() }
         assertTarget(disclosure)
         disclosure.tap()
         let future = app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'Tram 55 toward'")).firstMatch
@@ -96,21 +97,27 @@ final class DepartsUITests: XCTestCase {
         XCTAssertFalse(future.label.contains("Leave"))
         XCTAssertTrue(app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label BEGINSWITH 'Nothing soon. Tram 56'")).firstMatch.exists)
         capture("Expanded future and idle lines")
-        disclosure.tap()
-        for _ in 0..<5 where rows.firstMatch.frame.minY < 120 { app.swipeDown() }
+        // The expanded group's button frame includes its children. Its label
+        // has the header's own frame, so it remains an unambiguous tap target.
+        let disclosureLabel = nearbyList.staticTexts["2 lines with nothing soon"]
+        XCTAssertTrue(disclosureLabel.exists)
+        disclosureLabel.tap()
+        XCTAssertFalse(future.isHittable, "The idle group must be closed before refreshing")
+        for _ in 0..<5 where rows.firstMatch.frame.minY < 120 { nearbyList.swipeDown() }
         server.setChangedServices()
         let beforeRefresh = server.radii.count
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25))
-            .press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)), withVelocity: .slow, thenHoldForDuration: 0.5)
+        nearbyList.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.25))
+            .press(forDuration: 0.1, thenDragTo: nearbyList.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.9)), withVelocity: .slow, thenHoldForDuration: 0.5)
         let refreshed = expectation(for: NSPredicate { _, _ in self.server.radii.count > beforeRefresh }, evaluatedWith: nil)
         wait(for: [refreshed], timeout: 5)
         let gained = app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'Tram 56 toward'")).firstMatch
         let repartitioned = expectation(for: NSPredicate(format: "label CONTAINS 'Tram 50 toward'"), evaluatedWith: rows.firstMatch)
         wait(for: [repartitioned], timeout: 8)
-        for _ in 0..<4 where !gained.exists { app.swipeUp() }
+        for _ in 0..<4 where !gained.exists { nearbyList.swipeUp() }
         XCTAssertTrue(gained.waitForExistence(timeout: 4))
-        XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'Tram 49 toward'")).firstMatch.exists)
+        let lost = nearbyList.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'Tram 49 toward'")).firstMatch
         capture("Changed boards after refresh")
+        XCTAssertFalse(lost.isHittable, "The line that lost departures belongs in the collapsed group")
     }
 
     func testBoardArrivingDuringScrollKeepsProviderOrder() {
@@ -123,8 +130,8 @@ final class DepartsUITests: XCTestCase {
         let firstSection = Array(routeOrder(rows).prefix(6))
         let fixture = server!
         DispatchQueue.global().asyncAfter(deadline: .now() + 1) { fixture.releaseHeldBoards() }
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
-            .press(forDuration: 0.2, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)), withVelocity: .slow, thenHoldForDuration: 2)
+        nearbyList.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.85))
+            .press(forDuration: 0.2, thenDragTo: nearbyList.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)), withVelocity: .slow, thenHoldForDuration: 2)
         XCTAssertEqual(server.heldCount, 0)
         XCTAssertEqual(Array(routeOrder(rows).prefix(6)), firstSection)
         XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'from Second stop'")).firstMatch.exists)
@@ -138,7 +145,7 @@ final class DepartsUITests: XCTestCase {
         let last = app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'from Extra stop 7'")).firstMatch
         for _ in 0..<14 {
             if last.exists && last.isHittable { break }
-            app.swipeUp()
+            nearbyList.swipeUp()
         }
         let loaded = app.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'from Extra stop 7' AND (label CONTAINS 'Live' OR label CONTAINS 'Scheduled')")).firstMatch
         print("REQUESTS scrolled stops=\(server.requestedStops)")
@@ -195,7 +202,7 @@ final class DepartsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["departure-option"].firstMatch.waitForExistence(timeout: 12))
         for _ in 0..<5 {
             if app.buttons["search-farther"].exists && app.buttons["search-farther"].isHittable { break }
-            app.swipeUp()
+            nearbyList.swipeUp()
         }
         assertTarget(app.buttons["search-farther"])
         app.buttons["search-farther"].tap()
@@ -222,7 +229,7 @@ final class DepartsUITests: XCTestCase {
         XCTAssertTrue(option.waitForExistence(timeout: 12))
         option.tap()
         XCTAssertTrue(app.buttons["show-route-map"].waitForExistence(timeout: 5))
-        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == 'Volkstheater'")).count, 1)
+        XCTAssertEqual(departureScroll.staticTexts.matching(NSPredicate(format: "label == 'Volkstheater'")).count, 1)
         app.buttons["show-route-map"].tap()
         XCTAssertTrue(app.maps.firstMatch.waitForExistence(timeout: 5))
         XCTAssertTrue(app.maps.firstMatch.isHittable)
@@ -232,7 +239,7 @@ final class DepartsUITests: XCTestCase {
         let other = app.buttons["other-line"].firstMatch
         for _ in 0..<6 {
             if other.isHittable && other.frame.maxY < app.buttons["walking-directions"].frame.minY { break }
-            app.swipeUp()
+            departureScroll.swipeUp()
         }
         XCTAssertFalse(app.buttons.matching(NSPredicate(format: "identifier == 'other-line' AND label CONTAINS 'Tram 55 toward'")).firstMatch.exists)
         capture("Other lines at this stop")
@@ -328,10 +335,7 @@ final class DepartsUITests: XCTestCase {
         XCTAssertEqual(direction.label, "Wien Kaiserebersdorf, Zinnergasse")
         XCTAssertGreaterThan(direction.frame.height, 80, "The full headsign wraps and scales with accessibility text")
         XCTAssertTrue(app.frame.contains(direction.frame))
-        for _ in 0..<8 {
-            if app.buttons["show-route-map"].isHittable && app.buttons["show-route-map"].frame.maxY < app.buttons["walking-directions"].frame.minY { break }
-            app.swipeUp()
-        }
+        bringIntoView(app.buttons["show-route-map"], in: departureScroll)
         assertTarget(app.buttons["show-route-map"])
         print("ADVICE accessibility height=\(app.staticTexts["departure-advice-detail"].frame.height)")
         capture("Advice at accessibility text size")
@@ -344,6 +348,292 @@ final class DepartsUITests: XCTestCase {
         // iOS 27. Verify the actual tap and Apple Maps handoff at its visible center.
         app.buttons["walking-directions"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5)).tap()
         XCTAssertTrue(XCUIApplication(bundleIdentifier: "com.apple.Maps").wait(for: .runningForeground, timeout: 5))
+    }
+
+    func testWindowResizePreservesSelectedBoardAndOpenSheet() throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        server.setExtendedStops()
+        launchAndAllowLocation()
+        guard UIDevice.current.userInterfaceIdiom == .pad,
+              XCUIScreen.main.screenshot().image.size.width >= 1300 else {
+            throw XCTSkip("The full window range uses the 13-inch iPad destination")
+        }
+        XCTAssertTrue(app.buttons["departure-option"].firstMatch.waitForExistence(timeout: 12))
+        resizeWindow(width: 1200, height: 650)
+        app.buttons["departure-option"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
+        let chosen = nearbyList.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'from Extra stop 4'")).firstMatch
+        for _ in 0..<12 where !chosen.isHittable { nearbyList.swipeUp() }
+        XCTAssertTrue(chosen.isHittable)
+        let listAnchor = visibleListOrder().first!
+        let detailTitle = app.navigationBars["49 Hütteldorf"]
+        XCTAssertTrue(detailTitle.exists)
+        for _ in 0..<6 where app.staticTexts["detail-direction"].isHittable {
+            departureScroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.7))
+                .press(forDuration: 0.05,
+                       thenDragTo: departureScroll.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.55)),
+                       withVelocity: .slow, thenHoldForDuration: 0.2)
+        }
+        let scrolledHeading = departureScroll.staticTexts["Next departures"]
+        XCTAssertTrue(scrolledHeading.isHittable)
+        XCTAssertFalse(app.staticTexts["detail-direction"].isHittable)
+        capture("Window split before resizing")
+        for width in [375.0, 669.0, 1200.0] {
+            resizeWindow(width: width, height: 650)
+            XCTAssertTrue(detailTitle.exists, "The selected board survives every column transition")
+            XCTAssertTrue(scrolledHeading.isHittable, "The detail keeps its scrolled section")
+            XCTAssertFalse(app.staticTexts["detail-direction"].isHittable, "Resizing must not reset the detail to the top")
+            capture("Window \(Int(width)) points selected and scrolled")
+        }
+        XCTAssertEqual(visibleListOrder().first, listAnchor,
+                       "Collapsing and expanding must preserve the list position")
+        let mapButton = app.buttons["show-route-map"]
+        bringIntoView(mapButton, in: departureScroll, towardEnd: false)
+        XCTAssertTrue(mapButton.isHittable)
+        mapButton.tap()
+        XCTAssertTrue(app.maps.firstMatch.waitForExistence(timeout: 5))
+        for width in [375.0, 1200.0] {
+            resizeWindow(width: width, height: 650)
+            XCTAssertTrue(app.maps.firstMatch.isHittable)
+            XCTAssertTrue(app.navigationBars["Walking route"].exists)
+            capture("Window \(Int(width)) points with route sheet")
+        }
+        app.buttons["Done"].tap()
+        XCTAssertTrue(detailTitle.exists)
+    }
+
+    func testCompactHeightScreensAndRotation() throws {
+        try exerciseCompactHeight(largeText: false)
+    }
+
+    func testCompactHeightScreensAtLargestTextSize() throws {
+        try exerciseCompactHeight(largeText: true)
+    }
+
+    private func exerciseCompactHeight(largeText: Bool) throws {
+        guard UIDevice.current.userInterfaceIdiom == .phone else { throw XCTSkip("Phone rotation is checked on iPhone destinations") }
+        XCUIDevice.shared.orientation = .landscapeLeft
+        if largeText { app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"] }
+        launchAndAllowLocation()
+        XCTAssertGreaterThan(app.frame.width, app.frame.height)
+        XCTAssertLessThanOrEqual(app.frame.height, 430)
+        let suffix = largeText ? " accessibility" : ""
+        XCTAssertTrue(app.buttons["departure-option"].firstMatch.waitForExistence(timeout: 12))
+        capture("Landscape nearby\(suffix)")
+        app.buttons["departure-option"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
+        let mapButton = app.buttons["show-route-map"]
+        bringIntoView(mapButton, in: departureScroll)
+        XCTAssertTrue(mapButton.isHittable)
+        capture("Landscape detail\(suffix)")
+        mapButton.tap()
+        XCTAssertTrue(app.maps.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertGreaterThan(app.maps.firstMatch.frame.height, 150)
+        capture("Landscape route map\(suffix)")
+        XCUIDevice.shared.orientation = .portrait
+        wait(for: [expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: app.maps.firstMatch)], timeout: 5)
+        XCUIDevice.shared.orientation = .landscapeLeft
+        wait(for: [expectation(for: NSPredicate(format: "hittable == true"), evaluatedWith: app.maps.firstMatch)], timeout: 5)
+        app.buttons["Done"].tap()
+        XCTAssertTrue(app.navigationBars["49 Hütteldorf"].exists)
+        app.navigationBars.buttons["BackButton"].tap()
+        app.buttons["Show nearby map"].tap()
+        let pin = app.descendants(matching: .any).matching(NSPredicate(format: "identifier == 'stop-map-pin' AND label BEGINSWITH 'Volkstheater,'")).firstMatch
+        XCTAssertTrue(pin.waitForExistence(timeout: 5))
+        pin.tap()
+        let card = app.scrollViews["selected-stop-card"]
+        let showList = app.buttons["Show in list"]
+        for _ in 0..<8 {
+            if showList.isHittable && showList.frame.maxY <= card.frame.maxY { break }
+            card.swipeUp(velocity: .slow)
+        }
+        XCTAssertTrue(showList.isHittable)
+        XCTAssertLessThanOrEqual(showList.frame.maxY, card.frame.maxY + 1)
+        XCTAssertGreaterThan(app.maps.firstMatch.frame.height, 80)
+        capture("Landscape selected stop\(suffix)")
+        showList.tap()
+        openAreaSearch()
+        let query = app.textFields["area-query"]
+        XCTAssertTrue(query.waitForExistence(timeout: 5))
+        query.tap()
+        query.typeText("Volkstheater")
+        app.keyboards.buttons["Search"].tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        let result = app.buttons["area-result"].firstMatch
+        XCTAssertTrue(result.waitForExistence(timeout: 5))
+        capture("Landscape search\(suffix)")
+        result.tap()
+        XCTAssertTrue(app.buttons["departure-option"].firstMatch.waitForExistence(timeout: 5))
+    }
+
+    private func resizeWindow(width: CGFloat, height: CGFloat) {
+        for _ in 0..<3 {
+            let size = app.frame.size
+            if abs(size.width - width) < 10 && abs(size.height - height) < 10 { break }
+            let window = app.windows.firstMatch
+            let origin = window.coordinate(withNormalizedOffset: .zero)
+            origin.withOffset(CGVector(dx: size.width - 4, dy: size.height - 4))
+                .press(forDuration: 0.1,
+                       thenDragTo: origin.withOffset(CGVector(dx: (size.width + width) / 2 - 4,
+                                                            dy: (size.height + height) / 2 - 4)),
+                       withVelocity: .slow, thenHoldForDuration: 0.5)
+            let settled = expectation(description: "Window resize animation settles")
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1) { settled.fulfill() }
+            wait(for: [settled], timeout: 2)
+        }
+        print("WINDOW requested=\(width)×\(height) actual=\(app.frame.size)")
+        XCTAssertEqual(app.frame.width, width, accuracy: 10)
+        XCTAssertEqual(app.frame.height, height, accuracy: 10)
+    }
+
+    func testExactWidthMatrixAndCompactHeight() throws {
+        try exerciseSizeMatrix(largeText: false)
+    }
+
+    func testExactWidthMatrixAtLargestTextSize() throws {
+        try exerciseSizeMatrix(largeText: true)
+    }
+
+    private func exerciseSizeMatrix(largeText: Bool) throws {
+        XCUIDevice.shared.orientation = .landscapeLeft
+        server.setExtendedStops()
+        app.launchEnvironment["DEPARTS_TEST_VIEWPORT"] = "1"
+        if largeText {
+            app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        }
+        launchAndAllowLocation()
+        guard UIDevice.current.userInterfaceIdiom == .pad,
+              XCUIScreen.main.screenshot().image.size.width >= 1300 else {
+            throw XCTSkip("Exact container widths through 1200 points use the 13-inch iPad destination")
+        }
+        let suffix = largeText ? " accessibility" : ""
+        XCTAssertTrue(app.buttons["departure-option"].firstMatch.waitForExistence(timeout: 12))
+        for width in [320, 402, 466, 669, 834, 1024, 1200] {
+            setViewport(width: width, height: 700)
+            XCTAssertTrue(nearbyList.exists)
+            XCTAssertTrue(app.buttons["departure-option"].firstMatch.isHittable)
+            capture("Matrix \(width) list\(suffix)")
+        }
+        setViewport(width: 320, height: 700)
+        app.buttons["departure-option"].firstMatch.tap()
+        XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
+        for width in [320, 402, 466, 669, 834, 1024, 1200, 320] {
+            setViewport(width: width, height: 700)
+            XCTAssertEqual(app.staticTexts["detail-direction"].label, "Hütteldorf")
+            XCTAssertTrue(app.buttons["walking-directions"].exists)
+            capture("Matrix \(width) detail\(suffix)")
+        }
+        setViewport(width: 320, height: 400)
+        let scrolledHeading = departureScroll.staticTexts["Next departures"]
+        bringIntoView(scrolledHeading, in: departureScroll)
+        XCTAssertTrue(scrolledHeading.isHittable)
+        XCTAssertFalse(app.staticTexts["detail-direction"].isHittable)
+        let retainedOffset = scrolledHeading.frame.minY - departureScroll.frame.minY
+        for width in [402, 466, 669, 834, 1024, 1200, 320] {
+            setViewport(width: width, height: 400)
+            capture("Matrix \(width) scrolled\(suffix)")
+            let offset = scrolledHeading.frame.minY - departureScroll.frame.minY
+            print("SCROLL width=\(width) headingOffset=\(offset) initialOffset=\(retainedOffset)")
+            XCTAssertTrue(scrolledHeading.isHittable, "The scrolled section survives every exact width")
+            // Reflow may shift the heading within its section. It must stay at
+            // the same scrolled section, without returning to the service header.
+            XCTAssertEqual(offset, retainedOffset, accuracy: 44, "Resizing keeps the detail's scroll anchor")
+            let direction = app.staticTexts["detail-direction"]
+            if direction.exists {
+                let barBottom = app.navigationBars.allElementsBoundByIndex
+                    .filter { $0.frame.intersects(departureScroll.frame) }.map { $0.frame.maxY }.max()!
+                // XCUITest sometimes calls a lazy offscreen label hittable even
+                // with a negative screen coordinate. Check its actual bounds.
+                XCTAssertLessThanOrEqual(direction.frame.maxY, barBottom)
+            }
+        }
+        capture("Matrix 320 retained scroll\(suffix)")
+        setViewport(width: 669, height: 375)
+        capture("Compact height before scrolling\(suffix)")
+        XCTAssertTrue(app.buttons["walking-directions"].exists)
+        let mapButton = app.buttons["show-route-map"]
+        bringIntoView(mapButton, in: departureScroll, towardEnd: false)
+        XCTAssertTrue(mapButton.isHittable)
+        capture("Compact height detail\(suffix)")
+        mapButton.tap()
+        XCTAssertTrue(app.maps.firstMatch.waitForExistence(timeout: 5))
+        setViewport(width: 320, height: 700)
+        XCTAssertTrue(app.maps.firstMatch.isHittable)
+        setViewport(width: 1200, height: 700)
+        XCTAssertTrue(app.maps.firstMatch.isHittable, "A sheet stays open across compact and regular width")
+        app.buttons["Done"].tap()
+        XCTAssertEqual(app.staticTexts["detail-direction"].label, "Hütteldorf")
+        setViewport(width: 320, height: 700)
+        app.navigationBars.buttons["BackButton"].tap()
+        setViewport(width: 1200, height: 700)
+        let listAnchor = nearbyList.buttons.matching(NSPredicate(format: "identifier == 'departure-option' AND label CONTAINS 'from Second stop'")).firstMatch
+        for _ in 0..<20 where !listAnchor.isHittable { nearbyList.swipeUp(velocity: .slow) }
+        bringIntoView(listAnchor, in: nearbyList)
+        XCTAssertTrue(listAnchor.isHittable)
+        for width in [320, 1200, 320] {
+            setViewport(width: width, height: 700)
+            let top = app.navigationBars.allElementsBoundByIndex
+                .filter { $0.frame.intersects(nearbyList.frame) }.map { $0.frame.maxY }.max()!
+            XCTAssertGreaterThan(listAnchor.frame.maxY, top, "The scrolled list anchor remains visible")
+            XCTAssertLessThan(listAnchor.frame.minY, nearbyList.frame.maxY)
+        }
+        capture("Matrix 320 retained list scroll\(suffix)")
+        setViewport(width: 669, height: 375)
+        capture("Compact height list\(suffix)")
+        openAreaSearch()
+        let query = app.textFields["area-query"]
+        XCTAssertTrue(query.waitForExistence(timeout: 5))
+        query.tap()
+        query.typeText("Volkstheater")
+        app.keyboards.buttons["Search"].tap()
+        XCTAssertTrue(app.keyboards.firstMatch.waitForNonExistence(timeout: 3))
+        setViewport(width: 320, height: 700)
+        XCTAssertEqual(query.value as? String, "Volkstheater")
+        setViewport(width: 1200, height: 700)
+        XCTAssertEqual(query.value as? String, "Volkstheater")
+        capture("Matrix search retained\(suffix)")
+        app.buttons["cancel-area-search"].tap()
+    }
+
+    private func setViewport(width: Int, height: Int) {
+        server.setViewport(width: width, height: height)
+        XCTAssertTrue(app.descendants(matching: .any)["layout-viewport"].waitForExistence(timeout: 3))
+        let viewport = app.descendants(matching: .any)["layout-viewport"].firstMatch
+        let resized = expectation(for: NSPredicate { _, _ in
+            abs(viewport.frame.width - CGFloat(width)) < 1 && abs(viewport.frame.height - CGFloat(height)) < 1
+        }, evaluatedWith: nil)
+        wait(for: [resized], timeout: 5)
+        print("CONTAINER requested=\(width)×\(height) actual=\(viewport.frame.size)")
+        XCTAssertEqual(viewport.frame.width, CGFloat(width), accuracy: 1)
+        XCTAssertEqual(viewport.frame.height, CGFloat(height), accuracy: 1)
+    }
+
+    private func openAreaSearch() {
+        if app.buttons["choose-area"].isHittable { app.buttons["choose-area"].tap() }
+        else {
+            app.navigationBars.buttons.matching(NSPredicate(format: "label == 'More'")).firstMatch.tap()
+            app.buttons["Choose area"].tap()
+        }
+    }
+
+    private func bringIntoView(_ element: XCUIElement, in scroll: XCUIElement, towardEnd: Bool = true) {
+        for _ in 0..<14 {
+            let frame = scroll.frame
+            let bars = app.navigationBars.allElementsBoundByIndex.filter { $0.frame.intersects(frame) }
+            let top = max(frame.minY + 8, (bars.map { $0.frame.maxY }.max() ?? frame.minY) + 8)
+            let walking = app.buttons["walking-directions"]
+            let bottom = walking.exists && walking.frame.minY > frame.midY
+                ? min(frame.maxY - 8, walking.frame.minY - 12) : frame.maxY - 8
+            if element.exists, element.isHittable, element.frame.minY >= top, element.frame.maxY <= bottom { return }
+            let center = (top + bottom) / 2
+            let delta = element.exists ? center - element.frame.midY : (towardEnd ? -1 : 1) * frame.height * 0.25
+            let clamped = max(-frame.height * 0.25, min(frame.height * 0.25, delta))
+            let origin = scroll.coordinate(withNormalizedOffset: .zero)
+            origin.withOffset(CGVector(dx: frame.width / 2, dy: center - frame.minY))
+                .press(forDuration: 0.05,
+                       thenDragTo: origin.withOffset(CGVector(dx: frame.width / 2, dy: center - frame.minY + clamped)),
+                       withVelocity: .slow, thenHoldForDuration: 0.2)
+        }
     }
 
     #if PSEUDO_LOCALIZATION
@@ -403,6 +693,9 @@ final class DepartsUITests: XCTestCase {
     }
     #endif
 
+    private var nearbyList: XCUIElement { app.collectionViews["nearby-list"] }
+    private var departureScroll: XCUIElement { app.scrollViews["departure-detail"] }
+
     private func launchAndAllowLocation() {
         dismissMapsPrompt()
         app.launch()
@@ -418,7 +711,7 @@ final class DepartsUITests: XCTestCase {
     }
 
     private func capture(_ name: String) {
-        let attachment = XCTAttachment(screenshot: app.screenshot())
+        let attachment = XCTAttachment(screenshot: XCUIScreen.main.screenshot())
         attachment.name = name
         attachment.lifetime = .keepAlways
         add(attachment)
@@ -434,6 +727,15 @@ final class DepartsUITests: XCTestCase {
     private func routeOrder(_ rows: XCUIElementQuery) -> [String] {
         rows.allElementsBoundByIndex.compactMap { row in
             guard let range = row.label.range(of: "(Tram|Bus|Subway|Train) .* toward .* from [^.]+", options: .regularExpression) else { return nil }
+            return String(row.label[range])
+        }
+    }
+
+    private func visibleListOrder() -> [String] {
+        nearbyList.buttons.matching(identifier: "departure-option").allElementsBoundByIndex.compactMap { row in
+            guard row.isHittable, row.frame.minY > nearbyList.frame.minY + 90,
+                  row.frame.maxY < nearbyList.frame.maxY,
+                  let range = row.label.range(of: "(Tram|Bus|Subway|Train) .* toward .* from [^.]+", options: .regularExpression) else { return nil }
             return String(row.label[range])
         }
     }
@@ -454,6 +756,9 @@ private final class TransitFixtureServer {
     private var extendedStops = false
     private var mergedPlatforms = false
     private var longDirection = false
+    private var viewport = ["width": 320, "height": 700]
+
+    func setViewport(width: Int, height: Int) { queue.sync { viewport = ["width": width, "height": height] } }
     private var requestedStopIDs: [String] = []
     var departureCount: Int { queue.sync { departureRequests } }
     var individualCount: Int { queue.sync { individualRequests } }
@@ -521,6 +826,7 @@ private final class TransitFixtureServer {
         let secondLines: [[String: Any]] = [["name": "77", "direction": "Station", "type": "tram"], ["name": "78", "direction": "Park", "type": "tram"]]
         let line = (lines + secondLines).first { $0["name"] as? String == url.queryItems?.first(where: { $0.name == "lineName" })?.value } ?? lines[0]
         switch url.path {
+        case "/test/viewport": return viewport
         case "/test/places":
             return [["name": "Volkstheater", "coordinate": ["lat": 48.204, "lon": 16.357], "source": "chosen"]]
         case "/api/stops/nearby":

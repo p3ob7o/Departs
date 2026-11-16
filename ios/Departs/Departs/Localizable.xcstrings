@@ -260,6 +260,16 @@
         }
       }
     },
+    "Choose a departure" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Choose a departure"
+          }
+        }
+      }
+    },
     "Choose an area" : {
       "localizations" : {
         "en" : {
@@ -389,6 +399,17 @@
           }
         }
       }
+    },
+    "Departs" : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Departs"
+          }
+        }
+      },
+      "shouldTranslate" : false
     },
     "Departure times need an update" : {
       "localizations" : {
@@ -958,6 +979,16 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "Search for a place…"
+          }
+        }
+      }
+    },
+    "Select a line to see its departures and walking route." : {
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Select a line to see its departures and walking route."
           }
         }
       }
