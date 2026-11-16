@@ -26,9 +26,13 @@ Plan PR #26 and additive backend PR #27 merged into `main`, and Vienna/Berlin pr
 
 The uploaded build uses the tested release branch. Backend-first is satisfied. Complete the remaining physical-device checks with TestFlight; no external beta review or public App Store release was submitted.
 
+**Departs 1.2 (8) followed on 17 November: uploaded, VALID and IN_BETA_TESTING for internal testers.** It removes place search and the wider search, and fixes two defects found in the test of 1.2 (7): the list started over about every five minutes on a phone, and a coarse location fix left home waiting forever. [PR #32](https://github.com/p3ob7o/Departs/pull/32) is merged. The [release record](releases/1.2-8.md) lists the checks and seven open findings that need the owner's decision.
+
 ## Next decisions and checks
 
 - Rewrite the [iPhone Duo plan, PR #18](https://github.com/p3ob7o/Departs/pull/18) and [iPad plan, PR #19](https://github.com/p3ob7o/Departs/pull/19) for map and list side by side. Both predate this design. Device support and the Xcode upgrade remain outside this work.
+- Decide the seven open findings in the [1.2 (8) record](releases/1.2-8.md#open-findings-not-changed-in-this-build). The first is a defect: a stop with no departures is shown as a failed load, seen at Berlin Alexanderplatz.
+- With build 8 on a phone: leave the app open in one place for ten minutes, walk a few hundred metres, and try Location off and Precise Location off.
 - Check map selection, long destinations and empty nighttime results on a phone. Observe whether people find the available service without opening several lines.
 - Verify VoiceOver speech, haptics, GPS accuracy, foreground return, Shortcuts discovery and Home Screen icon appearances on a signed device.
 - Measure cold/warm startup on mobile data and provider quota/cost under the batch model. Check a capped hub and operators with realtime coverage. The Vienna sample supplied scheduled data only.
