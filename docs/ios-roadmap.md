@@ -18,11 +18,11 @@ See [native behavior](ios-fast-answers.md) and the [final validation](plans/ios-
 
 ## Release sequence
 
-The test baseline is Departs 1.1 (6). This work leaves version and build settings unchanged. The next product version is 1.2 under decision A9, to be prepared only when the owner asks.
+The test baseline was Departs 1.1 (6). After the implementation checks passed, the owner requested the update on 16 November. **Departs 1.2 (7) is uploaded, VALID and IN_BETA_TESTING for internal testers.** The [release record](releases/1.2-7.md) contains package, production and processing verification.
 
-Plan PR #26 and additive backend PR #27 have merged into `main`; Vienna and Berlin production checks passed. Native home PR #28, line PR #29 and the final cleanup phase remain stacked draft work. Each must land in `main` in order, retargeting after the previous merge. Merging into an already-merged phase branch does not update `main`.
+Plan PR #26 and additive backend PR #27 merged into `main`, and Vienna/Berlin production checks passed before upload. Native home #28, line #29, cleanup #30 and release #31 form the implementation stack. The owner explicitly approved landing all four in `main` in that order, retargeting after each previous merge. Merging into an already-merged phase branch does not update `main`.
 
-No TestFlight upload is part of implementation. Before distribution, check the batch endpoint on production, finish physical-device acceptance, and obtain the owner's release approval. Backend deployment and native distribution are separate operations.
+The uploaded build uses the tested release branch. Backend-first is satisfied. Complete the remaining physical-device checks with TestFlight; no external beta review or public App Store release was submitted.
 
 ## Next decisions and checks
 
