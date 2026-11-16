@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | Proposal. This branch changes no app code. |
+| Status | Implemented as Departs 1.1 (6). Its sections 1 to 5 and 7, and the split view and landscape work of Phase 5, are replaced by [Two screens: map over list](ios-two-screens.md), on the owner's direction of 16 November 2026. |
 | Date | 15 November 2026 |
 | Evaluated build | `c1439c4`. `main` has since moved to `a310461` (1.1 build 5 release bookkeeping, no view changes). |
 | Branch | `feat/ios-design-improvements` |
