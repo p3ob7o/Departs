@@ -6,11 +6,12 @@ struct RouteMapView: UIViewRepresentable {
     let stop: NearbyStop
     let stopColor: Color
     let walkingRoute: WalkingRoute?
+    var line: LineInfo? = nil
 
     func makeUIView(context: Context) -> MapContainerView {
         let map = MKMapView()
-        map.isScrollEnabled = false
-        map.isZoomEnabled = false
+        map.isScrollEnabled = true
+        map.isZoomEnabled = true
         map.isRotateEnabled = false
         map.isPitchEnabled = false
         map.showsUserLocation = true
@@ -22,10 +23,11 @@ struct RouteMapView: UIViewRepresentable {
     func updateUIView(_ container: MapContainerView, context: Context) {
         let map = container.mapView
         context.coordinator.stopColor = stopColor
-        context.coordinator.stopType = stop.type
+        context.coordinator.stopType = line?.type ?? stop.type
         context.coordinator.stopName = stop.name
+        context.coordinator.lineName = line?.name ?? stop.lines.first?.name ?? stop.type.label
         let routeCoordinates = walkingRoute?.geometry.clCoordinates ?? []
-        let stopAnnotationKey = "\(stop.id)|\(stop.location.lat)|\(stop.location.lon)|\(stop.type.label)"
+        let stopAnnotationKey = "\(stop.id)|\(stop.location.lat)|\(stop.location.lon)|\(context.coordinator.lineName)"
 
         if context.coordinator.stopAnnotationKey != stopAnnotationKey {
             let existing = map.annotations.filter { $0 is PinAnnotation }
@@ -151,6 +153,7 @@ struct RouteMapView: UIViewRepresentable {
         var stopColor: Color
         var stopType: TransportType
         var stopName = ""
+        var lineName = ""
         var stopAnnotationKey: String?
         var routeKey: String?
         var regionKey: String?
@@ -218,32 +221,11 @@ struct RouteMapView: UIViewRepresentable {
 
         private func makeStopPin(for annotation: PinAnnotation, in mapView: MKMapView) -> MKAnnotationView {
             let id = "RouteStopPin"
-            let view = mapView.dequeueReusableAnnotationView(withIdentifier: id)
-                ?? MKAnnotationView(annotation: annotation, reuseIdentifier: id)
+            let view = mapView.dequeueReusableAnnotationView(withIdentifier: id) as? MapLineAnnotationView
+                ?? MapLineAnnotationView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
-            view.isAccessibilityElement = true
-            view.accessibilityLabel = annotation.kind == .stop ? "\(stopName), \(stopType.displayName) stop" : "Your location"
-
-            let size: CGFloat = 30
-            let circle = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
-            circle.backgroundColor = UIColor(stopColor)
-            circle.layer.cornerRadius = size / 2
-            circle.layer.shadowColor = UIColor.black.cgColor
-            circle.layer.shadowOpacity = 0.3
-            circle.layer.shadowOffset = CGSize(width: 0, height: 2)
-            circle.layer.shadowRadius = 3
-
-            let label = UILabel(frame: circle.bounds)
-            label.text = stopType.label
-            label.textAlignment = .center
-            label.font = .systemFont(ofSize: 13, weight: .bold)
-            label.textColor = .white
-            circle.addSubview(label)
-
-            view.subviews.forEach { $0.removeFromSuperview() }
-            view.addSubview(circle)
-            view.frame = CGRect(x: 0, y: 0, width: size, height: size)
-            view.centerOffset = .zero
+            view.configure(name: lineName, type: stopType, color: stopColor)
+            view.accessibilityLabel = "\(stopName), \(stopType.displayName) \(lineName)"
             return view
         }
     }

@@ -35,6 +35,38 @@ final class FastDepartureTests: XCTestCase {
     private var fix: LocationFix { .init(coordinate: coordinate, capturedAt: instant, accuracy: 10) }
     private var area: SearchArea { .init(coordinate: coordinate, name: "Near you", source: .location) }
 
+    @MainActor func testDetailAndMapUseTheListsMergedStopGroup() async {
+        let secondLine = LineInfo(name: "50", direction: "Park", type: .tram)
+        let platforms = [stop("a"), stop("b", lines: [line, secondLine])]
+        var api = client()
+        api.stops = { _, _ in platforms }
+        let firstLine = line
+        let times = [departure(7)]
+        api.grouped = { _ in .init(groups: [.init(line: firstLine, departures: times)], complete: true) }
+        let store = makeStore(api)
+        await store.updateLocation(fix)
+        let group = store.group(containing: platforms[1])
+        XCTAssertEqual(store.groups.count, 1)
+        XCTAssertEqual(group.id, store.groups[0].id)
+        XCTAssertEqual(group.active.map(\.line.name), ["49", "49"])
+        XCTAssertEqual(group.idle.map(\.line.name), ["50"])
+        let marker = StopsMapView.StopAnnotation(group: group)
+        XCTAssertEqual(marker.stopId, group.id)
+        XCTAssertEqual(marker.badgeName, "49 +1", "Count distinct lines, not platforms or directions")
+        XCTAssertTrue(marker.spokenLabel.contains("Tram 50"))
+        XCTAssertEqual(marker.coordinate.latitude, platforms[0].location.lat, accuracy: 0.000001)
+    }
+
+    func testSkippedDepartureMarkersFollowAdviceAndDisappearWhenSaved() {
+        let board = DepartureBoard(departures: [departure(3), departure(13)], checkedAt: instant)
+        let walk = CachedWalk(origin: coordinate, route: route(), checkedAt: instant)
+        let advice = DepartureAdvice.make(board: board, walk: walk, location: fix, now: instant)
+        XCTAssertTrue(advice.isTooTight(board.departures[0]))
+        XCTAssertFalse(advice.isTooTight(board.departures[1]))
+        let saved = DepartureAdvice.make(board: board, walk: walk, location: fix, requestFailed: true, now: instant)
+        XCTAssertFalse(saved.isTooTight(board.departures[0]))
+    }
+
     @MainActor func testGroupedBoardAvoidsPerLineRequestAndFallsBackWhenUnsupported() async {
         var api = client()
         let line = self.line
@@ -342,6 +374,35 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertEqual(NearbyStopsView.displayDirection("Paris Nord", among: directions), "Nord")
         XCTAssertEqual(NearbyStopsView.displayDirection("Paris Nord", among: Array(directions.prefix(2))), "Paris Nord")
         XCTAssertEqual(NearbyStopsView.displayDirection("Paris Nord", among: directions + ["Lyon Centre"]), "Paris Nord")
+    }
+
+    @MainActor func testRecentAreasKeepFiveUniqueChoicesAcrossRelaunch() async {
+        let storage = persistence()
+        let store = makeStore(persistence: storage)
+        for index in 0..<7 {
+            await store.loadArea(.init(coordinate: coordinate, name: "Place \(index)", source: .chosen))
+        }
+        await store.loadArea(.init(coordinate: coordinate, name: "Place 4", source: .chosen))
+        await store.loadArea(area)
+        let restored = makeStore(persistence: storage)
+        XCTAssertEqual(restored.recentAreas.map(\.name), ["Place 4", "Place 6", "Place 5", "Place 3", "Place 2"])
+    }
+
+    @MainActor func testSearchPromotesTransitWithoutReorderingEqualCategories() {
+        let places = [false, true, false, true].enumerated().map { index, transit in
+            PlaceResult(id: "\(index)", name: "Place \(index)", subtitle: "", coordinate: coordinate, transit: transit)
+        }
+        XCTAssertEqual(AreaSearchModel.transitFirst(places).map(\.id), ["1", "3", "0", "2"])
+    }
+
+    @MainActor func testChosenAreaRestoresWithoutFollowingDevice() async {
+        let storage = persistence()
+        let store = makeStore(persistence: storage)
+        let chosen = SearchArea(coordinate: coordinate, name: "Chosen place", source: .chosen)
+        await store.loadArea(chosen)
+        let restored = makeStore(persistence: storage)
+        XCTAssertEqual(restored.area, chosen)
+        XCTAssertFalse(restored.followsLocation)
     }
 
     func testLeaveTimeSubtractsWalkingAndConservativeBuffer() {
