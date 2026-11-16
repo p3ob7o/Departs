@@ -3,22 +3,19 @@ import SwiftUI
 struct ContentView: View {
     let session: TransitSession
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.dynamicTypeSize) private var textSize
     @State private var windowID = UUID()
     @State private var selected: StopLineSelection?
     @State private var sheet: PresentedSheet?
-    @State private var detailScrollTarget: String?
     @State private var navigation = RouteNavigation.shared
 
     private var store: TransitStore { session.store }
     private var demandKey: String { "\(scenePhase)-\(selected?.id ?? "")" }
     private enum PresentedSheet: Identifiable {
-        case search, distantPins, route(StopLineSelection)
+        case search, distantPins
         var id: String {
             switch self {
             case .search: "search"
             case .distantPins: "pins"
-            case .route(let selection): "route-\(selection.id)"
             }
         }
     }
@@ -31,10 +28,7 @@ struct ContentView: View {
                 onRefresh: session.refresh, onChooseArea: chooseArea,
                 onDistantPins: { sheet = .distantPins }, interactionID: "\(windowID)-list")
                 .navigationDestination(item: $selected) { selection in
-                    DepartureDetailView(
-                        selection: selection, store: store, onSelect: select,
-                        onMap: { sheet = .route(selection) },
-                        interactionID: "\(windowID)-detail", scrollTarget: $detailScrollTarget)
+                    DepartureDetailView(selection: selection, store: store)
                 }
         }
         .sheet(item: $sheet) { presented in
@@ -57,16 +51,6 @@ struct ContentView: View {
                     .navigationTitle("Pinned elsewhere").navigationBarTitleDisplayMode(.inline)
                     .toolbar { Button("Done", systemImage: "checkmark") { sheet = nil } }
                 }
-            case .route(let selection):
-                NavigationStack {
-                    RouteMapView(
-                        userCoordinate: (store.walkingOrigin ?? selection.stop.location).clLocationCoordinate2D,
-                        stop: selection.stop, stopColor: StopPalette.modeColor(selection.line.type),
-                        walkingRoute: store.walk(for: selection.stop)?.route, line: selection.line)
-                        .navigationTitle("Walking route").navigationBarTitleDisplayMode(.inline)
-                        .toolbar { Button("Done", systemImage: "checkmark") { sheet = nil } }
-                }
-                .presentationDetents(textSize.isAccessibilitySize ? [.large] : [.medium, .large])
             }
         }
         .onChange(of: session.locationService.state) { _, _ in session.receivedLocation() }
@@ -91,7 +75,6 @@ struct ContentView: View {
         }
     }
     private func select(_ selection: StopLineSelection) {
-        if selected?.id != selection.id { detailScrollTarget = nil }
         selected = selection
     }
     private func openRequestedPin() {

@@ -285,6 +285,143 @@ final class DepartsUITests: XCTestCase {
         capture("Home accessibility list")
     }
 
+    func testLineSquareMapShowsThreeDeparturesAndTheFourthAfterOneScroll() {
+        launch(); waitForRows()
+        rows.firstMatch.tap()
+        waitUntil { self.server.individualCount == 1 && self.lineRows.count == 4 }
+        XCTAssertEqual(lineMap.frame.width, app.frame.width, accuracy: 1)
+        XCTAssertEqual(lineMap.frame.height, app.frame.width, accuracy: 1)
+        XCTAssertEqual(lineMap.frame.minY, app.navigationBars.firstMatch.frame.maxY, accuracy: 1)
+        XCTAssertTrue(app.descendants(matching: .any)["route-platform"].exists)
+        XCTAssertTrue(app.descendants(matching: .any)["route-origin"].exists)
+        XCTAssertEqual(app.staticTexts.matching(identifier: "detail-stop-name").count, 1)
+        XCTAssertEqual(app.staticTexts["detail-direction"].label, "13A Wien Skodagasse")
+        let visible = lineRows.allElementsBoundByIndex.filter { lineList.frame.contains($0.frame) }
+        print("LINE map=\(lineMap.frame) list=\(lineList.frame) visibleRows=\(visible.count) firstRow=\(lineRows.firstMatch.frame)")
+        XCTAssertGreaterThanOrEqual(visible.count, 3)
+        XCTAssertTrue(lineRows.firstMatch.label.contains("Live departure"))
+        XCTAssertTrue(lineRows.firstMatch.label.contains("1 min late"))
+        XCTAssertFalse(app.staticTexts["Scheduled"].exists)
+        XCTAssertFalse(app.staticTexts["departure-advice-title"].exists)
+        XCTAssertFalse(app.buttons["show-route-map"].exists)
+        capture("Line default")
+        if !lineList.frame.contains(lineRows.element(boundBy: 3).frame) { lineList.swipeUp() }
+        XCTAssertTrue(lineList.frame.contains(lineRows.element(boundBy: 3).frame))
+    }
+
+    func testLineFailedRefreshKeepsClockTimesAndRecoversInOneRequest() {
+        launch(); waitForRows(); rows.firstMatch.tap()
+        waitUntil { self.lineRows.count == 4 }
+        server.setOffline(true)
+        refreshLineByPull()
+        let refresh = app.buttons["refresh-line"]
+        XCTAssertTrue(refresh.waitForExistence(timeout: 8))
+        XCTAssertEqual(app.buttons.matching(identifier: "refresh-line").count, 1)
+        XCTAssertEqual(lineRows.count, 4)
+        XCTAssertTrue(lineRows.allElementsBoundByIndex.allSatisfy { !$0.label.contains("In ") && !$0.label.contains("Live departure") })
+        assertTarget(refresh)
+        capture("Line saved")
+        let calls = server.individualCount
+        server.setOffline(false)
+        refresh.tap()
+        XCTAssertTrue(refresh.waitForNonExistence(timeout: 8))
+        XCTAssertEqual(server.individualCount, calls + 1)
+        XCTAssertTrue(lineRows.firstMatch.label.hasPrefix("In "))
+    }
+
+    func testLineEmptyAndBeyondHourUseCalmStateAndClockOnly() {
+        launch(); waitForRows()
+        server.setLineMinutes([])
+        rows.firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["line-empty"].waitForExistence(timeout: 8))
+        XCTAssertEqual(lineRows.count, 0)
+        server.setLineMinutes([65, 80, 95, 110])
+        refreshLineByPull()
+        waitUntil { self.lineRows.count == 4 }
+        XCTAssertTrue(app.staticTexts["line-empty"].exists)
+        XCTAssertTrue(lineRows.allElementsBoundByIndex.allSatisfy { !$0.label.contains("In ") })
+        capture("Line beyond hour")
+    }
+
+    func testLineAccessibilityMapScrollsAwayAndFullDestinationRemains() {
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        launch(); waitForRows()
+        let origin = nearbyList.coordinate(withNormalizedOffset: .zero)
+        origin.withOffset(CGVector(dx: 180, dy: homeMap.frame.maxY + 60 - nearbyList.frame.minY))
+            .press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: 180, dy: 100)), withVelocity: .slow, thenHoldForDuration: 0.2)
+        rows.matching(NSPredicate(format: "label CONTAINS 'Skodagasse'")).firstMatch.tap()
+        XCTAssertTrue(lineMap.waitForExistence(timeout: 5))
+        XCTAssertEqual(lineMap.frame.height, app.frame.width, accuracy: 1)
+        let initial = lineMap.frame.minY
+        capture("Line accessibility map")
+        let listOrigin = lineList.coordinate(withNormalizedOffset: .zero)
+        listOrigin.withOffset(CGVector(dx: 180, dy: lineMap.frame.maxY + 50 - lineList.frame.minY))
+            .press(forDuration: 0.05, thenDragTo: listOrigin.withOffset(CGVector(dx: 180, dy: 80)), withVelocity: .slow, thenHoldForDuration: 0.2)
+        XCTAssertTrue(!lineMap.exists || lineMap.frame.minY < initial - 30)
+        XCTAssertEqual(app.staticTexts["detail-direction"].label, "13A Wien Skodagasse")
+        XCTAssertTrue(lineRows.firstMatch.waitForExistence(timeout: 5))
+        XCTAssertFalse(lineRows.firstMatch.isSelected)
+        capture("Line accessibility list")
+    }
+
+    func testWalkingDirectionsOpensAppleMaps() {
+        launch(); waitForRows(); rows.firstMatch.tap()
+        XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
+        app.buttons["walking-directions"].tap()
+        let maps = XCUIApplication(bundleIdentifier: "com.apple.Maps")
+        XCTAssertTrue(maps.wait(for: .runningForeground, timeout: 10))
+        for title in ["Continue", "Allow Once", "Not Now"] {
+            let button = maps.buttons[title].firstMatch
+            if button.waitForExistence(timeout: 1) { button.tap() }
+        }
+        let destination = maps.buttons.matching(NSPredicate(format: "identifier == 'IconImage-WaypointNameText' AND label == 'Siebensterngasse'")).firstMatch
+        XCTAssertTrue(destination.waitForExistence(timeout: 10), maps.debugDescription)
+        let walk = maps.buttons["WalkButton"]
+        XCTAssertTrue(walk.waitForExistence(timeout: 5))
+        waitUntil { walk.frame.width > 0 }
+        XCTAssertTrue(walk.isSelected, "Apple Maps must open in walking mode")
+        let safety = maps.alerts["Getting There Safely"]
+        if safety.waitForExistence(timeout: 2) { safety.buttons["OK"].tap() }
+        capture("Apple Maps walking destination")
+        print("APPLE_MAPS walkingSelected=\(walk.isSelected) destination=\(destination.label)")
+    }
+
+    func testLineWithoutWalkingRouteShowsBothEndpointsAndAreaOrigin() {
+        server.setDirectionsFailed(true)
+        launch(allowLocation: false)
+        chooseArea(); waitForRows(); rows.firstMatch.tap()
+        waitUntil { self.lineRows.count == 4 }
+        XCTAssertTrue(app.staticTexts["detail-stop-name"].label.contains("from this area"))
+        let origin = app.descendants(matching: .any)["route-origin"]
+        XCTAssertTrue(origin.exists)
+        XCTAssertEqual(origin.label, "Searched area")
+        XCTAssertTrue(app.descendants(matching: .any)["route-platform"].exists)
+        XCTAssertTrue(lineMap.exists)
+        capture("Line without walking route")
+    }
+
+    func testLongLineDestinationWrapsWithoutTruncation() {
+        server.useLongDestination()
+        launch(); waitForRows(); rows.firstMatch.tap()
+        let title = app.staticTexts["detail-direction"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertEqual(title.label, "13A Wien Kaiserebersdorf, Zinnergasse über Hauptbahnhof und Simmering")
+        XCTAssertGreaterThan(title.frame.height, 30)
+        XCTAssertLessThanOrEqual(title.frame.maxX, app.frame.maxX)
+        capture("Line long destination")
+    }
+
+    private var lineRows: XCUIElementQuery { app.otherElements.matching(identifier: "line-departure") }
+    private var lineList: XCUIElement { app.collectionViews["departure-detail"] }
+    private var lineMap: XCUIElement { app.descendants(matching: .any).matching(identifier: "line-map").firstMatch }
+    private func refreshLineByPull() {
+        let calls = server.individualCount
+        lineList.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))
+            .press(forDuration: 0.1, thenDragTo: lineList.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)),
+                   withVelocity: .slow, thenHoldForDuration: 0.5)
+        waitUntil { self.server.individualCount > calls }
+    }
+
     private var rows: XCUIElementQuery { app.buttons.matching(identifier: "departure-option") }
     private var nearbyList: XCUIElement { app.collectionViews["nearby-list"] }
     private var homeMap: XCUIElement { app.descendants(matching: .any).matching(identifier: "home-map").firstMatch }
@@ -340,6 +477,7 @@ private final class TransitFixtureServer {
     private let queue = DispatchQueue(label: "departs.ui-fixtures")
     private var offline = false
     private var stopsFailed = false
+    private var directionsFailed = false
     private var emptyStops = false
     private var noDepartures = false
     private var changedServices = false
@@ -352,6 +490,8 @@ private final class TransitFixtureServer {
     private var individuals = 0
     private var walks = 0
     private var firstBoardAt: Date?
+    private var lineMinutes: [Double]?
+    private var longDestination = false
 
     var baseURL: String { "http://127.0.0.1:\(listener.port!.rawValue)" }
     var batchCount: Int { queue.sync { batches } }
@@ -361,10 +501,13 @@ private final class TransitFixtureServer {
     var centers: [(Double, Double)] { queue.sync { requestedCenters } }
     func setOffline(_ value: Bool) { queue.sync { offline = value } }
     func setStopsFailed(_ value: Bool) { queue.sync { stopsFailed = value } }
+    func setDirectionsFailed(_ value: Bool) { queue.sync { directionsFailed = value } }
     func setEmptyStops(_ value: Bool) { queue.sync { emptyStops = value } }
     func setNoDepartures(_ value: Bool) { queue.sync { noDepartures = value } }
     func setMissing(_ ids: Set<String>) { queue.sync { missing = ids } }
     func setChangedServices() { queue.sync { changedServices = true } }
+    func setLineMinutes(_ values: [Double]) { queue.sync { lineMinutes = values } }
+    func useLongDestination() { queue.sync { longDestination = true } }
     func holdBatch() { queue.sync { holding = true } }
     func releaseBatch() { queue.sync {
         holding = false
@@ -395,6 +538,7 @@ private final class TransitFixtureServer {
             let payload = self.response(to: url)
             let body = try! JSONSerialization.data(withJSONObject: payload)
             let failed = self.offline || self.stopsFailed && url.path == "/api/stops/nearby"
+                || self.directionsFailed && url.path == "/api/directions"
             let status = failed ? "503 Service Unavailable" : "200 OK"
             var response = Data("HTTP/1.1 \(status)\r\nContent-Type: application/json\r\nCache-Control: no-store\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n".utf8)
             response.append(body)
@@ -424,13 +568,23 @@ private final class TransitFixtureServer {
             if value("stopIds") != nil {
                 batches += 1
                 var batch = TransitSample.batch(at: firstBoardAt!, missing: missing, empty: noDepartures, changed: changedServices)
+                if longDestination {
+                    var boards = batch["boards"] as! [[String: Any]]
+                    var groups = boards[0]["groups"] as! [[String: Any]]
+                    var line = groups[0]["line"] as! [String: Any]
+                    line["direction"] = "Wien Kaiserebersdorf, Zinnergasse über Hauptbahnhof und Simmering"
+                    groups[0]["line"] = line
+                    boards[0]["groups"] = groups
+                    batch["boards"] = boards
+                }
                 batch["fetchedAt"] = Date().ISO8601Format()
                 return batch
             }
             individuals += 1
             let id = value("stopId")?.replacingOccurrences(of: "77704_", with: "") ?? "312"
-            let service = TransitSample.services[id]?.first { $0.name == value("lineName") && $0.line["direction"] as? String == value("direction") }
+            var service = TransitSample.services[id]?.first { $0.name == value("lineName") && $0.line["direction"] as? String == value("direction") }
                 ?? TransitSample.services["312"]![0]
+            if let lineMinutes { service.minutes = lineMinutes }
             return TransitSample.departures(service, at: firstBoardAt!, count: 4)
         case "/api/directions":
             walks += 1

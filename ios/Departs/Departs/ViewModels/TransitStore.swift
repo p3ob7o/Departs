@@ -54,8 +54,9 @@ final class TransitStore {
     @ObservationIgnored private var pendingHome: HomeSnapshot?
     @ObservationIgnored private var interactingPresentations: Set<String> = []
     @ObservationIgnored private var detailChecks: [String: Date] = [:]
+    @ObservationIgnored private var detailBoardIDs: Set<String> = []
     @ObservationIgnored private var walkRequests: [String: (origin: Coordinate, id: UUID)] = [:]
-    private var restoredBoards: Set<String> = []
+    private var savedBoards: Set<String> = []
 
     init(client: TransitClient = .live, persistence: TransitPersistence = .init(), now: @escaping () -> Date = { .now }) {
         self.client = client
@@ -77,7 +78,7 @@ final class TransitStore {
                 boards.merge(home.boards) { _, saved in saved }
             }
         }
-        restoredBoards = Set(boards.keys)
+        savedBoards = Set(boards.keys)
     }
 
     var groups: [StopGroup] { home.groups }
@@ -280,10 +281,19 @@ final class TransitStore {
                     }
                     snapshot = retained
                 } else { self.lastResponse = response }
-                self.boards.merge(snapshot.boards) { _, new in new }
-                for selection in snapshot.selections where !snapshot.missing.contains(selection.stop.id) {
-                    self.boardErrors.remove(selection.id)
-                    self.restoredBoards.remove(selection.id)
+                // Home supplies the initial two times. Once a line requests
+                // its own board, a home refresh must not replace its four-time
+                // board or certify a failed detail request.
+                for (id, board) in snapshot.boards where !self.detailBoardIDs.contains(id) {
+                    self.boards[id] = board
+                }
+                for selection in snapshot.selections {
+                    if snapshot.missing.contains(selection.stop.id) {
+                        self.savedBoards.insert(selection.id)
+                    } else if !self.detailBoardIDs.contains(selection.id) {
+                        self.boardErrors.remove(selection.id)
+                        self.savedBoards.remove(selection.id)
+                    }
                 }
                 self.homeRestored = false
                 self.departuresError = nil
@@ -292,6 +302,9 @@ final class TransitStore {
             } catch {
                 guard revision == self.areaRevision, !Self.cancelled(error) else { return }
                 self.departuresError = String(localized: "Couldn't update departures")
+                // Opening a line after a failed home refresh must keep its
+                // cached times saved until the per-line request succeeds.
+                self.savedBoards.formUnion(self.home.selections.map(\.id))
             }
         }
         batchTask = task
@@ -318,13 +331,14 @@ final class TransitStore {
         guard !loadingBoards.contains(key) else { return }
         if !force, detailChecks[key]?.isRecent(at: now(), within: Self.refreshInterval) == true { return }
         loadingBoards.insert(key)
+        detailBoardIDs.insert(key)
         detailChecks[key] = now()
         defer { loadingBoards.remove(key) }
         do {
             let departures = try await client.departures(selection)
             boards[key] = .init(departures: departures, checkedAt: now())
             boardErrors.remove(key)
-            restoredBoards.remove(key)
+            savedBoards.remove(key)
             persistence.saveBoards(boards)
         } catch {
             if Self.cancelled(error) { detailChecks[key] = nil }
@@ -332,7 +346,7 @@ final class TransitStore {
         }
     }
     func isBoardFresh(for selection: StopLineSelection, at date: Date) -> Bool {
-        boards[selection.id]?.isFresh(at: date) == true && !boardErrors.contains(selection.id) && !restoredBoards.contains(selection.id)
+        boards[selection.id]?.isFresh(at: date) == true && !boardErrors.contains(selection.id) && !savedBoards.contains(selection.id)
     }
     func advice(for selection: StopLineSelection, at date: Date = .now) -> DepartureAdvice {
         DepartureAdvice.make(board: boards[selection.id], walk: walk(for: selection.stop, at: date), location: location,

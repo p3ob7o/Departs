@@ -368,6 +368,113 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertThrowsError(try APIService.batchDeparturesURL(stopIDs: []))
         XCTAssertThrowsError(try APIService.batchDeparturesURL(stopIDs: (0..<51).map(String.init)))
     }
+
+    func testLineShowsCountdownAndClockThroughSixtyMinutesThenOnlyClock() {
+        let soon = LineDepartureContent(departure: departure(60, live: false), fresh: true, now: instant)
+        XCTAssertEqual(soon.countdown, "In 60 min")
+        XCTAssertEqual(soon.clock, TimeFormatter.formatTime(departure(60).time))
+        let later = LineDepartureContent(departure: departure(61, live: false), fresh: true, now: instant)
+        XCTAssertNil(later.countdown)
+        XCTAssertEqual(later.spoken, later.clock)
+        XCTAssertFalse(later.live)
+    }
+
+    func testLineDelayRequiresLiveDataAndAFullMinute() {
+        func content(_ seconds: Double, live: Bool = true, fresh: Bool = true) -> LineDepartureContent {
+            .init(departure: .init(time: departure(3).time, realTime: live, delay: seconds, line: line), fresh: fresh, now: instant)
+        }
+        XCTAssertNil(content(59).delay)
+        XCTAssertEqual(content(60).delay, "1 min late")
+        XCTAssertEqual(content(119).delay, "1 min late")
+        XCTAssertNil(content(180, live: false).delay)
+        let saved = content(180, fresh: false)
+        XCTAssertFalse(saved.live)
+        XCTAssertNil(saved.delay)
+        XCTAssertNil(saved.countdown)
+        XCTAssertEqual(saved.spoken, saved.clock)
+    }
+
+    @MainActor func testLineOpensWithTwoThenFetchesFourAndItsOwnPlatformRoute() async throws {
+        var api = try sampleClient(), detailCalls = 0
+        var destinations: [Coordinate] = []
+        let four = [departure(2), departure(6), departure(10), departure(14)], route = route()
+        api.departures = { _ in detailCalls += 1; return four }
+        api.directions = { _, to in destinations.append(to); return route }
+        let store = makeStore(api)
+        await store.updateLocation(fix)
+        for _ in 0..<20 { await Task.yield() }
+        let selection = try XCTUnwrap(store.displayedOptions.first { $0.line.name == "48A" })
+        XCTAssertEqual(store.boards[selection.id]?.departures.count, 2)
+        XCTAssertFalse(destinations.contains(selection.stop.location), "Home walks to the merged stop's nearest platform")
+        await store.refreshSelection(selection)
+        XCTAssertEqual(store.boards[selection.id]?.departures.count, 4)
+        XCTAssertEqual(detailCalls, 1)
+        XCTAssertTrue(destinations.contains(selection.stop.location), "Line screen must walk to its own platform")
+        let destination = WalkingDirections.destination(for: selection)
+        XCTAssertEqual(destination.location.coordinate.latitude, selection.stop.location.lat)
+        XCTAssertEqual(destination.location.coordinate.longitude, selection.stop.location.lon)
+        XCTAssertEqual(destination.name, selection.stop.name)
+        await store.refreshAnswers(force: true)
+        await store.refreshSelection(selection)
+        XCTAssertEqual(detailCalls, 1, "Reopening a recent line reuses its complete board")
+        XCTAssertEqual(store.boards[selection.id]?.departures.count, 4, "A home batch must not replace four times with two")
+    }
+
+    @MainActor func testLineFailureKeepsFourClockTimesAndOneRefreshRestoresCountdowns() async {
+        var api = client(), fail = false, calls = 0
+        let values = [departure(2), departure(6), departure(10), departure(14)]
+        api.departures = { _ in calls += 1; if fail { throw APIError.requestFailed }; return values }
+        let store = makeStore(api), selection = stop().lineSelections[0]
+        await store.refreshBoard(selection)
+        fail = true
+        await store.refreshBoard(selection, force: true)
+        XCTAssertFalse(store.isBoardFresh(for: selection, at: instant))
+        XCTAssertEqual(store.boards[selection.id]?.departures.map(\.time), values.map(\.time))
+        XCTAssertTrue(values.allSatisfy { LineDepartureContent(departure: $0, fresh: false, now: instant).countdown == nil })
+        fail = false
+        await store.refreshBoard(selection, force: true)
+        XCTAssertEqual(calls, 3)
+        XCTAssertTrue(store.isBoardFresh(for: selection, at: instant))
+    }
+
+    @MainActor func testShortcutPerformsWithTheStablePinnedDirection() async throws {
+        let selection = stop().lineSelections[0]
+        let intent = OpenPinnedRouteIntent()
+        intent.route = PinnedRouteEntity(selection)
+        _ = try await intent.perform()
+        XCTAssertEqual(RouteNavigation.shared.pinnedRouteID, selection.id)
+        RouteNavigation.shared.pinnedRouteID = nil
+    }
+
+    @MainActor func testLineOpenedAfterFailedHomeRefreshKeepsSavedTimesUntilRevalidated() async throws {
+        var api = try sampleClient(), fail = false
+        let batch = try sampleBatch(), values = [departure(2), departure(6), departure(10), departure(14)]
+        api.batch = { _ in if fail { throw APIError.requestFailed }; return batch }
+        api.departures = { _ in values }
+        let store = makeStore(api)
+        await store.loadArea(area)
+        let selection = store.displayedOptions[0]
+        fail = true
+        await store.refreshAnswers(force: true)
+        XCTAssertFalse(store.isBoardFresh(for: selection, at: instant))
+        await store.refreshBoard(selection)
+        XCTAssertTrue(store.isBoardFresh(for: selection, at: instant))
+        XCTAssertFalse(store.isHomeBoardFresh(for: selection, at: instant), "Detail recovery does not silently certify the whole home batch")
+    }
+
+    @MainActor func testHomeRecoveryCannotCertifyAFailedFirstLineRequest() async throws {
+        var api = try sampleClient()
+        api.departures = { _ in throw APIError.requestFailed }
+        let store = makeStore(api)
+        await store.loadArea(area)
+        let selection = store.displayedOptions[0]
+        await store.refreshBoard(selection)
+        XCTAssertTrue(store.boardErrors.contains(selection.id))
+        await store.refreshAnswers(force: true)
+        XCTAssertTrue(store.isHomeBoardFresh(for: selection, at: instant))
+        XCTAssertFalse(store.isBoardFresh(for: selection, at: instant))
+        XCTAssertTrue(store.boardErrors.contains(selection.id))
+    }
     func testSkippedDepartureMarkersFollowAdviceAndDisappearWhenSaved() {
         let board = DepartureBoard(departures: [departure(3), departure(13)], checkedAt: instant)
         let walk = CachedWalk(origin: coordinate, route: route(), checkedAt: instant)

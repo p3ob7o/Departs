@@ -7,6 +7,7 @@ struct RouteMapView: UIViewRepresentable {
     let stopColor: Color
     let walkingRoute: WalkingRoute?
     var line: LineInfo? = nil
+    var originIsCurrentLocation = true
 
     func makeUIView(context: Context) -> MapContainerView {
         let map = MKMapView()
@@ -26,11 +27,12 @@ struct RouteMapView: UIViewRepresentable {
         context.coordinator.stopType = line?.type ?? stop.type
         context.coordinator.stopName = stop.name
         context.coordinator.lineName = line?.name ?? stop.lines.first?.name ?? stop.type.label
+        context.coordinator.originLabel = originIsCurrentLocation ? String(localized: "Walking start") : String(localized: "Searched area")
         let routeCoordinates = walkingRoute?.geometry.clCoordinates ?? []
         let stopAnnotationKey = "\(stop.id)|\(stop.location.lat)|\(stop.location.lon)|\(context.coordinator.lineName)"
 
         if context.coordinator.stopAnnotationKey != stopAnnotationKey {
-            let existing = map.annotations.filter { $0 is PinAnnotation }
+            let existing = map.annotations.compactMap { $0 as? PinAnnotation }.filter { $0.kind == .stop }
             map.removeAnnotations(existing)
 
             let stopPin = PinAnnotation(
@@ -39,6 +41,13 @@ struct RouteMapView: UIViewRepresentable {
             )
             map.addAnnotation(stopPin)
             context.coordinator.stopAnnotationKey = stopAnnotationKey
+        }
+
+        let originKey = "\(userCoordinate.latitude)|\(userCoordinate.longitude)|\(originIsCurrentLocation)"
+        if context.coordinator.originKey != originKey {
+            map.removeAnnotations(map.annotations.compactMap { $0 as? PinAnnotation }.filter { $0.kind == .user })
+            map.addAnnotation(PinAnnotation(coordinate: userCoordinate, kind: .user))
+            context.coordinator.originKey = originKey
         }
 
         let routeKey = Self.routeKey(for: routeCoordinates)
@@ -154,6 +163,8 @@ struct RouteMapView: UIViewRepresentable {
         var stopType: TransportType
         var stopName = ""
         var lineName = ""
+        var originLabel = ""
+        var originKey: String?
         var stopAnnotationKey: String?
         var routeKey: String?
         var regionKey: String?
@@ -191,7 +202,8 @@ struct RouteMapView: UIViewRepresentable {
                 ?? MKAnnotationView(annotation: annotation, reuseIdentifier: id)
             view.annotation = annotation
             view.isAccessibilityElement = true
-            view.accessibilityLabel = annotation.kind == .stop ? String(localized: "\(stopName), \(stopType.displayName) stop") : String(localized: "Your location")
+            view.accessibilityLabel = originLabel
+            view.accessibilityIdentifier = "route-origin"
 
             let size: CGFloat = 24
             let container = UIView(frame: CGRect(x: 0, y: 0, width: size, height: size))
@@ -226,6 +238,7 @@ struct RouteMapView: UIViewRepresentable {
             view.annotation = annotation
             view.configure(name: lineName, type: stopType, color: stopColor)
             view.accessibilityLabel = String(localized: "\(stopName), \(stopType.displayName) \(lineName)")
+            view.accessibilityIdentifier = "route-platform"
             return view
         }
     }
