@@ -11,7 +11,7 @@ struct ContentView: View {
     @State private var navigation = RouteNavigation.shared
 
     private var refreshKey: String {
-        "\(scenePhase == .active)-\(selected?.id ?? "nearby")-\(store.visibleLimit)-\(store.favoritesOnly)"
+        "\(scenePhase == .active)-\(selected?.id ?? "nearby")"
     }
 
     var body: some View {
@@ -27,7 +27,6 @@ struct ContentView: View {
             AreaSearchView(near: store.area?.coordinate) { area in
                 searching = false
                 selected = nil
-                store.favoritesOnly = false
                 locationTask?.cancel()
                 areaTask?.cancel()
                 areaTask = Task { await store.loadArea(area) }
@@ -69,11 +68,11 @@ struct ContentView: View {
     private func refreshVisibleAnswers() async {
         // A fix may arrive while a permission sheet temporarily makes the scene inactive.
         if let fix = locationService.fix, fix.isUsable(at: .now) {
-            await store.updateLocation(fix, showing: selected, force: true)
-        } else if let selected { await store.refreshSelection(selected, force: true) }
+            await store.updateLocation(fix, showing: selected)
+        } else if let selected { await store.refreshSelection(selected) }
         else if let fix = store.location, fix.isUsable(at: .now) {
-            await store.updateLocation(fix, force: true)
-        } else { await store.refreshAnswers(force: true) }
+            await store.updateLocation(fix)
+        } else { await store.refreshAnswers() }
     }
 
     private func locate() {

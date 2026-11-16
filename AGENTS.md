@@ -38,7 +38,7 @@ The native MapKit map does not use a public Mapbox token. Local backend startup 
 - SwiftUI with `@Observable` view models, iOS 26+, zero third-party iOS dependencies. Guard iOS 27-only APIs with availability checks.
 - MapKit through `UIViewRepresentable` wrappers, system light/dark appearance.
 - `ContentView` owns foreground refresh and location/search navigation. One `TransitStore` supplies list and detail, restores cached boards and pins, and rejects stale area/route responses.
-- Opening answers are limited to six service options, with independently batched departures and walking routes. MapKit maps load on request.
+- Nearby pins and the first three provider stops load on open; subsequent refreshes demand pins and visible stop sections. Departure and walking queues are independent and each runs at most three requests at once. MapKit maps load on request.
 - App Intents expose pinned stop/direction entities through Shortcuts. Keep their stable identities independent of provider ordering.
 - `APIService` is an actor using URLSession async/await.
 - iOS structure: `Models/`, `Services/`, `ViewModels/`, `Views/`, `Utilities/`, `Preview Content/`.
