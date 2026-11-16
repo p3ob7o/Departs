@@ -18,19 +18,16 @@ struct ContentView: View {
         NavigationStack {
             NearbyStopsView(store: store, locationState: locationService.state,
                             onSelect: { selected = $0 }, onSearch: { searching = true },
-                            onLocate: locate, onRefresh: refresh)
+                            onLocate: locate, onRefresh: refresh, onChooseArea: chooseArea)
                 .navigationDestination(item: $selected) { selection in
-                    DepartureDetailView(selection: selection, store: store)
+                    DepartureDetailView(selection: selection, store: store, onSelect: { selected = $0 })
                 }
         }
         .sheet(isPresented: $searching) {
-            AreaSearchView(near: store.area?.coordinate) { area in
+            AreaSearchView(near: store.area?.coordinate, recentAreas: store.recentAreas, onLocate: {
                 searching = false
-                selected = nil
-                locationTask?.cancel()
-                areaTask?.cancel()
-                areaTask = Task { await store.loadArea(area) }
-            }
+                locate()
+            }, onSelect: chooseArea)
         }
         .onChange(of: locationService.state) { _, state in
             guard scenePhase == .active, case .located = state, let fix = locationService.fix else { return }
@@ -73,6 +70,14 @@ struct ContentView: View {
         else if let fix = store.location, fix.isUsable(at: .now) {
             await store.updateLocation(fix)
         } else { await store.refreshAnswers() }
+    }
+
+    private func chooseArea(_ area: SearchArea) {
+        searching = false
+        selected = nil
+        locationTask?.cancel()
+        areaTask?.cancel()
+        areaTask = Task { await store.loadArea(area) }
     }
 
     private func locate() {

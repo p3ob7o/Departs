@@ -18,6 +18,7 @@ struct StopRowView: View {
     var direction: String? = nil
     var showStop = false
     var idle = false
+    var accessibilityID = "departure-option"
 
     private var content: DepartureRowContent {
         .init(board: board, advice: advice, loading: loading, failed: failed, fresh: fresh, idle: idle, now: now)
@@ -29,11 +30,7 @@ struct StopRowView: View {
                 : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
             layout {
                 HStack(alignment: .top, spacing: 8) {
-                    HStack(spacing: 3) {
-                        if !textSize.isAccessibilitySize { Image(systemName: modeSymbol).font(.caption2) }
-                        Text(selection.line.name)
-                    }.font(.headline).padding(.horizontal, 6).padding(.vertical, 4)
-                        .foregroundStyle(.white).background(modeColor, in: RoundedRectangle(cornerRadius: 6))
+                    LineBadge(line: selection.line)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(direction ?? selection.line.direction).font(.subheadline.weight(.semibold))
@@ -71,7 +68,7 @@ struct StopRowView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("\(content.answer). \(selection.line.type.displayName) \(selection.line.name) toward \(selection.line.direction) from \(selection.stop.name). \(content.spokenTimes). \(content.status)\(showStop && walk != nil ? ". \(max(1, walk!.route.walkingMinutes)) min walk" : "")")
-        .accessibilityIdentifier("departure-option")
+        .accessibilityIdentifier(accessibilityID)
         .swipeActions { pinAction }
         .contextMenu { pinAction }
     }
@@ -88,24 +85,24 @@ struct StopRowView: View {
             Text(fromCurrentLocation ? "\(max(1, walk.route.walkingMinutes)) min walk" : "\(max(1, walk.route.walkingMinutes)) min walk from this area").font(.caption)
         }
     }
-    private var modeSymbol: String {
-        switch selection.line.type {
-        case .bus: "bus"
-        case .tram: "tram"
-        case .subway, .rail: "train.side.front.car"
-        }
-    }
-    private var modeColor: Color {
-        switch selection.line.type {
-        case .tram: Color(hex: "3A6C9E")
-        case .bus: Color(hex: "A8553F")
-        case .rail: Color(hex: "3B7A47")
-        case .subway: Color(hex: scheme == .dark ? "8065B8" : "6B52A6")
-        }
-    }
     private var pinAction: some View {
         Button(action: onPin) { Label(pinned ? "Unpin route" : "Pin route", systemImage: pinned ? "pin.slash" : "pin") }
             .accessibilityIdentifier(pinned ? "unpin-route" : "pin-route")
+    }
+}
+
+struct LineBadge: View {
+    @Environment(\.dynamicTypeSize) private var textSize
+    let line: LineInfo
+
+    var body: some View {
+        HStack(spacing: 3) {
+            if !textSize.isAccessibilitySize { Image(systemName: line.type.symbol).font(.caption2) }
+            Text(line.name)
+        }
+        .font(.headline).padding(.horizontal, 6).padding(.vertical, 4)
+        .foregroundStyle(.white)
+        .background(StopPalette.modeColor(line.type), in: RoundedRectangle(cornerRadius: 6))
     }
 }
 
@@ -146,7 +143,7 @@ struct DepartureRowContent {
         if !showAdvice { shown = Array(shown.dropFirst()) }
         times = shown.map { departure in
             let chosen = showAdvice && departure.time == advice.departureTime
-            let tight = showAdvice && ((target.map { (TimeFormatter.parseISO(departure.time) ?? .distantFuture) < $0 }) ?? (advice.kind == .caution))
+            let tight = showAdvice && advice.isTooTight(departure)
             return .init(text: chosen ? "for \(TimeFormatter.formatTime(departure.time))" : time(departure), tooTight: tight)
         }
         if failed {

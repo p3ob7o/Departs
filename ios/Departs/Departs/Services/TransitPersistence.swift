@@ -15,6 +15,12 @@ struct TransitPersistence {
     private static let snapshotKey = "departs.nearby.v1"
     private static let boardsKey = "departs.boards.v1"
 
+    func loadRecentAreas() -> [SearchArea] {
+        let areas: [SearchArea] = read("departs.recentAreas.v1") ?? []
+        return Array(areas.filter { $0.source == .chosen && $0.coordinate.isValid }.prefix(5))
+    }
+    func saveRecentAreas(_ areas: [SearchArea]) { write(Array(areas.prefix(5)), key: "departs.recentAreas.v1") }
+
     func loadPins() -> [StopLineSelection] { read(Self.pinsKey) ?? [] }
     func savePins(_ pins: [StopLineSelection]) { write(pins, key: Self.pinsKey) }
     func loadNearby() -> NearbySnapshot? { read(Self.snapshotKey) }
