@@ -1,76 +1,40 @@
 import SwiftUI
 
 struct StopRowView: View {
-    @Environment(\.colorScheme) private var scheme
     @Environment(\.dynamicTypeSize) private var textSize
     let selection: StopLineSelection
     let board: DepartureBoard?
-    let walk: CachedWalk?
-    let advice: DepartureAdvice
-    let loading: Bool
-    let failed: Bool
     let fresh: Bool
-    let fromCurrentLocation: Bool
     let pinned: Bool
     let now: Date
     let onOpen: () -> Void
     let onPin: () -> Void
     var direction: String? = nil
     var showStop = false
-    var idle = false
     var accessibilityID = "departure-option"
 
-    private var content: DepartureRowContent {
-        .init(board: board, advice: advice, loading: loading, failed: failed, fresh: fresh, idle: idle, now: now)
-    }
+    private var content: HomeRowContent { .init(board: board, fresh: fresh, pinned: showStop, now: now) }
     var body: some View {
         Button(action: onOpen) {
             let layout = textSize.isAccessibilitySize
                 ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
-                : AnyLayout(HStackLayout(alignment: .top, spacing: 10))
+                : AnyLayout(HStackLayout(alignment: .center, spacing: 8))
             layout {
-                HStack(alignment: .top, spacing: 8) {
-                    LineBadge(line: selection.line)
-                        .accessibilityHidden(true)
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text(direction ?? selection.line.direction).font(.subheadline.weight(.semibold))
+                HStack(alignment: .center, spacing: 8) {
+                    LineBadge(line: selection.line).accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(direction ?? selection.line.direction).font(.subheadline)
                             .lineLimit(textSize.isAccessibilitySize ? nil : 2)
-                        if showStop && !textSize.isAccessibilitySize { pinnedDetails }
-                        if !textSize.isAccessibilitySize {
-                            HStack(alignment: .firstTextBaseline, spacing: 4) {
-                                Image(systemName: content.statusSymbol).font(.caption2)
-                                Text(content.status).fixedSize(horizontal: false, vertical: true)
-                            }.font(.caption)
-                        }
+                            .fixedSize(horizontal: false, vertical: true)
+                        if showStop { Text(selection.stop.name).font(.caption) }
                     }
                 }
                 if !textSize.isAccessibilitySize { Spacer(minLength: 0) }
-                VStack(alignment: textSize.isAccessibilitySize ? .leading : .trailing, spacing: 3) {
-                    HStack(alignment: .firstTextBaseline, spacing: 4) {
-                        if textSize.isAccessibilitySize {
-                            Image(systemName: content.adviceKind == .leave ? "checkmark.circle" : content.adviceKind == .caution ? "exclamationmark.circle" : "clock")
-                        }
-                        Text(content.answer).fixedSize(horizontal: false, vertical: true)
-                            .modifier(CountdownTransition(value: content.answer))
-                    }
-                        .font(.headline)
-                        .monospacedDigit().foregroundStyle(answerColor)
-                    let timesLayout = textSize.isAccessibilitySize ? AnyLayout(VStackLayout(alignment: .leading, spacing: 3)) : AnyLayout(HStackLayout(spacing: 3))
-                    timesLayout {
-                        ForEach(Array(content.times.enumerated()), id: \.offset) { index, time in
-                            if index > 0 && !textSize.isAccessibilitySize { Text("·") }
-                            Text(time.text).strikethrough(time.tooTight)
-                                .modifier(CountdownTransition(value: time.text))
-                        }
-                    }.font(.caption).monospacedDigit()
-                }
-                if textSize.isAccessibilitySize && (failed || !fresh) {
-                    Label(content.status, systemImage: content.statusSymbol).font(.caption)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                if showStop && textSize.isAccessibilitySize { pinnedDetails }
+                Text(content.answer).font(.headline).monospacedDigit()
+                    .fixedSize(horizontal: true, vertical: false)
+                    .modifier(CountdownTransition(value: content.answer))
             }
-            .foregroundStyle(.primary)
+            .foregroundStyle(content.idle ? StopPalette.secondaryText : Color.primary)
             .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
             .contentShape(Rectangle())
         }
@@ -81,27 +45,29 @@ struct StopRowView: View {
         .contextMenu { pinAction }
     }
     private var spokenAnswer: String {
-        if showStop, let walk {
-            return String(localized: "\(content.answer). \(selection.line.type.displayName) \(selection.line.name) toward \(selection.line.direction) from \(selection.stop.name). \(content.spokenTimes). \(content.status). \(TransitFormat.walk(walk.route, fromCurrentLocation: fromCurrentLocation)).")
-        }
-        return String(localized: "\(content.answer). \(selection.line.type.displayName) \(selection.line.name) toward \(selection.line.direction) from \(selection.stop.name). \(content.spokenTimes). \(content.status).")
-    }
-    private var answerColor: Color {
-        switch content.adviceKind {
-        case .leave: Color(hex: scheme == .dark ? "30D158" : "1D7A36")
-        case .caution: Color(hex: scheme == .dark ? "FF9F0A" : "B25000")
-        case .unavailable: .primary
-        }
-    }
-    @ViewBuilder private var pinnedDetails: some View {
-        Text(selection.stop.name).font(.caption)
-        if let walk {
-            Text(TransitFormat.walk(walk.route, fromCurrentLocation: fromCurrentLocation)).font(.caption)
-        }
+        let service = selection.line.direction.isEmpty
+            ? "\(selection.line.type.displayName) \(selection.line.name)"
+            : String(localized: "\(selection.line.type.displayName) \(selection.line.name) toward \(selection.line.direction)")
+        return String(localized: "\(service). \(content.answer). From \(selection.stop.name).")
     }
     private var pinAction: some View {
-        Button(action: onPin) { Label(pinned ? String(localized: "Unpin route") : String(localized: "Pin route"), systemImage: pinned ? "pin.slash" : "pin") }
-            .accessibilityIdentifier(pinned ? "unpin-route" : "pin-route")
+        Button(action: onPin) {
+            Label(pinned ? String(localized: "Unpin route") : String(localized: "Pin route"), systemImage: pinned ? "pin.slash" : "pin")
+        }.accessibilityIdentifier(pinned ? "unpin-route" : "pin-route")
+    }
+}
+
+struct HomeRowContent {
+    let answer: String
+    let idle: Bool
+
+    init(board: DepartureBoard?, fresh: Bool, pinned: Bool, now: Date) {
+        idle = pinned && board != nil && !board!.hasDepartureWithinHorizon
+        if idle { answer = String(localized: "Nothing soon") }
+        else if let board, let departure = fresh ? (board.upcoming(at: now).first ?? board.departures.first) : board.departures.first {
+            answer = fresh ? TimeFormatter.countdown(departure.time, now: now) ?? TimeFormatter.formatTime(departure.time)
+                : TimeFormatter.formatTime(departure.time)
+        } else { answer = String(localized: "Checking…") }
     }
 }
 

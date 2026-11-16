@@ -7,7 +7,10 @@
       </BuildActionEntry>
     </BuildActionEntries>
   </BuildAction>
-  <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="YES">
+  <TestAction buildConfiguration="Debug" selectedDebuggerIdentifier="Xcode.DebuggerFoundation.Debugger.LLDB" selectedLauncherIdentifier="Xcode.IDEFoundation.Launcher.LLDB" shouldUseLaunchSchemeArgsEnv="NO">
+    <EnvironmentVariables>
+      <EnvironmentVariable key="DEPARTS_API_BASE_URL" value="http://127.0.0.1:9" isEnabled="YES"/>
+    </EnvironmentVariables>
     <Testables>
       <TestableReference skipped="NO" parallelizable="NO">
         <BuildableReference BuildableIdentifier="primary" BlueprintIdentifier="D1000002" BuildableName="DepartsTests.xctest" BlueprintName="DepartsTests" ReferencedContainer="container:Departs.xcodeproj"/>

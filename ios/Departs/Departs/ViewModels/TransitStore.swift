@@ -5,92 +5,57 @@ struct TransitClient {
     var stops: (Coordinate, Int) async throws -> [NearbyStop]
     var departures: (StopLineSelection) async throws -> [Departure]
     var directions: (Coordinate, Coordinate) async throws -> WalkingRoute
-
-    var grouped: ((String) async throws -> GroupedDepartures)? = nil
+    var batch: ([String]) async throws -> BatchDepartures
 
     static let live = TransitClient(
         stops: { try await APIService.shared.fetchNearbyStops(lat: $0.lat, lon: $0.lon, radius: $1) },
         departures: { try await APIService.shared.fetchDepartures(stopId: $0.stop.id, line: $0.line) },
         directions: { try await APIService.shared.fetchDirections(from: $0, to: $1) },
-        grouped: { try await APIService.shared.fetchGroupedDepartures(stopId: $0) }
+        batch: { try await APIService.shared.fetchDepartureBoards(stopIDs: $0) }
     )
 }
 
 @MainActor
 @Observable
 final class TransitStore {
+    typealias StopGroup = HomeStopGroup
+    nonisolated static let runningHorizon: TimeInterval = 60 * 60
+    nonisolated static let refreshInterval: TimeInterval = 25
+
     private(set) var recentAreas: [SearchArea] = []
     private(set) var area: SearchArea?
     private(set) var location: LocationFix?
     private(set) var radius = 400
     private(set) var stops: [NearbyStop] = []
     private(set) var stopsCheckedAt: Date?
+    private(set) var home = HomeSnapshot()
     private(set) var boards: [String: DepartureBoard] = [:]
     private(set) var walks: [String: CachedWalk] = [:]
     private(set) var pins: [StopLineSelection] = []
     private(set) var isLoadingStops = false
+    private(set) var isLoadingDepartures = false
     private(set) var stopsError: String?
+    private(set) var departuresError: String?
     private(set) var boardErrors: Set<String> = []
     private(set) var loadingBoards: Set<String> = []
     private(set) var loadingWalks: Set<String> = []
-    private(set) var groups: [StopGroup] = []
-    nonisolated static let runningHorizon: TimeInterval = 60 * 60
-    nonisolated static let refreshInterval: TimeInterval = 25
-    private var interactingPresentations: Set<String> = []
-    private var inactivePresentations: Set<String> = []
-    var interacting: Bool { !interactingPresentations.isEmpty }
-
-    func setInteracting(_ active: Bool, presentationID: String) {
-        if active { interactingPresentations.insert(presentationID) }
-        else if interactingPresentations.remove(presentationID) != nil && !interacting { rebuildGroups() }
-    }
-
-    func clearPresentation(_ prefix: String) {
-        visibleStops = visibleStops.filter { !$0.key.hasPrefix(prefix) }
-        let hadInteraction = interacting
-        interactingPresentations = interactingPresentations.filter { !$0.hasPrefix(prefix) }
-        inactivePresentations = inactivePresentations.filter { !$0.hasPrefix(prefix) }
-        if hadInteraction && !interacting { rebuildGroups() }
-    }
-
-    func setPresentationActive(_ active: Bool, presentationID: String) {
-        if active { inactivePresentations.remove(presentationID) }
-        else {
-            inactivePresentations.insert(presentationID)
-            let hadInteraction = interacting
-            interactingPresentations = interactingPresentations.filter { !$0.hasPrefix(presentationID) }
-            if hadInteraction && !interacting { rebuildGroups() }
-        }
-    }
-
-    private func isPresentationActive(_ id: String) -> Bool {
-        !inactivePresentations.contains { id.hasPrefix($0) }
-    }
-    private var demandedStops: [NearbyStop] = []
-    private var pendingStopIDs: Set<String> = []
-    private var forcedStopIDs: Set<String> = []
-    private var stopAttempts: [String: Date] = [:]
-    private var visibleStops: [String: [NearbyStop]] = [:]
-    private var hasMeasuredVisibility = false
-    // Status can change the header's height. Its inputs must not shrink when
-    // that height pushes a section out of view, or visibility feeds back into
-    // layout. Requests still use refreshTargets, the live viewport.
-    private var statusStopIDs: Set<String> = []
-    private var needsOpeningRefresh = true
-    private var groupedUnavailable = false
-    private var restoredBoards: Set<String> = []
+    private(set) var areaRevision = 0
+    private(set) var homeRestored = false
     var followsLocation = true
 
     @ObservationIgnored private let client: TransitClient
     @ObservationIgnored private let persistence: TransitPersistence
     @ObservationIgnored private let now: () -> Date
-    @ObservationIgnored private var areaRevision = 0
-    @ObservationIgnored private var walkRequests: [String: UUID] = [:]
-    @ObservationIgnored private var walkingFrom: [String: Coordinate] = [:]
-    @ObservationIgnored private var loadTask: Task<Void, Never>?
-    @ObservationIgnored private var walkLoadTask: Task<Void, Never>?
-    private var demandedWalks: [NearbyStop] = []
-    private var pendingWalkIDs: Set<String> = []
+    @ObservationIgnored private var areaTask: Task<Void, Never>?
+    @ObservationIgnored private var batchTask: Task<Void, Never>?
+    @ObservationIgnored private var batchID: UUID?
+    @ObservationIgnored private var lastBatchAttempt: Date?
+    @ObservationIgnored private var lastResponse: BatchDepartures?
+    @ObservationIgnored private var pendingHome: HomeSnapshot?
+    @ObservationIgnored private var interactingPresentations: Set<String> = []
+    @ObservationIgnored private var detailChecks: [String: Date] = [:]
+    @ObservationIgnored private var walkRequests: [String: (origin: Coordinate, id: UUID)] = [:]
+    private var restoredBoards: Set<String> = []
 
     init(client: TransitClient = .live, persistence: TransitPersistence = .init(), now: @escaping () -> Date = { .now }) {
         self.client = client
@@ -99,196 +64,108 @@ final class TransitStore {
         recentAreas = persistence.loadRecentAreas()
         pins = persistence.loadPins()
         boards = persistence.loadBoards().filter { $0.value.checkedAt.isRecent(at: now(), within: 86_400) }
-        restoredBoards = Set(boards.keys)
         if let saved = persistence.loadNearby(), saved.area.coordinate.isValid {
             area = saved.area
             followsLocation = saved.area.source == .location
             radius = [400, 800, 1600].contains(saved.radius) ? saved.radius : 400
             stops = saved.stops
             stopsCheckedAt = saved.checkedAt
+            if let savedHome = persistence.loadHome(), savedHome.checkedAt?.isRecent(at: now(), within: 86_400) == true,
+               Set(savedHome.selections.map { $0.stop.id }).isSubset(of: Set(stops.map(\.id))) {
+                home = savedHome
+                homeRestored = true
+                boards.merge(home.boards) { _, saved in saved }
+            }
         }
-        rebuildGroups()
+        restoredBoards = Set(boards.keys)
     }
 
-    struct StopGroup: Identifiable {
-        let id: String
-        let name: String
-        var stops: [NearbyStop]
-        var options: [StopLineSelection] { stops.flatMap(\.lineSelections) }
-        var active: [StopLineSelection] = []
-        var idle: [StopLineSelection] = []
-
-        var coordinate: Coordinate {
-            let count = Double(max(1, stops.count))
-            return .init(lat: stops.reduce(0) { $0 + $1.location.lat } / count,
-                         lon: stops.reduce(0) { $0 + $1.location.lon } / count)
-        }
-        var lines: [LineInfo] {
-            var seen = Set<String>()
-            return stops.flatMap(\.lines).filter { seen.insert("\($0.type.rawValue):\($0.name)").inserted }
-        }
-    }
-
-    func group(containing stop: NearbyStop) -> StopGroup {
-        groups.first { $0.stops.contains(where: { $0.id == stop.id }) }
-            ?? partition(.init(id: stop.id, name: stop.name, stops: [stop]))
-    }
-
-    var nearbyPins: [StopLineSelection] {
-        let ids = Set(stops.flatMap(\.lineSelections).map(\.id))
-        return pins.filter { ids.contains($0.id) }
-    }
+    var groups: [StopGroup] { home.groups }
+    var nearbyPins: [StopLineSelection] { home.pins }
     var distantPins: [StopLineSelection] {
-        let ids = Set(stops.flatMap(\.lineSelections).map(\.id))
-        return pins.filter { !ids.contains($0.id) }
+        let ids = Set(stops.map(\.id))
+        return pins.filter { !ids.contains($0.stop.id) }
     }
-
-    private func rebuildGroups() {
-        guard !interacting else { return }
-        var result: [StopGroup] = []
-        for stop in stops {
-            if let index = result.firstIndex(where: { $0.name == stop.name && $0.stops[0].location.distance(to: stop.location) <= 150 }) {
-                result[index].stops.append(stop)
-            } else {
-                result.append(.init(id: stop.id, name: stop.name, stops: [stop]))
-            }
-        }
-        // Publish the partition together. Views never combine a deferred partition
-        // with live board presence. Provider order stays fixed as walks arrive.
-        groups = result.map(partition)
-    }
-
-    private func partition(_ source: StopGroup) -> StopGroup {
-        var group = source
-        for option in group.options {
-            if let board = boards[option.id], !boardErrors.contains(option.id),
-               board.coverageLimit != nil || !board.upcoming(at: board.checkedAt).contains(where: {
-                   (TimeFormatter.parseISO($0.time)?.timeIntervalSince(board.checkedAt) ?? .infinity) <= Self.runningHorizon
-               }) {
-                group.idle.append(option)
-            } else {
-                group.active.append(option)
-            }
-        }
-        return group
-    }
-
-    func loadGroup(_ group: StopGroup) async {
-        demand(group.stops, force: false)
-        await loadTask?.value
-        await walkLoadTask?.value
-    }
-
-    func setVisible(_ stops: [NearbyStop], elementID: String, visible: Bool) {
-        if !hasMeasuredVisibility { hasMeasuredVisibility = true }
-        if visible {
-            guard visibleStops[elementID] != stops else { return }
-            visibleStops[elementID] = stops
-            let addedIDs = Set(stops.map(\.id)).subtracting(statusStopIDs)
-            if !addedIDs.isEmpty { statusStopIDs.formUnion(addedIDs) }
-            if isPresentationActive(elementID) { demand(stops, force: false) }
-        } else if visibleStops[elementID] != nil { visibleStops[elementID] = nil }
-    }
-
-    private func demand(_ stops: [NearbyStop], force: Bool) {
-        demandWalks(stops)
-        for stop in stops {
-            guard !pendingStopIDs.contains(stop.id),
-                  force || stopAttempts[stop.id]?.isRecent(at: now(), within: Self.refreshInterval) != true else { continue }
-            pendingStopIDs.insert(stop.id)
-            if force { forcedStopIDs.insert(stop.id) }
-            demandedStops.append(stop)
-            loadingBoards.formUnion(stop.lineSelections.map(\.id))
-        }
-        guard loadTask == nil, !demandedStops.isEmpty else { return }
-        // Unstructured and store-owned: cancelling a row, location update or
-        // navigation task must not cancel work another visible row needs.
-        loadTask = Task { [weak self] in await self?.drainStops() }
-    }
-
-    private func drainStops() async {
-        defer { loadTask = nil }
-        while !demandedStops.isEmpty {
-            let batch = Array(demandedStops.prefix(3))
-            demandedStops.removeFirst(min(3, demandedStops.count))
-            let forced = forcedStopIDs.intersection(batch.map(\.id))
-            forcedStopIDs.subtract(forced)
-            var legacy: [StopLineSelection] = []
-            for stop in batch { stopAttempts[stop.id] = now() }
-            await runBatches(batch.compactMap { $0.lineSelections.first }) { selection in
-                let stop = selection.stop
-                if let grouped = self.client.grouped, !self.groupedUnavailable {
-                    do {
-                        let response = try await grouped(stop.id)
-                        for option in stop.lineSelections {
-                            if let group = response.groups.first(where: { $0.line == option.line }) {
-                                self.boards[option.id] = .init(departures: group.departures, checkedAt: self.now())
-                                self.boardErrors.remove(option.id)
-                                self.restoredBoards.remove(option.id)
-                            } else if response.complete == true {
-                                self.boards[option.id] = .init(departures: [], checkedAt: self.now())
-                                self.boardErrors.remove(option.id)
-                                self.restoredBoards.remove(option.id)
-                            } else {
-                                self.boards[option.id] = .init(departures: [], checkedAt: self.now(),
-                                                              coverageLimit: .init(before: response.latestListedTime))
-                                self.boardErrors.remove(option.id)
-                                self.restoredBoards.remove(option.id)
-                            }
-                        }
-                    } catch {
-                        if case APIError.groupedUnavailable = error {
-                            self.groupedUnavailable = true
-                            legacy.append(contentsOf: stop.lineSelections)
-                        } else if Self.cancelled(error) {
-                            self.stopAttempts[stop.id] = nil
-                        } else {
-                            self.boardErrors.formUnion(stop.lineSelections.map(\.id))
-                        }
-                    }
-                } else { legacy.append(contentsOf: stop.lineSelections) }
-            }
-            rebuildGroups()
-            // Reserve loading flags for the per-line loader while retaining the
-            // stop-level pending flag, so duplicate visibility events do not fan out.
-            for option in legacy { loadingBoards.remove(option.id) }
-            await runBatches(legacy) { await self.refreshBoard($0, force: forced.contains($0.stop.id)) }
-            persistence.saveBoards(boards)
-            for stop in batch {
-                pendingStopIDs.remove(stop.id)
-                loadingBoards.subtract(stop.lineSelections.map(\.id))
-            }
-            rebuildGroups()
+    var displayedOptions: [StopLineSelection] { home.selections }
+    var mapGroups: [StopGroup] {
+        guard let area else { return [] }
+        return HomeSnapshot.physicalStops(stops, from: area.coordinate).compactMap { group in
+            let ids = Set(group.stops.map(\.id))
+            var result = group
+            result.active = home.selections.filter { ids.contains($0.stop.id) }
+            return result.active.isEmpty ? nil : result
         }
     }
-
-    private func demandWalks(_ stops: [NearbyStop]) {
-        for stop in stops where pendingWalkIDs.insert(stop.id).inserted { demandedWalks.append(stop) }
-        guard walkLoadTask == nil, !demandedWalks.isEmpty else { return }
-        walkLoadTask = Task { [weak self] in
-            guard let self else { return }
-            defer { self.walkLoadTask = nil }
-            while !self.demandedWalks.isEmpty {
-                let batch = Array(self.demandedWalks.prefix(3))
-                self.demandedWalks.removeFirst(batch.count)
-                await self.refreshWalks(for: batch.flatMap(\.lineSelections))
-                for stop in batch { self.pendingWalkIDs.remove(stop.id) }
-            }
-        }
+    func group(containing stop: NearbyStop) -> StopGroup {
+        mapGroups.first { $0.stops.contains { $0.id == stop.id } }
+            ?? .init(id: stop.id, name: stop.name, stops: [stop])
     }
     var canSearchFarther: Bool { area != nil && radius < 1600 }
-
     var walkingOrigin: Coordinate? {
         if let location, location.isUsable(at: now()) { return location.coordinate }
         return area?.coordinate
     }
 
-    func isPinned(_ selection: StopLineSelection) -> Bool { pins.contains { $0.id == selection.id } }
+    func setInteracting(_ active: Bool, presentationID: String) {
+        if active { interactingPresentations.insert(presentationID) }
+        else { interactingPresentations.remove(presentationID); publishPendingHome() }
+    }
+    func clearPresentation(_ prefix: String) {
+        interactingPresentations = interactingPresentations.filter { !$0.hasPrefix(prefix) }
+        publishPendingHome()
+    }
+    func setPresentationActive(_ active: Bool, presentationID: String) {
+        if !active { clearPresentation(presentationID) }
+    }
+    private func publish(_ snapshot: HomeSnapshot) {
+        pendingHome = snapshot
+        publishPendingHome()
+    }
+    private func publishPendingHome() {
+        guard interactingPresentations.isEmpty, let pendingHome else { return }
+        home = pendingHome
+        self.pendingHome = nil
+        persistence.saveHome(home)
+        // Start routes for the list actually published, including a response
+        // that had to wait until the rider stopped scrolling.
+        Task { await self.refreshListedWalks() }
+    }
 
+    func isPinned(_ selection: StopLineSelection) -> Bool { pins.contains { $0.id == selection.id } }
     func togglePin(_ selection: StopLineSelection) {
         if let index = pins.firstIndex(where: { $0.id == selection.id }) { pins.remove(at: index) }
         else { pins.append(selection) }
         persistence.savePins(pins)
+        if let response = lastResponse, let area, let date = TimeFormatter.parseISO(response.fetchedAt) {
+            var snapshot = HomeSnapshot.make(stops: stops, origin: area.coordinate, pins: pins, response: response, checkedAt: date)
+            let current = pendingHome ?? home
+            snapshot.missing = current.missing
+            snapshot.boards.merge(current.boards) { _, current in current }
+            publish(snapshot)
+        } else {
+            // Pin actions work on a saved list without requiring network access.
+            var snapshot = pendingHome ?? home
+            if isPinned(selection), stops.contains(where: { $0.id == selection.stop.id }) {
+                snapshot.pins.append(selection)
+                for index in snapshot.groups.indices {
+                    snapshot.groups[index].active.removeAll { $0.line.serviceIdentity == selection.line.serviceIdentity }
+                }
+            } else if !isPinned(selection) {
+                snapshot.pins.removeAll { $0.id == selection.id }
+                if snapshot.boards[selection.id]?.hasDepartureWithinHorizon == true, let area {
+                    if let index = snapshot.groups.firstIndex(where: { $0.stops.contains { $0.id == selection.stop.id } }) {
+                        snapshot.groups[index].active.append(selection)
+                    } else if var group = HomeSnapshot.physicalStops(stops, from: area.coordinate)
+                        .first(where: { $0.stops.contains { $0.id == selection.stop.id } }) {
+                        group.active = [selection]
+                        snapshot.groups.append(group)
+                        snapshot.groups.sort { $0.distance(from: area.coordinate) < $1.distance(from: area.coordinate) }
+                    }
+                }
+            }
+            snapshot.groups.removeAll { $0.active.isEmpty && !$0.hasMissingBoard }
+            publish(snapshot)
+        }
     }
 
     func updateLocation(_ fix: LocationFix, showing selection: StopLineSelection? = nil, force: Bool = false) async {
@@ -297,12 +174,9 @@ final class TransitStore {
         if let selection { await refreshSelection(selection, force: force); return }
         guard followsLocation else { await refreshAnswers(force: force); return }
         let moved = area.map { $0.coordinate.distance(to: fix.coordinate) > 150 } ?? true
-        let needsStops = moved || area?.source != .location || stopsCheckedAt?.isRecent(at: now(), within: 300) != true
-        if needsStops {
+        if moved || area?.source != .location || stopsCheckedAt?.isRecent(at: now(), within: 300) != true {
             await loadArea(.init(coordinate: fix.coordinate, name: String(localized: "Near you"), source: .location), radius: radius)
-        } else {
-            await refreshAnswers(force: force)
-        }
+        } else { await refreshAnswers(force: force) }
     }
 
     func searchFarther() async {
@@ -312,190 +186,195 @@ final class TransitStore {
 
     func loadArea(_ newArea: SearchArea, radius newRadius: Int = 400, forceRefresh: Bool = false) async {
         guard newArea.coordinate.isValid else { return }
-        areaRevision += 1
-        let revision = areaRevision
-        let differentArea = area.map { $0.coordinate.distance(to: newArea.coordinate) > 150 } ?? true
-        if differentArea {
+        let changed = area != newArea || radius != newRadius
+        if !changed, let areaTask { await areaTask.value; return }
+        if changed {
+            areaRevision += 1
+            areaTask?.cancel()
+            batchTask?.cancel()
+            batchTask = nil
+            batchID = nil
+            lastBatchAttempt = nil
+            lastResponse = nil
+            pendingHome = nil
+            home = .init()
             stops = []
             stopsCheckedAt = nil
-            visibleStops = [:]
-            hasMeasuredVisibility = false
-            statusStopIDs = []
-            needsOpeningRefresh = true
-            for stop in demandedStops {
-                pendingStopIDs.remove(stop.id)
-                forcedStopIDs.remove(stop.id)
-                loadingBoards.subtract(stop.lineSelections.map(\.id))
-            }
-            demandedStops = []
-            for stop in demandedWalks { pendingWalkIDs.remove(stop.id) }
-            demandedWalks = []
+            departuresError = nil
+            isLoadingDepartures = false
+            homeRestored = false
+            persistence.saveHome(home)
         }
         area = newArea
+        followsLocation = newArea.source == .location
+        radius = newRadius
         if newArea.source == .chosen {
             recentAreas.removeAll { $0.coordinate.distance(to: newArea.coordinate) < 40 && $0.name == newArea.name }
             recentAreas.insert(newArea, at: 0)
             recentAreas = Array(recentAreas.prefix(5))
             persistence.saveRecentAreas(recentAreas)
         }
-        followsLocation = newArea.source == .location
-        radius = newRadius
+        let revision = areaRevision
         isLoadingStops = true
         stopsError = nil
-        defer { if revision == areaRevision { isLoadingStops = false } }
-        do {
-            let response = try await client.stops(newArea.coordinate, newRadius)
-            guard revision == areaRevision, !Task.isCancelled else { return }
-            var seen = Set<String>()
-            let received = response.filter { seen.insert($0.id).inserted }
-            // Keep existing rows in place during refresh; append newly discovered stops.
-            let byID = Dictionary(received.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-            let oldIDs = Set(stops.map(\.id))
-            stops = stops.compactMap { byID[$0.id] } + received.filter { !oldIDs.contains($0.id) }
-            rebuildGroups()
-            stopsCheckedAt = now()
-            let refreshedSelections = Dictionary(uniqueKeysWithValues: stops.flatMap(\.lineSelections).map { ($0.id, $0) })
-            pins = pins.map { refreshedSelections[$0.id] ?? $0 }
-            persistence.savePins(pins)
-            persistence.saveNearby(.init(area: newArea, radius: newRadius, stops: stops, checkedAt: now()))
-            isLoadingStops = false
-            await refreshAnswers(force: forceRefresh)
-        } catch {
-            guard revision == areaRevision, !Self.cancelled(error) else { return }
-            stopsError = String(localized: "Couldn't update nearby stops. Try again or choose an area.")
+        let task = Task { [weak self] in
+            guard let self else { return }
+            defer { if revision == self.areaRevision { self.isLoadingStops = false; self.areaTask = nil } }
+            do {
+                let response = try await self.client.stops(newArea.coordinate, newRadius)
+                guard revision == self.areaRevision, !Task.isCancelled else { return }
+                var seen: Set<String> = []
+                self.stops = Array(response.filter {
+                    $0.location.isValid && $0.location.distance(to: newArea.coordinate) <= Double(newRadius)
+                        && seen.insert($0.id).inserted
+                }.prefix(50))
+                self.stopsCheckedAt = self.now()
+                if self.stops.isEmpty {
+                    self.home = .init()
+                    self.pendingHome = nil
+                    self.lastResponse = nil
+                    self.persistence.saveHome(self.home)
+                }
+                self.persistence.saveNearby(.init(area: newArea, radius: newRadius, stops: self.stops, checkedAt: self.now()))
+                self.isLoadingStops = false
+                await self.refreshAnswers(force: forceRefresh || changed)
+            } catch {
+                guard revision == self.areaRevision, !Self.cancelled(error) else { return }
+                self.stopsError = String(localized: "Couldn't update nearby stops. Try again or choose an area.")
+            }
         }
+        areaTask = task
+        await task.value
     }
 
     func refreshAnswers(force: Bool = false) async {
-        // A tall saved-state header can be the whole viewport on relaunch.
-        // Revalidate the opening boards even before their rows enter view.
-        let targets: [NearbyStop]
-        if needsOpeningRefresh && !stops.isEmpty {
-            targets = nearbyPins.map(\.stop) + Array(stops.prefix(3)) + refreshTargets
-            needsOpeningRefresh = false
-        } else if force && refreshTargets.isEmpty {
-            targets = statusStops
-        } else { targets = refreshTargets }
-        // Begin a status cycle with this refresh's targets. Newly visible
-        // stops may join until the next cycle; leaving view never removes one.
-        if !targets.isEmpty { statusStopIDs = Set(targets.map(\.id)) }
-        demand(targets, force: force)
-        await loadTask?.value
-        await walkLoadTask?.value
+        guard let area, !stops.isEmpty else { return }
+        if let batchTask { await batchTask.value; return }
+        if !force, lastBatchAttempt?.isRecent(at: now(), within: Self.refreshInterval) == true { return }
+        let revision = areaRevision, requestID = UUID(), requestedStops = stops
+        batchID = requestID
+        lastBatchAttempt = now()
+        isLoadingDepartures = true
+        let task = Task { [weak self] in
+            guard let self else { return }
+            defer {
+                if self.batchID == requestID { self.batchTask = nil; self.isLoadingDepartures = false }
+            }
+            do {
+                let response = try await self.client.batch(requestedStops.map(\.id))
+                guard revision == self.areaRevision, !Task.isCancelled else { return }
+                guard let fetchedAt = TimeFormatter.parseISO(response.fetchedAt) else { throw APIError.requestFailed }
+                var snapshot = HomeSnapshot.make(stops: requestedStops, origin: area.coordinate, pins: self.pins,
+                                                 response: response, checkedAt: fetchedAt)
+                let previous = self.pendingHome ?? self.home
+                if !snapshot.missing.isEmpty, previous.checkedAt != nil {
+                    // Partial results update known times, never promote or move
+                    // saved rows. A complete response can select a new list.
+                    var retained = previous
+                    retained.missing = snapshot.missing
+                    retained.checkedAt = fetchedAt
+                    for selection in previous.selections {
+                        if !snapshot.missing.contains(selection.stop.id), let board = snapshot.boards[selection.id] {
+                            retained.boards[selection.id] = board
+                        } else { retained.missing.insert(selection.stop.id) }
+                    }
+                    snapshot = retained
+                } else { self.lastResponse = response }
+                self.boards.merge(snapshot.boards) { _, new in new }
+                for selection in snapshot.selections where !snapshot.missing.contains(selection.stop.id) {
+                    self.boardErrors.remove(selection.id)
+                    self.restoredBoards.remove(selection.id)
+                }
+                self.homeRestored = false
+                self.departuresError = nil
+                self.publish(snapshot)
+                self.persistence.saveBoards(self.boards)
+            } catch {
+                guard revision == self.areaRevision, !Self.cancelled(error) else { return }
+                self.departuresError = String(localized: "Couldn't update departures")
+            }
+        }
+        batchTask = task
+        await task.value
     }
 
-    var displayedOptions: [StopLineSelection] { statusStops.flatMap(\.lineSelections) }
-
-    private var statusStops: [NearbyStop] {
-        let retained = stops.filter { statusStopIDs.contains($0.id) }
-        return retained.isEmpty ? Array(stops.prefix(3)) : retained
+    func isHomeBoardFresh(for selection: StopLineSelection, at date: Date) -> Bool {
+        !homeRestored && departuresError == nil && !home.missing.contains(selection.stop.id)
+            && home.boards[selection.id]?.isFresh(at: date) == true
     }
-
-    private var refreshTargets: [NearbyStop] {
-        let visibleIDs = Set(visibleStops.filter { isPresentationActive($0.key) }.values.flatMap { $0 }.map(\.id))
-        let onScreen = hasMeasuredVisibility ? stops.filter { visibleIDs.contains($0.id) } : Array(stops.prefix(3))
-        var seen: Set<String> = []
-        return (nearbyPins.map(\.stop) + onScreen).filter { seen.insert($0.id).inserted }
+    func needsListRefresh(at date: Date) -> Bool {
+        homeRestored || departuresError != nil || !home.missing.isEmpty
+            || home.checkedAt.map { !$0.isRecent(at: date, within: 60) } == true
+            || home.selections.contains { !isHomeBoardFresh(for: $0, at: date) }
     }
 
     func refreshSelection(_ selection: StopLineSelection, force: Bool = false) async {
-        if boards[selection.id]?.coverageLimit != nil, client.grouped != nil, !groupedUnavailable {
-            demand([selection.stop], force: force)
-            await loadTask?.value
-            await walkLoadTask?.value
-            return
-        }
         async let route: Void = refreshWalk(for: selection.stop)
         await refreshBoard(selection, force: force)
         await route
     }
-
     func refreshBoard(_ selection: StopLineSelection, force: Bool = false) async {
         let key = selection.id
         guard !loadingBoards.contains(key) else { return }
-        if !force, !boardErrors.contains(key), !restoredBoards.contains(key),
-           boards[key]?.checkedAt.isRecent(at: now(), within: 25) == true { return }
+        if !force, detailChecks[key]?.isRecent(at: now(), within: Self.refreshInterval) == true { return }
         loadingBoards.insert(key)
+        detailChecks[key] = now()
         defer { loadingBoards.remove(key) }
         do {
             let departures = try await client.departures(selection)
-            // This immutable service key is safe to cache even if the screen changed while loading.
             boards[key] = .init(departures: departures, checkedAt: now())
-            // Keep all in-memory boards for the current browsing session.
-            // TransitPersistence independently bounds its disk snapshot to 40.
             boardErrors.remove(key)
             restoredBoards.remove(key)
             persistence.saveBoards(boards)
-            rebuildGroups()
         } catch {
-            guard !Self.cancelled(error) else { stopAttempts[selection.stop.id] = nil; return }
-            boardErrors.insert(key)
-            rebuildGroups()
+            if Self.cancelled(error) { detailChecks[key] = nil }
+            else { boardErrors.insert(key) }
         }
     }
-
+    func isBoardFresh(for selection: StopLineSelection, at date: Date) -> Bool {
+        boards[selection.id]?.isFresh(at: date) == true && !boardErrors.contains(selection.id) && !restoredBoards.contains(selection.id)
+    }
+    func advice(for selection: StopLineSelection, at date: Date = .now) -> DepartureAdvice {
+        DepartureAdvice.make(board: boards[selection.id], walk: walk(for: selection.stop, at: date), location: location,
+                             requestFailed: !isBoardFresh(for: selection, at: date), now: date)
+    }
     func walk(for stop: NearbyStop, at date: Date = .now) -> CachedWalk? {
         guard let origin = walkingOrigin, let walk = walks[stop.id], walk.matches(origin, at: date) else { return nil }
         return walk
     }
-
-    func advice(for selection: StopLineSelection, at date: Date = .now) -> DepartureAdvice {
-        DepartureAdvice.make(board: boards[selection.id], walk: walk(for: selection.stop, at: date),
-                             location: location, requestFailed: !isBoardFresh(for: selection, at: date), now: date)
+    func walk(for group: StopGroup, at date: Date) -> CachedWalk? {
+        guard let area, let platform = group.nearestPlatform(to: area.coordinate) else { return nil }
+        return walk(for: platform, at: date)
     }
-
-    func isBoardFresh(for selection: StopLineSelection, at date: Date) -> Bool {
-        boards[selection.id]?.isFresh(at: date) == true && !boardErrors.contains(selection.id) && !restoredBoards.contains(selection.id)
+    private func refreshListedWalks() async {
+        guard let area else { return }
+        let platforms = mapGroups.compactMap { $0.nearestPlatform(to: area.coordinate) }
+        await withTaskGroup(of: Void.self) { group in
+            var iterator = platforms.makeIterator()
+            for _ in 0..<3 {
+                if let stop = iterator.next() { group.addTask { await self.refreshWalk(for: stop) } }
+            }
+            while await group.next() != nil {
+                if let stop = iterator.next() { group.addTask { await self.refreshWalk(for: stop) } }
+            }
+        }
     }
-
-    func needsListRefresh(at date: Date) -> Bool {
-        displayedOptions.contains { boardErrors.contains($0.id) || (boards[$0.id] != nil && !isBoardFresh(for: $0, at: date)) }
-    }
-
-    private func refreshWalks(for options: [StopLineSelection]) async {
-        var seen = Set<String>()
-        let unique = options.filter { seen.insert($0.stop.id).inserted }
-        await runBatches(unique) { await self.refreshWalk(for: $0.stop) }
-    }
-
     private func refreshWalk(for stop: NearbyStop) async {
         guard let origin = walkingOrigin, origin.distance(to: stop.location) < 5000 else { return }
         if walks[stop.id]?.matches(origin, at: now()) == true { return }
-        if loadingWalks.contains(stop.id), let pendingOrigin = walkingFrom[stop.id], pendingOrigin.distance(to: origin) <= 40 { return }
+        if let pending = walkRequests[stop.id], pending.origin.distance(to: origin) <= 40 { return }
         let requestID = UUID()
-        walkRequests[stop.id] = requestID
-        walkingFrom[stop.id] = origin
+        walkRequests[stop.id] = (origin, requestID)
         loadingWalks.insert(stop.id)
         defer {
-            if walkRequests[stop.id] == requestID {
-                loadingWalks.remove(stop.id); walkRequests[stop.id] = nil; walkingFrom[stop.id] = nil
-            }
+            if walkRequests[stop.id]?.id == requestID { walkRequests[stop.id] = nil; loadingWalks.remove(stop.id) }
         }
         do {
             let route = try await client.directions(origin, stop.location)
-            guard let currentOrigin = walkingOrigin,
-                  origin.distance(to: currentOrigin) <= 40 else { return }
+            guard let currentOrigin = walkingOrigin, origin.distance(to: currentOrigin) <= 40 else { return }
             walks[stop.id] = .init(origin: origin, route: route, checkedAt: now())
-            if walks.count > 80 {
-                walks = Dictionary(uniqueKeysWithValues: walks.sorted { $0.value.checkedAt > $1.value.checkedAt }.prefix(40).map { ($0.key, $0.value) })
-            }
-        } catch { /* Departures remain useful without a walking route. */ }
+        } catch { /* A walking failure never hides departure information. */ }
     }
-
-    // Each refresh limits departure and walking batches independently to three requests.
-    private func runBatches(_ options: [StopLineSelection], action: @escaping @MainActor (StopLineSelection) async -> Void) async {
-        await withTaskGroup(of: Void.self) { group in
-            var iterator = options.makeIterator()
-            for _ in 0..<3 {
-                if let option = iterator.next() { group.addTask { await action(option) } }
-            }
-            while await group.next() != nil {
-                guard !Task.isCancelled else { group.cancelAll(); break }
-                if let option = iterator.next() { group.addTask { await action(option) } }
-            }
-        }
-    }
-
     private static func cancelled(_ error: Error) -> Bool {
         error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled
     }

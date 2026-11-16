@@ -12,7 +12,17 @@ enum PreviewData {
                               realTime: minutes != 20, delay: nil, line: selection.line)
                 }
             },
-            directions: { _, _ in walkingRoute })
+            directions: { _, _ in walkingRoute },
+            batch: { ids in
+                let now = Date.now
+                return .init(fetchedAt: now.ISO8601Format(), boards: stops.filter { ids.contains($0.id) }.map { stop in
+                    .init(stopId: stop.id, groups: stop.lines.map { line in
+                        .init(line: line, departures: [3, 12].map {
+                            .init(time: now.addingTimeInterval(Double($0 * 60)).ISO8601Format(), realTime: false, delay: nil)
+                        })
+                    })
+                }, missing: [])
+            })
         return TransitStore(client: client, persistence: storage)
     }
 

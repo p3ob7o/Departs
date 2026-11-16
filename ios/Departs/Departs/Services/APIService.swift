@@ -61,6 +61,13 @@ actor APIService {
         return try decoder.decode([Departure].self, from: data)
     }
 
+    func fetchDepartureBoards(stopIDs: [String]) async throws -> BatchDepartures {
+        let bytes = try await data(at: Self.batchDeparturesURL(stopIDs: stopIDs), refresh: true)
+        let response = try decoder.decode(BatchDepartures.self, from: bytes)
+        guard TimeFormatter.parseISO(response.fetchedAt) != nil else { throw APIError.requestFailed }
+        return response
+    }
+
     func fetchGroupedDepartures(stopId: String) async throws -> GroupedDepartures {
         var components = URLComponents(url: try Self.departuresURL(stopId: stopId), resolvingAgainstBaseURL: false)!
         components.queryItems = (components.queryItems ?? []) + [URLQueryItem(name: "groupBy", value: "line")]
@@ -101,6 +108,13 @@ actor APIService {
             path: "/api/departures",
             queryItems: queryItems
         )
+    }
+
+    static func batchDeparturesURL(stopIDs: [String]) throws -> URL {
+        guard !stopIDs.isEmpty, stopIDs.count <= 50 else { throw APIError.invalidStopId }
+        return try makeURL(path: "/api/departures", queryItems: [
+            URLQueryItem(name: "stopIds", value: stopIDs.joined(separator: ","))
+        ])
     }
 
     static func directionsURL(from: Coordinate, to: Coordinate) throws -> URL {
@@ -144,7 +158,7 @@ enum APIError: LocalizedError {
 }
 
 struct GroupedDepartures: Decodable {
-    struct Group: Decodable {
+    struct Group: Codable {
         let line: LineInfo
         let departures: [Departure]
     }
@@ -154,4 +168,14 @@ struct GroupedDepartures: Decodable {
         groups.flatMap(\.departures).filter { TimeFormatter.parseISO($0.time) != nil }
             .max { TimeFormatter.parseISO($0.time)! < TimeFormatter.parseISO($1.time)! }?.time
     }
+}
+
+struct BatchDepartures: Codable {
+    struct Board: Codable {
+        let stopId: String
+        let groups: [GroupedDepartures.Group]
+    }
+    let fetchedAt: String
+    let boards: [Board]
+    let missing: [String]
 }

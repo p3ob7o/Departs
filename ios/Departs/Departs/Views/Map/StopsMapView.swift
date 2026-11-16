@@ -2,7 +2,7 @@ import SwiftUI
 import MapKit
 
 struct StopsMapView: UIViewRepresentable {
-    let userCoordinate: CLLocationCoordinate2D
+    let userCoordinate: CLLocationCoordinate2D?
     let groups: [TransitStore.StopGroup]
     var radius: Int = 400
     var selectedStopID: String? = nil
@@ -22,27 +22,29 @@ struct StopsMapView: UIViewRepresentable {
 
     func updateUIView(_ map: MKMapView, context: Context) {
         context.coordinator.onSelect = onSelect
-        let center = Coordinate(lat: userCoordinate.latitude, lon: userCoordinate.longitude)
-        if context.coordinator.regionCenter != center || context.coordinator.radius != radius {
-            map.setRegion(MKCoordinateRegion(center: userCoordinate,
-                latitudinalMeters: Double(radius) * 2.4, longitudinalMeters: Double(radius) * 2.4), animated: false)
-            context.coordinator.regionCenter = center
-            context.coordinator.radius = radius
-            map.removeOverlays(map.overlays)
-            map.addOverlay(MKCircle(center: userCoordinate, radius: CLLocationDistance(radius)))
+        context.coordinator.restoringSelection = true
+        defer { context.coordinator.restoringSelection = false }
+        if let userCoordinate {
+            let center = Coordinate(lat: userCoordinate.latitude, lon: userCoordinate.longitude)
+            if context.coordinator.regionCenter != center || context.coordinator.radius != radius {
+                map.setRegion(MKCoordinateRegion(center: userCoordinate,
+                    latitudinalMeters: Double(radius) * 2.4, longitudinalMeters: Double(radius) * 2.4), animated: false)
+                context.coordinator.regionCenter = center
+                context.coordinator.radius = radius
+                map.removeOverlays(map.overlays)
+                map.addOverlay(MKCircle(center: userCoordinate, radius: CLLocationDistance(radius)))
+            }
         }
 
         let groupsByID = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, $0) })
         for pin in map.annotations.compactMap({ $0 as? StopAnnotation }) {
-            guard let group = groupsByID[pin.stopId], group.stops == pin.stops else {
+            guard let group = groupsByID[pin.stopId], group.stops == pin.stops, group.lines == pin.lines else {
                 map.removeAnnotation(pin)
                 continue
             }
         }
         let existingIDs = Set(map.annotations.compactMap { ($0 as? StopAnnotation)?.stopId })
         map.addAnnotations(groups.filter { !existingIDs.contains($0.id) }.map(StopAnnotation.init))
-        context.coordinator.restoringSelection = true
-        defer { context.coordinator.restoringSelection = false }
         for pin in map.annotations.compactMap({ $0 as? StopAnnotation }) {
             let selected = map.selectedAnnotations.contains { ($0 as? StopAnnotation)?.stopId == pin.stopId }
             if pin.stopId == selectedStopID && !selected {
@@ -59,18 +61,14 @@ struct StopsMapView: UIViewRepresentable {
         let coordinate: CLLocationCoordinate2D
         let stopId: String
         let stops: [NearbyStop]
-        let badgeName: String
+        let lines: [LineInfo]
         let spokenLabel: String
-        let mode: TransportType
 
         init(group: TransitStore.StopGroup) {
             coordinate = group.coordinate.clLocationCoordinate2D
             stopId = group.id
             stops = group.stops
-            let lines = group.lines
-            mode = lines.first?.type ?? group.stops.first?.type ?? .tram
-            let first = lines.first?.name ?? mode.displayName
-            badgeName = lines.count > 1 ? "\(first) +\((lines.count - 1).formatted())" : first
+            lines = group.lines
             let services = lines.map { String(localized: "\($0.type.displayName) \($0.name)") }.formatted(.list(type: .and))
             spokenLabel = String(localized: "\(group.name), \(services)")
         }
@@ -88,7 +86,7 @@ struct StopsMapView: UIViewRepresentable {
             let view = mapView.dequeueReusableAnnotationView(withIdentifier: id) as? MapLineAnnotationView
                 ?? MapLineAnnotationView(annotation: pin, reuseIdentifier: id)
             view.annotation = pin
-            view.configure(name: pin.badgeName, type: pin.mode, color: StopPalette.modeColor(pin.mode))
+            view.configure(lines: pin.lines)
             view.accessibilityLabel = pin.spokenLabel
             view.accessibilityIdentifier = "stop-map-pin"
             return view
@@ -118,18 +116,49 @@ struct StopsMapView: UIViewRepresentable {
 /// The drawing stays compact on the map; the annotation's transparent hit region
 /// is at least 44 points. VoiceOver exposes the complete stop and service names.
 final class MapLineAnnotationView: MKAnnotationView {
-    private var badge: MapLineBadge?
+    private var badges: [MapLineBadge] = []
+    private var moreLabel: UILabel?
 
     func configure(name: String, type: TransportType, color: Color) {
-        badge?.removeFromSuperview()
-        let badge = MapLineBadge(name: name, type: type, color: color)
-        self.badge = badge
-        frame.size = CGSize(width: max(48, badge.bounds.width + 8), height: max(48, badge.bounds.height + 8))
-        badge.center = CGPoint(x: bounds.midX, y: bounds.midY)
-        addSubview(badge)
+        arrange([MapLineBadge(name: name, type: type, color: color)], extra: 0)
+    }
+
+    func configure(lines: [LineInfo]) {
+        arrange(lines.prefix(3).map { MapLineBadge(name: $0.name, type: $0.type, color: StopPalette.modeColor($0.type)) },
+                extra: max(0, lines.count - 3))
+    }
+
+    private func arrange(_ newBadges: [MapLineBadge], extra: Int) {
+        badges.forEach { $0.removeFromSuperview() }
+        moreLabel?.removeFromSuperview()
+        moreLabel = nil
+        badges = newBadges
+        var drawings: [UIView] = newBadges
+        if extra > 0 {
+            let label = UILabel()
+            label.text = "+\(extra.formatted())"
+            label.font = UIFontMetrics(forTextStyle: .caption1).scaledFont(for: .systemFont(ofSize: 13, weight: .semibold), maximumPointSize: 18)
+            label.textColor = .label
+            label.backgroundColor = .systemBackground
+            label.layer.cornerRadius = 6
+            label.clipsToBounds = true
+            label.textAlignment = .center
+            label.sizeToFit()
+            label.frame.size = CGSize(width: label.bounds.width + 8, height: max(28, label.bounds.height + 8))
+            moreLabel = label
+            drawings.append(label)
+        }
+        let width = drawings.reduce(0) { $0 + $1.bounds.width } + CGFloat(max(0, drawings.count - 1)) * 3
+        frame.size = CGSize(width: max(44, width + 8), height: max(44, (drawings.map { $0.bounds.height }.max() ?? 28) + 8))
+        var x = (bounds.width - width) / 2
+        for drawing in drawings {
+            drawing.frame.origin = CGPoint(x: x, y: (bounds.height - drawing.bounds.height) / 2)
+            x += drawing.bounds.width + 3
+            addSubview(drawing)
+        }
         centerOffset = .zero
         collisionMode = .rectangle
-        displayPriority = .defaultHigh
+        displayPriority = .required
         isAccessibilityElement = true
         updateSelection()
     }
@@ -140,7 +169,7 @@ final class MapLineAnnotationView: MKAnnotationView {
     }
 
     private func updateSelection() {
-        badge?.setSelected(isSelected)
+        badges.forEach { $0.setSelected(isSelected) }
         accessibilityTraits = isSelected ? [.button, .selected] : [.button]
         zPriority = isSelected ? .max : .defaultUnselected
     }
@@ -154,7 +183,7 @@ final class MapLineBadge: UIView {
         let label = UILabel()
         label.text = name
         // Map markers must retain their spatial meaning at large text sizes.
-        // The selected-stop card below the map uses the full Dynamic Type size.
+        // The list below the map uses the full Dynamic Type size.
         label.font = UIFontMetrics(forTextStyle: .caption1).scaledFont(
             for: .systemFont(ofSize: 13, weight: .semibold), maximumPointSize: 18)
         label.textColor = .white
@@ -163,6 +192,8 @@ final class MapLineBadge: UIView {
         let width = label.bounds.width + symbolSize + 19
         let height = max(28, label.bounds.height + 8)
         super.init(frame: CGRect(x: 0, y: 0, width: width, height: height))
+        isUserInteractionEnabled = false
+        accessibilityElementsHidden = true
         backgroundColor = UIColor(color)
         layer.cornerRadius = 6
         layer.borderColor = UIColor.white.cgColor
