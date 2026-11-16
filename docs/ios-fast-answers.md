@@ -18,7 +18,7 @@ Search starts with Current location in its own section and the five most recentl
 - Boards restored from disk remain labeled as saved until successfully checked again, even if their previous fetch was recent.
 - A location must be at most two minutes old and accurate to 100 metres or better for leave-time advice.
 - A walking route is reused for ten minutes within 40 metres of its origin. Walking time rounds up. Routes farther than five kilometres from the origin are not requested.
-- Advice uses the first departure that allows the full walking duration plus a two-minute buffer. The leave countdown rounds down. The interface explains this allowance as “2 min extra” and explicitly identifies scheduled arrivals; these remain timetable estimates.
+- Advice uses the first departure that allows the full walking duration plus a two-minute buffer. The leave countdown rounds down. The interface explains this allowance as “2 min extra” and explicitly identifies scheduled departures; these remain timetable estimates.
 - Missing location, a stale board, a failed refresh, or a mismatched route suppresses leave-time recommendations. Directions may still be shown from a manually searched area, with that origin labeled.
 - Visible answers refresh on foreground return and every 30 seconds after the previous refresh completes, while active. Countdown labels tick every 15 seconds. A pending location request times out after eight seconds; permission dialogs are not timed out.
 
@@ -26,7 +26,9 @@ These rules are estimates, not guarantees of boarding. No platform or station-en
 
 ## Data and network behavior
 
-`TransitStore` is the single observable source for list and detail. Its departure and walking queues live independently of any view task's cancellation and run three requests each at a time. Periodic and location refreshes demand nearby pins and currently visible sections, with a 25-second recency throttle; an explicit refresh bypasses recency. Scrolling through a stop does not add it to subsequent periodic refreshes. Countdown ticks never change the running/idle partition; fetched boards can change it, deferred while the list is being touched or scrolling. The view uses one published partition, including unknown rows. APIService coalesces matching URLs, limits each request to 12 seconds, and bypasses the local URL cache for departure refreshes. No periodic work is scheduled while the scene is inactive; already-started shared requests may finish and populate the cache.
+`DepartsApp` owns one `TransitSession` with a shared `TransitStore`, `LocationService` and refresh clock. Each window retains its own split-view selection, scroll targets and sheets. `TransitStore` is the single observable source for every list and detail pane. Its departure and walking queues live independently of any view task's cancellation and run three requests each at a time. Periodic and location refreshes demand nearby pins and currently visible sections in active windows, with a 25-second recency throttle; an explicit refresh bypasses recency. Scrolling through a stop does not add it to subsequent periodic refreshes. Countdown ticks never change the running/idle partition; fetched boards can change it, deferred until all interacting panes are idle. The view uses one published partition, including unknown rows. APIService coalesces matching URLs, limits each request to 12 seconds, and bypasses the local URL cache for departure refreshes. No periodic work is scheduled when all windows are inactive; already-started shared requests may finish and populate the cache.
+
+List-level freshness uses a stable set within each refresh cycle: its starting targets plus stops that become visible. A header changing height cannot remove a failed stop from that set and feed back into layout. The next cycle resets the status set. Network demand continues to use the live visible set.
 
 UserDefaults stores pins, the last successful nearby snapshot, and the 40 newest boards. The in-memory cache retains all boards browsed during the session, including dense areas with more than 80 services. Boards older than one day are discarded on launch. Walks remain in memory only. Pins use length-prefixed service identities, so provider ordering and embedded punctuation do not break them. Area revisions reject older searches; route results are checked against the current walking origin. A failed refresh keeps the last useful answer.
 
@@ -46,13 +48,15 @@ The shared Departs scheme runs unit tests and UI tests:
 
 ```bash
 xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs \
-  -destination 'platform=iOS Simulator,name=iPhone 17 Pro' \
-  -parallel-testing-enabled NO test
+  -destination 'platform=iOS Simulator,name=iPhone 17 Pro,OS=27.0' \
+  -derivedDataPath /tmp/departs-iphone -parallel-testing-enabled NO test
 ```
 
 Unit tests cover catchability boundaries, stale/failing data, current-location requirements, caching, pin persistence, out-of-order requests, bounded loading, and independence from walking failures. UI tests start a local HTTP fixture server in the test runner, simulate location, and use separate preferences. They exercise the actual URLSession decoder and SwiftUI navigation, including pins across relaunch, direct entry, failed refresh/recovery, wider search, denied-location recovery, and accessibility text. Screenshots are saved in the test result bundle.
 
 Debug builds accept `DEPARTS_API_BASE_URL` for a local backend and `DEPARTS_DEFAULTS_SUITE` for isolated test preferences. Release builds ignore these environment variables. No provider credentials are embedded in the app.
+
+The committed project remains iPhone-only. The resize tests use an iPad destination with the command-line override `TARGETED_DEVICE_FAMILY="1,2"` and separate derived data. A Debug-only fixture host exercises exact widths of 320, 402, 466, 669, 834, 1024 and 1200 points; separate tests resize native windows and rotate an iPhone with a 375-point landscape height. Layout decisions use container dimensions and size classes, not device or screen checks.
 
 Before TestFlight distribution, verify live HERE/Mapbox coverage at representative stops, manual MapKit place search, Apple Maps walking handoff, App Shortcuts on a signed device, and real mobile-data startup time. Simulator fixtures cannot establish a three-second startup guarantee or realtime coverage.
 

@@ -124,6 +124,15 @@ struct AreaSearchView: View {
                             .frame(minHeight: 44)
                             .textInputAutocapitalization(.words).submitLabel(.search)
                             .focused($queryFocused)
+                            .onSubmit { queryFocused = false }
+                            .onChange(of: query) { _, value in
+                                // A wrapping text field can insert a newline for
+                                // Return. Search is still a single logical query.
+                                if value.contains(where: \.isNewline) {
+                                    query = value.split(whereSeparator: \.isNewline).joined(separator: " ")
+                                    queryFocused = false
+                                }
+                            }
                             .accessibilityLabel("Stop, address, or place")
                             .accessibilityIdentifier("area-query")
                     }.frame(minHeight: 44)
@@ -166,6 +175,7 @@ struct AreaSearchView: View {
                     Text("No places found. Try adding a city or street name.").foregroundStyle(.secondary)
                 }
             }
+            .modifier(ReadableList())
             .navigationTitle("Choose an area").navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {

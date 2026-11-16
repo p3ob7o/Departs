@@ -36,8 +36,35 @@ final class TransitStore {
     private(set) var groups: [StopGroup] = []
     nonisolated static let runningHorizon: TimeInterval = 60 * 60
     nonisolated static let refreshInterval: TimeInterval = 25
-    var interacting = false {
-        didSet { if !interacting { rebuildGroups() } }
+    private var interactingPresentations: Set<String> = []
+    private var inactivePresentations: Set<String> = []
+    var interacting: Bool { !interactingPresentations.isEmpty }
+
+    func setInteracting(_ active: Bool, presentationID: String) {
+        if active { interactingPresentations.insert(presentationID) }
+        else if interactingPresentations.remove(presentationID) != nil && !interacting { rebuildGroups() }
+    }
+
+    func clearPresentation(_ prefix: String) {
+        visibleStops = visibleStops.filter { !$0.key.hasPrefix(prefix) }
+        let hadInteraction = interacting
+        interactingPresentations = interactingPresentations.filter { !$0.hasPrefix(prefix) }
+        inactivePresentations = inactivePresentations.filter { !$0.hasPrefix(prefix) }
+        if hadInteraction && !interacting { rebuildGroups() }
+    }
+
+    func setPresentationActive(_ active: Bool, presentationID: String) {
+        if active { inactivePresentations.remove(presentationID) }
+        else {
+            inactivePresentations.insert(presentationID)
+            let hadInteraction = interacting
+            interactingPresentations = interactingPresentations.filter { !$0.hasPrefix(presentationID) }
+            if hadInteraction && !interacting { rebuildGroups() }
+        }
+    }
+
+    private func isPresentationActive(_ id: String) -> Bool {
+        !inactivePresentations.contains { id.hasPrefix($0) }
     }
     private var demandedStops: [NearbyStop] = []
     private var pendingStopIDs: Set<String> = []
@@ -159,7 +186,7 @@ final class TransitStore {
             visibleStops[elementID] = stops
             let addedIDs = Set(stops.map(\.id)).subtracting(statusStopIDs)
             if !addedIDs.isEmpty { statusStopIDs.formUnion(addedIDs) }
-            demand(stops, force: false)
+            if isPresentationActive(elementID) { demand(stops, force: false) }
         } else if visibleStops[elementID] != nil { visibleStops[elementID] = nil }
     }
 
@@ -365,7 +392,7 @@ final class TransitStore {
     }
 
     private var refreshTargets: [NearbyStop] {
-        let visibleIDs = Set(visibleStops.values.flatMap { $0 }.map(\.id))
+        let visibleIDs = Set(visibleStops.filter { isPresentationActive($0.key) }.values.flatMap { $0 }.map(\.id))
         let onScreen = hasMeasuredVisibility ? stops.filter { visibleIDs.contains($0.id) } : Array(stops.prefix(3))
         var seen: Set<String> = []
         return (nearbyPins.map(\.stop) + onScreen).filter { seen.insert($0.id).inserted }
