@@ -9,10 +9,11 @@ struct DepartureDetailView: View {
 
     var body: some View {
         TimelineView(.periodic(from: .now, by: 15)) { timeline in
+            let date = max(timeline.date, Date.now)
             let board = store.boards[selection.id]
-            let fresh = store.isBoardFresh(for: selection, at: timeline.date)
-            let advice = store.advice(for: selection, at: timeline.date)
-            let walk = store.walk(for: selection.stop, at: timeline.date)
+            let fresh = store.isBoardFresh(for: selection, at: date)
+            let advice = store.advice(for: selection, at: date)
+            let walk = store.walk(for: selection.stop, at: date)
             ScrollView {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 8) {
@@ -26,7 +27,7 @@ struct DepartureDetailView: View {
                         if let walk {
                             Label("\(max(1, walk.route.walkingMinutes)) min walk · \(Int(walk.route.distance)) m", systemImage: "figure.walk")
                                 .font(.headline)
-                            if store.location?.isUsable(at: timeline.date) != true {
+                            if store.location?.isUsable(at: date) != true {
                                 Text("Walking time is from the searched area, not a confirmed current location.")
                                     .font(.caption).foregroundStyle(.secondary)
                             }
@@ -45,15 +46,15 @@ struct DepartureDetailView: View {
                             }.accessibilityLabel("Refresh departures")
                         }
                         if let board {
-                            Label { Text(TimeFormatter.freshness(board.checkedAt, now: timeline.date, fresh: fresh)) } icon: {
+                            Label { Text(TimeFormatter.freshness(board.checkedAt, now: date, fresh: fresh)) } icon: {
                                 if !fresh { Image(systemName: "clock.badge.exclamationmark").foregroundStyle(Color(.label)) }
                             }
                             .font(.caption).foregroundStyle(fresh ? Color.secondary : Color.primary)
                             .fixedSize(horizontal: false, vertical: true)
                             .accessibilityElement(children: .combine)
                             .accessibilityIdentifier("board-status")
-                            let departures = board.upcoming(at: timeline.date)
-                            if departures.isEmpty {
+                            let departures = board.upcoming(at: date)
+                            if departures.isEmpty && board.coverageLimit == nil {
                                 Text(fresh ? "No upcoming departures found." : "Refresh to see current departure times.")
                                     .foregroundStyle(.secondary)
                             }
@@ -63,9 +64,9 @@ struct DepartureDetailView: View {
                                     : AnyLayout(HStackLayout(alignment: .firstTextBaseline))
                                 layout {
                                     VStack(alignment: .leading, spacing: 3) {
-                                        Text(fresh ? (TimeFormatter.relativeTime(departure.time, now: timeline.date) ?? TimeFormatter.formatTime(departure.time)) : TimeFormatter.formatTime(departure.time))
+                                        Text(fresh ? (TimeFormatter.relativeTime(departure.time, now: date) ?? TimeFormatter.formatTime(departure.time)) : TimeFormatter.formatTime(departure.time))
                                             .font(.title2.bold()).monospacedDigit()
-                                        if fresh, TimeFormatter.relativeTime(departure.time, now: timeline.date) != nil {
+                                        if fresh, TimeFormatter.relativeTime(departure.time, now: date) != nil {
                                             Text(TimeFormatter.formatTime(departure.time)).font(.subheadline).foregroundStyle(.secondary)
                                         }
                                     }
@@ -106,6 +107,7 @@ struct DepartureDetailView: View {
                 Button { store.togglePin(selection) } label: {
                     Image(systemName: store.isPinned(selection) ? "pin.fill" : "pin").frame(width: 44, height: 44)
                 }.accessibilityLabel(store.isPinned(selection) ? "Unpin this direction" : "Pin this direction")
+                .accessibilityIdentifier(store.isPinned(selection) ? "unpin-route" : "pin-route")
             }
         }
         .safeAreaInset(edge: .bottom) {

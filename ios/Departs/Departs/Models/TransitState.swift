@@ -18,8 +18,17 @@ struct LocationFix {
 }
 
 struct DepartureBoard: Codable {
+    struct CoverageLimit: Codable {
+        /// Latest time represented by an incomplete provider response. It is
+        /// evidence about the returned board, not a guarantee of live coverage.
+        let before: String?
+        var message: String {
+            before.map { "No departure listed before \(TimeFormatter.formatTime($0))" } ?? "Later departures aren't listed"
+        }
+    }
     let departures: [Departure]
     let checkedAt: Date
+    var coverageLimit: CoverageLimit? = nil
 
     func isFresh(at now: Date) -> Bool { checkedAt.isRecent(at: now, within: 60) }
 
@@ -53,6 +62,7 @@ struct DepartureAdvice: Equatable {
     let title: String
     let detail: String
     let kind: Kind
+    var departureTime: String? = nil
 
     static let buffer: TimeInterval = 120
 
@@ -60,6 +70,9 @@ struct DepartureAdvice: Equatable {
                      requestFailed: Bool = false, now: Date = .now) -> DepartureAdvice {
         guard let board, board.isFresh(at: now), !requestFailed else {
             return .init(title: "Refresh before you leave", detail: "Departure times need an update", kind: .unavailable)
+        }
+        if let coverage = board.coverageLimit {
+            return .init(title: coverage.message, detail: "Later times aren't listed in this timetable", kind: .unavailable)
         }
         let departures = board.upcoming(at: now)
         guard !departures.isEmpty else {
@@ -83,7 +96,7 @@ struct DepartureAdvice: Equatable {
         let service = departure.realTime ? "Live estimate" : "Scheduled estimate"
         return .init(title: title,
                      detail: "\(skipped ? "Earlier departure is tight · " : "")\(TimeFormatter.formatTime(departure.time)) · \(service.lowercased()) · 2 min buffer",
-                     kind: .leave)
+                     kind: .leave, departureTime: departure.time)
     }
 }
 
