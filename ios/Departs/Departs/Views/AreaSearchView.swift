@@ -47,7 +47,7 @@ final class AreaSearchModel {
                     guard revision == requestID, !Task.isCancelled else { return }
                     results = areas.filter { $0.coordinate.isValid }.enumerated().map { index, area in
                         PlaceResult(
-                            id: "\(requestID)-\(index)", name: area.name, subtitle: "",
+                            id: "\(requestID)-\(index)", name: area.name, subtitle: "Vienna, Austria",
                             coordinate: area.coordinate, transit: true,
                             distance: coordinate?.distance(to: area.coordinate), symbol: "tram")
                     }
@@ -138,6 +138,7 @@ struct AreaSearchView: View {
                     }.frame(minHeight: 44)
                 } header: {
                     Text("Stop, address, or place").textCase(nil)
+                        .foregroundStyle(StopPalette.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 if query.isEmpty {
@@ -147,7 +148,7 @@ struct AreaSearchView: View {
                         }
                     }
                     if !recentAreas.isEmpty {
-                        Section("Recent places") {
+                        Section {
                             ForEach(Array(recentAreas.enumerated()), id: \.offset) { _, area in
                                 Button {
                                     onSelect(area)
@@ -155,24 +156,30 @@ struct AreaSearchView: View {
                                     Label(area.name, systemImage: "clock.arrow.circlepath").frame(minHeight: 44)
                                 }.accessibilityIdentifier("recent-area")
                             }
+                        } header: {
+                            Text("Recent places").foregroundStyle(StopPalette.secondaryText).textCase(nil)
                         }
                     }
                 }
                 if model.loading { ProgressView("Finding places…") }
-                if let error = model.error { Text(error).foregroundStyle(.secondary) }
+                if let error = model.error { Text(error).foregroundStyle(StopPalette.secondaryText) }
                 ForEach(model.results) { place in
                     Button {
                         onSelect(.init(coordinate: place.coordinate, name: place.name, source: .chosen))
                     } label: {
                         VStack(alignment: .leading, spacing: 4) {
-                            Label(place.name, systemImage: place.symbol).foregroundStyle(.primary)
-                            if let distance = place.distance { Text("\(TransitFormat.distance(distance)) away").font(.caption) }
-                            Text(place.subtitle).font(.caption).foregroundStyle(.secondary)
-                        }.frame(minHeight: 44)
-                    }.accessibilityIdentifier("area-result")
+                            Label(place.name, systemImage: place.symbol).foregroundStyle(Color.primary)
+                            if let distance = place.distance {
+                                Text("\(TransitFormat.distance(distance)) away").font(.caption).foregroundStyle(StopPalette.secondaryText)
+                            }
+                            if !place.subtitle.isEmpty { Text(place.subtitle).font(.caption).foregroundStyle(StopPalette.secondaryText) }
+                        }
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }.buttonStyle(.plain).accessibilityIdentifier("area-result")
                 }
                 if query.count >= 2, !model.loading, model.error == nil, model.results.isEmpty {
-                    Text("No places found. Try adding a city or street name.").foregroundStyle(.secondary)
+                    Text("No places found. Try adding a city or street name.").foregroundStyle(StopPalette.secondaryText)
                 }
             }
             .modifier(ReadableList())

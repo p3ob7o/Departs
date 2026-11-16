@@ -117,7 +117,7 @@ final class TransitSession {
 
     func refresh() async {
         if store.followsLocation { locationService.requestLocation() }
-        if let area = store.area { await store.loadArea(area, radius: store.radius, forceRefresh: true) }
+        if let area = store.area, store.stopsError != nil { await store.loadArea(area, radius: store.radius, forceRefresh: true) }
         else { await store.refreshAnswers(force: true) }
     }
 }

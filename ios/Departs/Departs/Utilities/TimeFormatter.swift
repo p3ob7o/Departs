@@ -1,6 +1,15 @@
 import Foundation
 
 enum TimeFormatter {
+    static func countdown(_ time: String, now: Date) -> String? {
+        guard let date = parseISO(time) else { return nil }
+        let seconds = date.timeIntervalSince(now)
+        guard seconds <= TransitStore.runningHorizon else { return nil }
+        let duration = Duration.seconds(Int(ceil(seconds / 60)) * 60)
+            .formatted(.units(allowed: [.minutes], width: .abbreviated))
+        return seconds < 60 ? String(localized: "Now") : String(localized: "In \(duration)")
+    }
+
     static func freshness(_ checkedAt: Date, now: Date, fresh: Bool) -> String {
         let minutes = max(0, Int(now.timeIntervalSince(checkedAt) / 60))
         guard fresh else {

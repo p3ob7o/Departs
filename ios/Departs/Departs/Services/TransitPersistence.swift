@@ -26,6 +26,8 @@ struct TransitPersistence {
     func loadNearby() -> NearbySnapshot? { read(Self.snapshotKey) }
     func saveNearby(_ snapshot: NearbySnapshot) { write(snapshot, key: Self.snapshotKey) }
     func loadBoards() -> [String: DepartureBoard] { read(Self.boardsKey) ?? [:] }
+    func loadHome() -> HomeSnapshot? { read("departs.home.v2") }
+    func saveHome(_ snapshot: HomeSnapshot) { write(snapshot, key: "departs.home.v2") }
 
     func saveBoards(_ boards: [String: DepartureBoard]) {
         let recent = boards.sorted { $0.value.checkedAt > $1.value.checkedAt }.prefix(40)

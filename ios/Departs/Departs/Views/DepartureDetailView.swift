@@ -241,7 +241,6 @@ struct DepartureDetailView: View {
         }
         .task(id: selection.id) {
             await store.refreshSelection(selection)
-            await store.loadGroup(store.group(containing: selection.stop))
         }
         .onChange(of: selection.id) { _, _ in
             showingIdle = false
@@ -251,10 +250,8 @@ struct DepartureDetailView: View {
     }
     private func otherRow(_ other: StopLineSelection, at date: Date, idle: Bool = false) -> some View {
         StopRowView(
-            selection: other, board: store.boards[other.id], walk: store.walk(for: other.stop, at: date),
-            advice: store.advice(for: other, at: date), loading: store.loadingBoards.contains(other.id),
-            failed: store.boardErrors.contains(other.id), fresh: store.isBoardFresh(for: other, at: date),
-            fromCurrentLocation: store.location?.isUsable(at: date) == true, pinned: store.isPinned(other), now: date,
-            onOpen: { onSelect(other) }, onPin: { store.togglePin(other) }, idle: idle, accessibilityID: "other-line")
+            selection: other, board: store.boards[other.id], fresh: store.isBoardFresh(for: other, at: date),
+            pinned: store.isPinned(other), now: date,
+            onOpen: { onSelect(other) }, onPin: { store.togglePin(other) }, accessibilityID: "other-line")
     }
 }
