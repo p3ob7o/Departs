@@ -17,16 +17,33 @@ struct NearbyStopsView: View {
     /// The widest badge among every listed line, so destinations share one x.
     @State private var badgeColumn: CGFloat?
 
+    /// A status bar at least this tall has a Dynamic Island or a notch. Only
+    /// there does the map reach the top of the screen (O18): iOS blurs a map
+    /// under the status bar by itself, and that strip is tall enough to keep
+    /// the clock clear. On the 20 pt bar of an iPhone SE the blur is too short,
+    /// and map labels would sit right behind the clock (A27).
+    static let tallStatusBar: CGFloat = 44
+
+    /// How far the home map reaches above its square, under the status bar.
+    static func strip(statusBar: CGFloat, accessibilitySize: Bool) -> CGFloat {
+        !accessibilitySize && statusBar >= tallStatusBar ? statusBar : 0
+    }
+
     var body: some View {
         GeometryReader { geometry in
+            let strip = Self.strip(statusBar: geometry.safeAreaInsets.top, accessibilitySize: textSize.isAccessibilitySize)
             ScrollViewReader { proxy in
                 TimelineView(.periodic(from: countdownStart, by: 15)) { timeline in
                     let date = max(timeline.date, Date.now)
                     VStack(spacing: 0) {
-                        // Home has no bar: the square starts under the status bar.
-                        if !textSize.isAccessibilitySize { map(width: geometry.size.width, at: date, proxy: proxy) }
+                        // Home has no bar. The square sits under the status bar,
+                        // and on a tall status bar the map continues above it.
+                        if !textSize.isAccessibilitySize {
+                            map(width: geometry.size.width, strip: strip, at: date, proxy: proxy)
+                        }
                         list(width: geometry.size.width, at: date, proxy: proxy)
                     }
+                    .ignoresSafeArea(.container, edges: strip > 0 ? .top : [])
                 }
                 .onChange(of: store.areaRevision) { _, _ in
                     selectedMapStop = nil
@@ -134,7 +151,10 @@ struct NearbyStopsView: View {
         .id(group.id)
     }
 
-    private func map(width: CGFloat, at date: Date, proxy: ScrollViewProxy) -> some View {
+    /// The square, plus `strip` points above it when the map reaches the top of
+    /// the screen. MapKit keeps its centre and span inside the safe area, so the
+    /// square shows what it showed without the strip.
+    private func map(width: CGFloat, strip: CGFloat = 0, at date: Date, proxy: ScrollViewProxy) -> some View {
         let usable = store.location.flatMap { $0.isUsable(at: date) ? $0.coordinate : nil }
         return StopsMapView(fallbackCenter: (usable ?? store.center)?.clLocationCoordinate2D,
                             followsLiveLocation: usable != nil, groups: store.mapGroups,
@@ -147,7 +167,7 @@ struct NearbyStopsView: View {
                 proxy.scrollTo(target, anchor: .top)
             }
         }
-        .frame(width: width, height: width)
+        .frame(width: width, height: width + strip)
         .accessibilityIdentifier("home-map")
     }
 

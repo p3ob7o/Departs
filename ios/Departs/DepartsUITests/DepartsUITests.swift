@@ -38,9 +38,20 @@ final class DepartsUITests: XCTestCase {
         XCTAssertEqual(app.navigationBars.count, 0, "Home has no bar: no title and no location button")
         XCTAssertFalse(app.buttons["locate"].exists)
         XCTAssertEqual(frame.width, app.frame.width, accuracy: 1)
-        XCTAssertEqual(frame.height, app.frame.width, accuracy: 1)
-        XCTAssertEqual(frame.minY, topInset, accuracy: 1, "The square starts under the status bar")
+        XCTAssertEqual(frame.maxY, topInset + app.frame.width, accuracy: 1, "The square sits under the status bar")
+        XCTAssertEqual(frame.minY, reachesTop ? 0 : topInset, accuracy: 1,
+                       "On a tall status bar the map continues above the square to the top of the screen")
         XCTAssertEqual(nearbyList.frame.minY, frame.maxY, accuracy: 1)
+        // The square shows what it showed before the map reached the top: the
+        // rider at its centre and 960 m across, so a stop lands where it did.
+        let burggasse = TransitSample.platforms.filter { $0.1 == "Burggasse/Neubaugasse" }
+        let expected = squarePoint(latitude: burggasse.map(\.2).reduce(0, +) / Double(burggasse.count),
+                                   longitude: burggasse.map(\.3).reduce(0, +) / Double(burggasse.count))
+        let label = mapLabel("Bus 48A")
+        XCTAssertTrue(label.waitForExistence(timeout: 8))
+        print("HOME label=\(label.frame) expected=\(expected)")
+        XCTAssertEqual(label.frame.midX, expected.x, accuracy: 3)
+        XCTAssertEqual(label.frame.midY, expected.y, accuracy: 3)
         let visible = rows.allElementsBoundByIndex.filter { nearbyList.frame.contains($0.frame) }
         print("HOME map=\(frame) list=\(nearbyList.frame) visibleRows=\(visible.count) firstRow=\(rows.firstMatch.frame)")
         XCTAssertGreaterThanOrEqual(visible.count, app.frame.height <= 667 ? 4 : 6)
@@ -174,7 +185,8 @@ final class DepartsUITests: XCTestCase {
     func testNoDeparturesHasAnHourMessageAndNoIdleRows() {
         server.setNoDepartures(true)
         launch()
-        XCTAssertTrue(app.staticTexts["empty-departures"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["empty-departures"].waitForExistence(timeout: 10),
+                      "stops=\(server.radii) batches=\(server.batchCount) \(app.debugDescription)")
         XCTAssertEqual(app.staticTexts["empty-departures"].label, "Nothing leaves here in the next hour")
         XCTAssertEqual(rows.count, 0)
         XCTAssertFalse(app.buttons["search-farther"].exists)
@@ -736,9 +748,23 @@ final class DepartsUITests: XCTestCase {
     private func mapLabel(_ service: String) -> XCUIElement {
         app.buttons.matching(NSPredicate(format: "identifier == 'stop-map-pin' AND label CONTAINS %@", service)).firstMatch
     }
-    /// The status bar's height: home has no bar, so its map starts there.
+    /// The status bar's height: home has no bar, so its square starts there.
     /// iPhone 17 Pro and the 667-point display measured 62 and 20 points.
     private var topInset: CGFloat { app.frame.height <= 667 ? 20 : 62 }
+    /// A tall status bar lets the map continue above the square to the top of
+    /// the screen. The 20-point bar of the 667-point display does not.
+    private var reachesTop: Bool { topInset >= 44 }
+    /// Where home draws a coordinate: the test location is the centre of the
+    /// square under the status bar, and the square spans 960 m.
+    private func squarePoint(latitude: Double, longitude: Double) -> CGPoint {
+        let rider = CLLocation(latitude: 48.20134, longitude: 16.34941)
+        let north = CLLocation(latitude: latitude, longitude: rider.coordinate.longitude).distance(from: rider)
+            * (latitude < rider.coordinate.latitude ? -1 : 1)
+        let east = CLLocation(latitude: rider.coordinate.latitude, longitude: longitude).distance(from: rider)
+            * (longitude < rider.coordinate.longitude ? -1 : 1)
+        let scale = app.frame.width / 960
+        return CGPoint(x: app.frame.width / 2 + east * scale, y: topInset + app.frame.width / 2 - north * scale)
+    }
     /// The darkest grey level drawn inside a frame: a name's ink in light mode.
     private func darkestPixel(in frame: CGRect) -> Int {
         guard let image = XCUIScreen.main.screenshot().image.cgImage else { return -1 }

@@ -800,6 +800,33 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertEqual(StopsMapView.span, 960)
     }
 
+    func testHomeMapReachesTheTopOnlyOnATallStatusBarAtStandardTextSizes() {
+        XCTAssertEqual(NearbyStopsView.strip(statusBar: 62, accessibilitySize: false), 62, "Dynamic Island")
+        XCTAssertEqual(NearbyStopsView.strip(statusBar: 47, accessibilitySize: false), 47, "Notch")
+        XCTAssertEqual(NearbyStopsView.strip(statusBar: 20, accessibilitySize: false), 0, "An iPhone SE keeps the square alone")
+        XCTAssertEqual(NearbyStopsView.strip(statusBar: 62, accessibilitySize: true), 0,
+                       "At accessibility sizes the map is a list row and scrolls away")
+    }
+
+    @MainActor func testHomeMapTakesNoTouchUnderTheStatusBar() throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        let controller = UIViewController()
+        // Guarantees a strip even on a device whose own status bar is short.
+        controller.additionalSafeAreaInsets.top = 30
+        window.rootViewController = controller
+        window.isHidden = false
+        defer { window.isHidden = true }
+        let map = HomeMapView(frame: CGRect(x: 0, y: 0, width: 320, height: 420))
+        controller.view.addSubview(map)
+        window.layoutIfNeeded()
+        let strip = map.safeAreaInsets.top
+        XCTAssertGreaterThanOrEqual(strip, 30, "The map lies under the status bar")
+        XCTAssertNil(map.hitTest(CGPoint(x: 160, y: strip / 2), with: nil), "Nothing under the status bar can be tapped")
+        XCTAssertNil(map.hitTest(CGPoint(x: 160, y: strip - 1), with: nil))
+        XCTAssertNotNil(map.hitTest(CGPoint(x: 160, y: strip + 1), with: nil), "The square below takes touches as before")
+    }
+
     func testNearbyURLAlwaysAsksForFourHundredMetres() throws {
         let url = try APIService.nearbyStopsURL(lat: 48.2, lon: 16.3)
         XCTAssertEqual(url.host, "departs.vercel.app")
