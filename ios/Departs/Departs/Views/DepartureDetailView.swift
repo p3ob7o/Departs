@@ -51,6 +51,8 @@ struct DepartureDetailView: View {
         }
         .navigationTitle("\(selection.line.name) \(selection.line.direction)")
         .navigationBarTitleDisplayMode(.inline)
+        // Home hides its bar; the line screen keeps back, title, walk and pin.
+        .toolbarVisibility(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 Button("Walking directions", systemImage: "figure.walk") {
@@ -133,19 +135,22 @@ struct DepartureDetailView: View {
 }
 
 struct LineDepartureContent {
-    let countdown: String?
+    /// "12 min" or "Now"; nil for saved times and beyond the hour.
+    var countdown: String? { time?.text }
     let clock: String
     let live: Bool
     let delay: String?
+    private let time: Countdown?
+    /// VoiceOver keeps the full phrase: "In 12 min. 00:00".
     var spoken: String {
-        var parts = countdown.map { [$0, clock] } ?? [clock]
+        var parts = time.map { [$0.spoken, clock] } ?? [clock]
         if live { parts.append(String(localized: "Live departure")) }
         if let delay { parts.append(delay) }
         return parts.joined(separator: ". ")
     }
 
     init(departure: Departure, fresh: Bool, now: Date) {
-        countdown = fresh ? TimeFormatter.countdown(departure.time, now: now) : nil
+        time = fresh ? TimeFormatter.countdown(departure.time, now: now) : nil
         clock = TimeFormatter.formatTime(departure.time)
         live = fresh && departure.realTime
         let delayMinutes = Int(max(0, departure.delay ?? 0) / 60)

@@ -176,6 +176,16 @@
         }
       }
     },
+    "Couldn't find your location · Try again": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't find your location · Try again"
+          }
+        }
+      }
+    },
     "Couldn't load departures · Retry": {
       "localizations": {
         "en": {
@@ -256,42 +266,12 @@
         }
       }
     },
-    "Finding your location": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Finding your location"
-          }
-        }
-      }
-    },
-    "Following your location": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Following your location"
-          }
-        }
-      }
-    },
     "In %@": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "In %@"
-          }
-        }
-      }
-    },
-    "Last area": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Last area"
           }
         }
       }
@@ -316,42 +296,12 @@
         }
       }
     },
-    "Location is off": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Location is off"
-          }
-        }
-      }
-    },
     "Location is off. Turn it on to see what leaves near you.": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
             "value": "Location is off. Turn it on to see what leaves near you."
-          }
-        }
-      }
-    },
-    "Location not found": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Location not found"
-          }
-        }
-      }
-    },
-    "Near you": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Near you"
           }
         }
       }
@@ -526,16 +476,6 @@
         }
       }
     },
-    "Showing your last area": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Showing your last area"
-          }
-        }
-      }
-    },
     "Some times couldn't update · Retry": {
       "localizations": {
         "en": {
@@ -602,26 +542,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Unpin this direction"
-          }
-        }
-      }
-    },
-    "Use my location": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Use my location"
-          }
-        }
-      }
-    },
-    "Use my location. %@.": {
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Use my location. %@."
           }
         }
       }

@@ -2,48 +2,49 @@ import SwiftUI
 import MapKit
 
 struct StopsMapView: UIViewRepresentable {
-    let userCoordinate: CLLocationCoordinate2D?
+    /// Where the map stands when MapKit's own location may not move it: the
+    /// app's usable fix, else the centre of the saved area. Nil: no centre, no ring.
+    let fallbackCenter: CLLocationCoordinate2D?
+    /// True while the app holds a usable fix. Only then may MapKit's live,
+    /// precise location move the map, so a coarse position never does.
+    var followsLiveLocation = false
     let groups: [TransitStore.StopGroup]
     var selectedStopID: String? = nil
-    /// Changes when the rider asks for the map to return to the searched circle.
-    var recenter = 0
     var onSelect: (String?) -> Void = { _ in }
 
-    func makeUIView(context: Context) -> MKMapView {
-        let map = MKMapView()
-        map.isScrollEnabled = true
-        map.isZoomEnabled = true
+    /// The 400 m ring around the point the map is centred on. The framing
+    /// below never depends on it, so hiding it is this one line.
+    static let showsRing = true
+    /// The square always spans this many metres, centred on the rider: the
+    /// 400 m ring and its margin. The ring's radius is the width ÷ 2.4.
+    static let span = Double(TransitStore.radius) * 2.4
+    /// MapKit's location moves the map only when it is at least this accurate.
+    static let liveAccuracy: CLLocationAccuracy = 100
+
+    func makeUIView(context: Context) -> HomeMapView {
+        let map = HomeMapView()
+        // Nothing can bring a panned map back, and it stays on the rider.
+        map.isScrollEnabled = false
+        map.isZoomEnabled = false
         map.isRotateEnabled = false
         map.isPitchEnabled = false
         map.showsUserLocation = true
         map.preferredConfiguration = MKStandardMapConfiguration(emphasisStyle: .muted)
         map.delegate = context.coordinator
+        map.onResize = { [weak coordinator = context.coordinator, weak map] in
+            guard let coordinator, let map else { return }
+            coordinator.frame(map, reset: true)
+        }
         return map
     }
 
-    func updateUIView(_ map: MKMapView, context: Context) {
+    func updateUIView(_ map: HomeMapView, context: Context) {
         context.coordinator.onSelect = onSelect
         context.coordinator.restoringSelection = true
         defer { context.coordinator.restoringSelection = false }
-        let radius = Double(TransitStore.radius)
-        if let userCoordinate {
-            let center = Coordinate(lat: userCoordinate.latitude, lon: userCoordinate.longitude)
-            let moved = context.coordinator.regionCenter != center
-            if moved || context.coordinator.recenter != recenter {
-                map.setRegion(MKCoordinateRegion(center: userCoordinate,
-                    latitudinalMeters: radius * 2.4, longitudinalMeters: radius * 2.4), animated: !moved)
-            }
-            if moved {
-                context.coordinator.regionCenter = center
-                map.removeOverlays(map.overlays)
-                map.addOverlay(MKCircle(center: userCoordinate, radius: radius))
-            }
-        } else if context.coordinator.regionCenter != nil {
-            // Location was turned off: no circle may claim an area is searched.
-            context.coordinator.regionCenter = nil
-            map.removeOverlays(map.overlays)
-        }
-        context.coordinator.recenter = recenter
+        context.coordinator.fallback = fallbackCenter
+        context.coordinator.followsLive = followsLiveLocation
+        context.coordinator.frame(map)
 
         let groupsByID = Dictionary(uniqueKeysWithValues: groups.map { ($0.id, $0) })
         for pin in map.annotations.compactMap({ $0 as? StopAnnotation }) {
@@ -85,9 +86,61 @@ struct StopsMapView: UIViewRepresentable {
 
     final class Coordinator: NSObject, MKMapViewDelegate {
         var onSelect: (String?) -> Void = { _ in }
-        var regionCenter: Coordinate?
-        var recenter = 0
         var restoringSelection = false
+        var fallback: CLLocationCoordinate2D?
+        var followsLive = false
+        /// MapKit's latest location, kept only while it is precise.
+        private var live: CLLocationCoordinate2D?
+        private var centre: CLLocationCoordinate2D?
+        private var ring: MKCircle?
+
+        /// What the map centres on, in order: MapKit's precise live location
+        /// while the app holds a usable fix, else the fallback, else nothing.
+        var target: CLLocationCoordinate2D? { (followsLive ? live : nil) ?? fallback }
+
+        func frame(_ map: MKMapView, reset: Bool = false) {
+            guard let target else {
+                // Location is off: no circle may claim an area is searched.
+                if centre != nil { centre = nil; drawRing(nil, on: map) }
+                return
+            }
+            if let centre, !reset {
+                guard CLLocation(target).distance(from: CLLocation(centre)) > 0.5 else { return }
+                map.setCenter(target, animated: true)
+            } else if map.bounds.width > 0 {
+                map.setRegion(MKCoordinateRegion(center: target, latitudinalMeters: StopsMapView.span,
+                                                 longitudinalMeters: StopsMapView.span), animated: false)
+            }
+            if centre.map({ CLLocation($0).distance(from: CLLocation(target)) }) != 0 { drawRing(target, on: map) }
+            centre = target
+        }
+
+        private func drawRing(_ centre: CLLocationCoordinate2D?, on map: MKMapView) {
+            if let ring { map.removeOverlay(ring) }
+            ring = nil
+            guard StopsMapView.showsRing, let centre else { return }
+            let circle = MKCircle(center: centre, radius: Double(TransitStore.radius))
+            map.addOverlay(circle)
+            ring = circle
+        }
+
+        /// Keeps MapKit's location only while it is precise. Precise Location
+        /// off gives a fix kilometres wide: it never moves the map.
+        func receiveLive(_ location: CLLocation?) {
+            if let location, location.horizontalAccuracy >= 0, location.horizontalAccuracy <= StopsMapView.liveAccuracy {
+                live = location.coordinate
+            } else { live = nil }
+        }
+
+        func mapView(_ mapView: MKMapView, didUpdate userLocation: MKUserLocation) {
+            receiveLive(userLocation.location)
+            frame(mapView)
+        }
+
+        func mapView(_ mapView: MKMapView, didFailToLocateUserWithError error: any Error) {
+            receiveLive(nil)
+            frame(mapView)
+        }
 
         func mapView(_ mapView: MKMapView, viewFor annotation: any MKAnnotation) -> MKAnnotationView? {
             guard let pin = annotation as? StopAnnotation else { return nil }
@@ -235,10 +288,29 @@ final class MapLineBadge: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
 }
 
+/// Reports size changes, so the fixed span is applied once the square has its size.
+final class HomeMapView: MKMapView {
+    var onResize: (() -> Void)?
+    private var lastSize = CGSize.zero
+
+    override func layoutSubviews() {
+        super.layoutSubviews()
+        guard bounds.size != lastSize else { return }
+        lastSize = bounds.size
+        onResize?()
+    }
+}
+
+private extension CLLocation {
+    convenience init(_ coordinate: CLLocationCoordinate2D) {
+        self.init(latitude: coordinate.latitude, longitude: coordinate.longitude)
+    }
+}
+
 #if DEBUG
 #Preview {
     StopsMapView(
-        userCoordinate: PreviewData.userCoordinate.clLocationCoordinate2D,
+        fallbackCenter: PreviewData.userCoordinate.clLocationCoordinate2D,
         groups: PreviewData.stops.map { .init(id: $0.id, name: $0.name, stops: [$0]) }
     )
     .frame(height: 400)

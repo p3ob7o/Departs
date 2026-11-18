@@ -1,5 +1,7 @@
 import XCTest
 import Observation
+import MapKit
+import SwiftUI
 @testable import Departs
 
 final class FastDepartureTests: XCTestCase {
@@ -354,10 +356,28 @@ final class FastDepartureTests: XCTestCase {
     }
 
     func testCountdownUsesNowBelowAMinuteAndClockBeyondTheHour() {
-        XCTAssertEqual(TimeFormatter.countdown(departure(0.99).time, now: instant), "Now")
-        XCTAssertEqual(TimeFormatter.countdown(departure(1).time, now: instant), "In 1 min")
-        XCTAssertEqual(TimeFormatter.countdown(departure(60).time, now: instant), "In 60 min")
+        XCTAssertEqual(TimeFormatter.countdown(departure(0.99).time, now: instant), .init(text: "Now", spoken: "Now"))
+        XCTAssertEqual(TimeFormatter.countdown(departure(1).time, now: instant), .init(text: "1 min", spoken: "In 1 min"))
+        XCTAssertEqual(TimeFormatter.countdown(departure(60).time, now: instant), .init(text: "60 min", spoken: "In 60 min"))
         XCTAssertNil(TimeFormatter.countdown(departure(60.1).time, now: instant))
+    }
+
+    func testHomeRowShowsMinutesWithoutInAndSpeaksTheFullPhrase() {
+        func content(_ minutes: [Double], fresh: Bool = true, pinned: Bool = false) -> HomeRowContent {
+            .init(board: .init(departures: minutes.map { departure($0) }, checkedAt: instant), fresh: fresh, pinned: pinned, now: instant)
+        }
+        let soon = content([7, 12])
+        XCTAssertEqual(soon.answer, "7 min")
+        XCTAssertEqual(soon.spokenAnswer, "In 7 min")
+        XCTAssertEqual(content([0.5]).answer, "Now")
+        XCTAssertEqual(content([0.5]).spokenAnswer, "Now")
+        let saved = content([7], fresh: false)
+        XCTAssertEqual(saved.answer, TimeFormatter.formatTime(departure(7).time))
+        XCTAssertEqual(saved.spokenAnswer, saved.answer)
+        let idle = content([90], pinned: true)
+        XCTAssertEqual(idle.answer, "Nothing soon")
+        XCTAssertEqual(idle.spokenAnswer, "Nothing soon")
+        XCTAssertTrue(idle.idle)
     }
 
     func testBatchURLPreservesHostAndEncodesIdentifiers() throws {
@@ -370,8 +390,13 @@ final class FastDepartureTests: XCTestCase {
 
     func testLineShowsCountdownAndClockThroughSixtyMinutesThenOnlyClock() {
         let soon = LineDepartureContent(departure: departure(60, live: false), fresh: true, now: instant)
-        XCTAssertEqual(soon.countdown, "In 60 min")
+        XCTAssertEqual(soon.countdown, "60 min")
         XCTAssertEqual(soon.clock, TimeFormatter.formatTime(departure(60).time))
+        XCTAssertEqual(soon.spoken, "In 60 min. \(soon.clock)")
+        let next = LineDepartureContent(departure: departure(12, live: false), fresh: true, now: instant)
+        XCTAssertEqual(next.countdown, "12 min")
+        XCTAssertEqual(next.spoken, "In 12 min. \(next.clock)")
+        XCTAssertEqual(LineDepartureContent(departure: departure(0.4, live: false), fresh: true, now: instant).countdown, "Now")
         let later = LineDepartureContent(departure: departure(61, live: false), fresh: true, now: instant)
         XCTAssertNil(later.countdown)
         XCTAssertEqual(later.spoken, later.clock)
@@ -701,6 +726,53 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertEqual(RouteNavigation.pinID(from: url.url!), id)
         XCTAssertNil(RouteNavigation.pinID(from: URL(string: "https://example.com/pin?id=abc")!))
         XCTAssertNil(RouteNavigation.pinID(from: URL(string: "departs://pin?id=")!))
+    }
+
+    @MainActor func testBadgeColumnTakesEveryListedLineIncludingPins() async throws {
+        let disk = persistence(), stops = try sampleStops(), response = try sampleBatch()
+        // Pin a line that would otherwise be listed only under its stop.
+        let pin = StopLineSelection(stop: stops[11], line: response.boards.first { $0.stopId == "77704_3233" }!.groups[0].line, lineIndex: 0)
+        disk.savePins([pin])
+        let store = makeStore(try sampleClient(), persistence: disk)
+        await store.loadArea(coordinate)
+        let lines = BadgeColumn.lines(in: store.displayedOptions)
+        XCTAssertEqual(lines.map(\.name), ["U3", "13A", "49", "48A", "14A"], "Pins first, then list order, once per line")
+        XCTAssertEqual(Set(lines.map(\.lineIdentity)).count, lines.count)
+        XCTAssertEqual(Set(lines.map(\.lineIdentity)), Set(store.displayedOptions.map { $0.line.lineIdentity }))
+    }
+
+    @MainActor func testBadgeColumnIsAsWideAsTheWidestBadge() {
+        let lines = [LineInfo(name: "U3", direction: "a", type: .subway), LineInfo(name: "48A", direction: "b", type: .bus),
+                     LineInfo(name: "49", direction: "c", type: .tram), LineInfo(name: "N71", direction: "d", type: .bus)]
+        func width(_ view: some View) -> CGFloat {
+            UIHostingController(rootView: view).sizeThatFits(in: CGSize(width: 1000, height: 1000)).width
+        }
+        let widths = lines.map { width(LineBadge(line: $0).fixedSize()) }
+        XCTAssertGreaterThan(Set(widths).count, 1, "The sample needs badges of different widths")
+        XCTAssertEqual(width(BadgeColumn.Stack(lines: lines).fixedSize()), widths.max()!, accuracy: 0.5)
+        XCTAssertEqual(width(BadgeColumn.Stack(lines: Array(lines.reversed())).fixedSize()), widths.max()!, accuracy: 0.5,
+                       "Order and rendering never change the column")
+    }
+
+    @MainActor func testHomeMapCentresOnPreciseLiveLocationOnlyWithAUsableFix() {
+        let map = StopsMapView.Coordinator()
+        let saved = CLLocationCoordinate2D(latitude: 48.2, longitude: 16.34)
+        let live = CLLocationCoordinate2D(latitude: 48.201, longitude: 16.35)
+        func location(accuracy: CLLocationAccuracy) -> CLLocation {
+            CLLocation(coordinate: live, altitude: 0, horizontalAccuracy: accuracy, verticalAccuracy: -1, timestamp: .now)
+        }
+        XCTAssertNil(map.target, "No location and no saved area: no centre and no ring")
+        map.fallback = saved
+        XCTAssertEqual(map.target?.latitude, saved.latitude)
+        map.receiveLive(location(accuracy: 10))
+        XCTAssertEqual(map.target?.latitude, saved.latitude, "Without a usable fix the app stays on the saved area")
+        map.followsLive = true
+        XCTAssertEqual(map.target?.latitude, live.latitude, "A precise live location moves the map")
+        map.receiveLive(location(accuracy: 800))
+        XCTAssertEqual(map.target?.latitude, saved.latitude, "A coarse location never moves the map")
+        map.receiveLive(location(accuracy: -1))
+        XCTAssertEqual(map.target?.latitude, saved.latitude)
+        XCTAssertEqual(StopsMapView.span, 960)
     }
 
     func testNearbyURLAlwaysAsksForFourHundredMetres() throws {
