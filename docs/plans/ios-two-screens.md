@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O16: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). |
+| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O17: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). Amended on 18 November by O18: see [Third amendment: the map under the status bar](#third-amendment-the-map-under-the-status-bar). |
 | Date | 16 November 2026 |
 | Based on | Departs 1.1 (6), `main` at `6430c94` |
 | Branch | `feat/ios-two-screens` |
@@ -96,14 +96,40 @@ These choices filled the gaps. Paolo reviewed A17 to A22 on 17 November. A20, A2
 
 The sketches, the rules on rows, time wording, the stop header and the home map, the states and the risks below are updated. VoiceOver keeps the full phrases: "Bus 13A toward Wien Skodagasse. In 3 min. From Siebensterngasse." and "In 12 min. 00:00".
 
+## Third amendment: the map under the status bar
+
+On 18 November 2026, with 1.2 (9) built, Paolo asked: "Is it possible to extend the map upwards to use the status bar but in a way that: 1. Leaves the current square portion exactly as it is now. 2. Fades under the status bar so that the Dynamic Island, clock, battery, and network status remain visible?" He was shown four treatments captured from the app, in light and dark, and chose the first: "I prefer 1, the blur".
+
+| ID | Decision |
+| --- | --- |
+| O18 | The home map reaches the top of the screen. Under the status bar it is covered only by the blur iOS draws there by itself: no fade and no frosted layer is added. The square below the status bar stays exactly as it was. |
+
+O18 changes one thing in O13: the map no longer stops at the bottom of the status bar. The square has not moved, and the status bar keeps its own items.
+
+These choices filled the gaps.
+
+| ID | Question | Choice | Review |
+| --- | --- | --- | --- |
+| A25 | Text sizes | Standard sizes only. At accessibility sizes the map stays a square that scrolls away with the list (A2) | Approved |
+| A26 | Touches under the status bar | None. That part of the map is shown and takes no touch. A stop label can drift there after a move shorter than 150 m (A15, A18) | Approved |
+| A27 | A short status bar: the 20 pt of an iPhone SE | The layout of 1.2 (9) stays, with the square alone under the status bar. In the captures a map label sat right behind the clock and stayed sharp, because the bar is too short for the system's blur. The map reaches the top only where the status bar is at least 44 pt tall: a Dynamic Island or a notch | Not reviewed. Recommended to the owner on 18 November, who chose a treatment and did not answer this |
+
+Found while the four treatments were captured:
+
+- iOS draws the blur by itself. A map view that lies under the status bar gets UIKit's scroll edge effect. MapKit's headers offer no setting for it, and neither reporting no safe area nor zero layout margins removed it. A fade or a frosted layer would have been drawn on top of it.
+- MapKit treats the safe area as margin. `setRegion` and `setCenter` keep the rider at the centre of the square under the status bar, so the framing code is unchanged. Laid over a capture of 1.2 (9), the square showed no shift at a quarter of a pixel.
+- A label that the square's top edge used to cut is whole now.
+
+The home sketch and the rules on the home map and text size below are updated.
+
 ## The two screens
 
 ### Home
 
 ```
 ┌──────────────────────────────────────────┐
-│ 9:41                             ▮▮▮ ▭   │  status bar, unchanged; no bar (O13)
-├──────────────────────────────────────────┤
+│ 9:41                             ▮▮▮ ▭   │  status bar, over the blurred map (O18)
+│ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─  │  the square starts here, no bar (O13)
 │                                          │
 │              ▐13A·49▌                    │
 │                  ◉          ▐48A▌        │  square map: always centred on
@@ -183,7 +209,7 @@ The sample, with these rules applied:
 
 ### Home map
 
-16. The map is a square as wide as the screen. Home has no bar, so its top edge is the bottom of the status bar, which stays as it is (O13). It shows the search radius, the user's location, and one label per stop that has at least one row, pinned rows included. The map is always centred on the rider and spans 960 m, so the 400 m ring's radius is the width ÷ 2.4. Between the app's fixes it follows MapKit's live location (A20). It cannot be panned or zoomed (A17). The ring is drawn around the map's centre, beneath the labels (A18).
+16. The map is a square as wide as the screen. Home has no bar, so the square's top edge is the bottom of the status bar (O13). Where the status bar is at least 44 pt tall the map continues above the square to the top of the screen: iOS blurs it there, nothing there takes a touch, and the square shows what it showed without it (O18, A26, A27). It shows the search radius, the user's location, and one label per stop that has at least one row, pinned rows included. The map is always centred on the rider and spans 960 m, so the 400 m ring's radius is the width ÷ 2.4. Between the app's fixes it follows MapKit's live location (A20). It cannot be panned or zoomed (A17). The ring is drawn around the map's centre, beneath the labels (A18).
 17. A label holds the line numbers of that stop's rows, in list order, each drawn as the list badge. It shows up to three, then "+N".
 18. Tapping a label follows O7. A stop with one row opens that line. A stop with several rows scrolls the list to its header and shows the selection ring.
 19. The list never waits for the map. Rows appear even when map tiles fail to load.
@@ -231,7 +257,7 @@ The freshness rules in [ios-fast-answers.md](../ios-fast-answers.md) stay: a boa
 ### Text size
 
 31. Up to the largest standard size, the map is fixed and the list scrolls under it.
-32. At accessibility sizes the map stays square and on top, and scrolls away with the list (A2). With the list at the top it starts under the status bar. Text scrolled under the status bar is faded by the system's scroll edge effect, so the status bar stays readable. On a 667-pt display the list area is 272 pt since O13, and at the largest size a stop header alone measured 137 pt.
+32. At accessibility sizes the map is the square alone (A25). It stays on top and scrolls away with the list (A2). With the list at the top it starts under the status bar. Text scrolled under the status bar is faded by the system's scroll edge effect, so the status bar stays readable. On a 667-pt display the list area is 272 pt since O13, and at the largest size a stop header alone measured 137 pt.
 
 ### Accessibility
 

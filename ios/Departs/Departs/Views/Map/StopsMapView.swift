@@ -299,6 +299,13 @@ final class HomeMapView: MKMapView {
         lastSize = bounds.size
         onResize?()
     }
+
+    /// The part of the map under the status bar is shown and takes no touch
+    /// (A26). A stop label can drift there after a short move, and it must not
+    /// open a line from behind the clock.
+    override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+        point.y < safeAreaInsets.top ? nil : super.hitTest(point, with: event)
+    }
 }
 
 private extension CLLocation {
