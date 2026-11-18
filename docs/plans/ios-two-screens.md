@@ -69,7 +69,7 @@ The home sketch, the states table and the risks below are updated. The phases, t
 
 ## Second amendment: the map at the top
 
-Paolo used Departs 1.2 (8) on his phone and asked for four corrections on 17 November 2026, each with an annotated screenshot. On 18 November he corrected how the first had been read. These are settled.
+Paolo used Departs 1.2 (8) on his phone and asked for four corrections on 17 November 2026, each with an annotated screenshot. On 18 November he corrected how the first had been read, and added O17 after seeing the first implementation. These are settled.
 
 | ID | Decision |
 | --- | --- |
@@ -77,10 +77,11 @@ Paolo used Departs 1.2 (8) on his phone and asked for four corrections on 17 Nov
 | O14 | A stop's name leaves with its last line. "I like the name of the stop remaining stuck as we scroll up, but it should disappear once no more lines are visible for that stop." Reviewed on 17 November: the name stays while the stop's lines pass under it and leaves together with the last one, name first. It never covers the last line. A stop with one line does not stick. |
 | O15 | "The direction names should be left aligned, regardless of the width of the pill on their left." |
 | O16 | "We don't need "In " in front of each time here." |
+| O17 | A line's badge shows its number and letter identifier only. At Berlin Alexanderplatz one provider line is called "FlixBus N70", and its badge widened the shared column (O15) for every row: "Let's solve that by using only number/letter identifiers, so "FlixBus N70" becomes "N70"". |
 
 O13 supersedes A10: there is no location button. Pull to refresh asks for a new fix as well as new times.
 
-These choices filled the gaps. Paolo reviewed A17 to A22 on 17 November. A20 and A23 have not been reviewed by him. A16 is not used: an earlier proposal for the map's size was withdrawn, and O13 records the owner's own decision instead.
+These choices filled the gaps. Paolo reviewed A17 to A22 on 17 November. A20, A23 and A24 have not been reviewed by him. A16 is not used: an earlier proposal for the map's size was withdrawn, and O13 records the owner's own decision instead.
 
 | ID | Question | Choice | Review |
 | --- | --- | --- | --- |
@@ -91,6 +92,7 @@ These choices filled the gaps. Paolo reviewed A17 to A22 on 17 November. A20 and
 | A21 | Destinations at accessibility text sizes | No shared badge column. Rows stay as they are, because a wide column would force more wrapping | Approved |
 | A22 | "In" on the line screen | Dropped as well: "12 min" on the left, "00:00" on the right, so the two screens read the same. The owner pointed at the home list only | Approved |
 | A23 | How a pinned stop name looks | It sits on the list's own background, so the lines passing under it are hidden instead of showing through, blurred. At standard text sizes the list has no top edge effect, and the name is drawn as one layer. In 1.2 (8) the lines showed blurred behind a pinned name and dimmed it. With an opaque background alone, iOS 26 still lightened a pinned name: darkest pixel 10 instead of 0 in light, 245 instead of 255 in dark | Not reviewed |
+| A24 | Which words of a line's name are kept (O17) | The words that carry a number, with a one- or two-letter prefix written apart from its number ("S 1", "RE 5"). A name with no number, or of one word, is shown whole. It applies wherever a line is shown or spoken: badges, map labels, the line screen's title, "Pinned elsewhere" and Shortcuts. Pins, `departs://pin` links and the per-line request keep the provider's full name | Not reviewed |
 
 The sketches, the rules on rows, time wording, the stop header and the home map, the states and the risks below are updated. VoiceOver keeps the full phrases: "Bus 13A toward Wien Skodagasse. In 3 min. From Siebensterngasse." and "In 12 min. 00:00".
 
@@ -173,7 +175,7 @@ The sample, with these rules applied:
 
 ### What a row says
 
-11. Badge, destination, time. The badge is unchanged: line name, mode color, mode symbol. The destination takes up to two lines and hides a city prefix shared by every destination, as today. At standard text sizes the badges sit in one column as wide as the widest badge of every listed line, pinned rows included, so every destination starts at the same x (O15). The width comes from the data, not from the rows on screen, so nothing shifts while scrolling. At accessibility sizes there is no shared column (A21).
+11. Badge, destination, time. The badge shows the line's number and letter identifier only, so "FlixBus N70" reads "N70" (O17, A24), with its mode color and mode symbol. The destination takes up to two lines and hides a city prefix shared by every destination, as today. At standard text sizes the badges sit in one column as wide as the widest badge of every listed line, pinned rows included, so every destination starts at the same x (O15). The width comes from the data, not from the rows on screen, so nothing shifts while scrolling. At accessibility sizes there is no shared column (A21).
 12. The time reads "Now" under one minute and "N min" up to 60 minutes (O16). VoiceOver still says "In N min". It uses the locale's duration format. It is the largest text in the row and uses the label color.
 13. There is no second line. Home has no live or scheduled label.
 14. The stop header shows the stop name in primary text and the walking time in secondary text. In 1.1 (6) the stop name is secondary gray at 3.44:1. The name stays at the top while the stop's lines pass under it and leaves together with the last line, name first. It never covers that line, and a stop with one line does not stick (O14). A "Couldn't load this stop · Retry" row counts as the last line, and the "Pinned" header follows the same rule. A pinned name keeps the colour of an unpinned one and hides what passes under it (A23).

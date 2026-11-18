@@ -28,7 +28,7 @@ struct ContentView: View {
                         showsDistantPins = false
                         select(selection)
                     } label: {
-                        Text("\(selection.line.name) toward \(selection.line.direction) · \(selection.stop.name)")
+                        Text("\(selection.line.shortName) toward \(selection.line.direction) · \(selection.stop.name)")
                             .frame(minHeight: 44)
                     }
                 }

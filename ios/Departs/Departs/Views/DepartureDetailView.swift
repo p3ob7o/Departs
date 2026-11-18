@@ -49,7 +49,7 @@ struct DepartureDetailView: View {
                 }
             }
         }
-        .navigationTitle("\(selection.line.name) \(selection.line.direction)")
+        .navigationTitle("\(selection.line.shortName) \(selection.line.direction)")
         .navigationBarTitleDisplayMode(.inline)
         // Home hides its bar; the line screen keeps back, title, walk and pin.
         .toolbarVisibility(.visible, for: .navigationBar)
@@ -81,7 +81,7 @@ struct DepartureDetailView: View {
         VStack(alignment: .leading, spacing: 4) {
             // The system title can truncate a long headsign and does not grow
             // with Dynamic Type. Keep the full service visible in the content.
-            Text("\(selection.line.name) \(selection.line.direction)").font(.headline)
+            Text("\(selection.line.shortName) \(selection.line.direction)").font(.headline)
                 .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("detail-direction")
             Text(stopSummary(walk: walk, at: date)).font(.subheadline)
                 .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("detail-stop-name")

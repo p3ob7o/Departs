@@ -754,6 +754,31 @@ final class FastDepartureTests: XCTestCase {
                        "Order and rendering never change the column")
     }
 
+    func testLinesShowOnlyTheirNumberAndLetterIdentifier() {
+        let cases: [(String, String)] = [
+            ("FlixBus N70", "N70"), ("13A", "13A"), ("U3", "U3"), ("N70", "N70"), ("  M2 ", "M2"),
+            ("S 1", "S 1"), ("RE 5", "RE 5"), ("Bus 200", "200"), ("Bus N8 Nachtlinie", "N8"),
+            ("FEX", "FEX"), ("Airport Express", "Airport Express")
+        ]
+        for (name, shown) in cases {
+            XCTAssertEqual(LineInfo(name: name, direction: "x", type: .bus).shortName, shown, name)
+        }
+        let flix = LineInfo(name: "FlixBus N70", direction: "Prague", type: .bus)
+        XCTAssertEqual(flix.id, "FlixBus N70::Prague", "Identity keeps the provider's name")
+        XCTAssertEqual(flix.lineIdentity.name, "FlixBus N70")
+    }
+
+    @MainActor func testABrandedLineTakesNoMoreBadgeRoomThanItsIdentifier() {
+        func width(_ view: some View) -> CGFloat {
+            UIHostingController(rootView: view).sizeThatFits(in: CGSize(width: 1000, height: 1000)).width
+        }
+        let branded = LineInfo(name: "FlixBus N70", direction: "Prague", type: .bus)
+        let plain = LineInfo(name: "N70", direction: "Prague", type: .bus)
+        XCTAssertEqual(width(LineBadge(line: branded).fixedSize()), width(LineBadge(line: plain).fixedSize()), accuracy: 0.5)
+        XCTAssertEqual(width(BadgeColumn.Stack(lines: [branded, LineInfo(name: "13A", direction: "x", type: .bus)]).fixedSize()),
+                       width(BadgeColumn.Stack(lines: [plain, LineInfo(name: "13A", direction: "x", type: .bus)]).fixedSize()), accuracy: 0.5)
+    }
+
     @MainActor func testHomeMapCentresOnPreciseLiveLocationOnlyWithAUsableFix() {
         let map = StopsMapView.Coordinator()
         let saved = CLLocationCoordinate2D(latitude: 48.2, longitude: 16.34)

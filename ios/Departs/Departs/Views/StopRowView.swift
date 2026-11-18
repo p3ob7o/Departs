@@ -50,8 +50,8 @@ struct StopRowView: View {
     }
     private var spokenAnswer: String {
         let service = selection.line.direction.isEmpty
-            ? "\(selection.line.type.displayName) \(selection.line.name)"
-            : String(localized: "\(selection.line.type.displayName) \(selection.line.name) toward \(selection.line.direction)")
+            ? "\(selection.line.type.displayName) \(selection.line.shortName)"
+            : String(localized: "\(selection.line.type.displayName) \(selection.line.shortName) toward \(selection.line.direction)")
         return String(localized: "\(service). \(content.spokenAnswer). From \(selection.stop.name).")
     }
     private var pinAction: some View {
@@ -125,7 +125,7 @@ struct LineBadge: View {
     var body: some View {
         HStack(spacing: 3) {
             if !textSize.isAccessibilitySize { Image(systemName: line.type.symbol).font(.caption2) }
-            Text(line.name)
+            Text(line.shortName)
         }
         .font(.headline).padding(.horizontal, 6).padding(.vertical, 4)
         .foregroundStyle(.white)

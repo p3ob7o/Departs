@@ -28,7 +28,7 @@ struct RouteMapView: UIViewRepresentable {
         context.coordinator.stopColor = stopColor
         context.coordinator.stopType = line?.type ?? stop.type
         context.coordinator.stopName = stop.name
-        context.coordinator.lineName = line?.name ?? stop.lines.first?.name ?? stop.type.label
+        context.coordinator.lineName = line?.shortName ?? stop.lines.first?.shortName ?? stop.type.label
         context.coordinator.originLabel = originIsCurrentLocation ? String(localized: "Walking start") : String(localized: "Last location")
         let routeCoordinates = walkingRoute?.geometry.clCoordinates ?? []
         let stopAnnotationKey = "\(stop.id)|\(stop.location.lat)|\(stop.location.lon)|\(context.coordinator.lineName)"

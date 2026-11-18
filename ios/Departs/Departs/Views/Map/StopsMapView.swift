@@ -79,7 +79,7 @@ struct StopsMapView: UIViewRepresentable {
             stopId = group.id
             stops = group.stops
             lines = group.lines
-            let services = lines.map { String(localized: "\($0.type.displayName) \($0.name)") }.formatted(.list(type: .and))
+            let services = lines.map { String(localized: "\($0.type.displayName) \($0.shortName)") }.formatted(.list(type: .and))
             spokenLabel = String(localized: "\(group.name), \(services)")
         }
     }
@@ -186,7 +186,7 @@ final class MapLineAnnotationView: MKAnnotationView {
     }
 
     func configure(lines: [LineInfo]) {
-        arrange(lines.prefix(3).map { MapLineBadge(name: $0.name, type: $0.type, color: StopPalette.modeColor($0.type)) },
+        arrange(lines.prefix(3).map { MapLineBadge(name: $0.shortName, type: $0.type, color: StopPalette.modeColor($0.type)) },
                 extra: max(0, lines.count - 3))
     }
 
