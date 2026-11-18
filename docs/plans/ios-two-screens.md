@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). |
+| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O16: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). |
 | Date | 16 November 2026 |
 | Based on | Departs 1.1 (6), `main` at `6430c94` |
 | Branch | `feat/ios-two-screens` |
@@ -67,28 +67,55 @@ These follow from the three decisions and were chosen while implementing them. P
 
 The home sketch, the states table and the risks below are updated. The phases, test findings and appendices keep their original wording as a record. T6, T7 and T12 concerned search results and a chosen area. They no longer apply.
 
+## Second amendment: the map at the top
+
+Paolo used Departs 1.2 (8) on his phone and asked for four corrections on 17 November 2026, each with an annotated screenshot. On 18 November he corrected how the first had been read. These are settled.
+
+| ID | Decision |
+| --- | --- |
+| O13 | Home has no bar, and the map takes its place. "Remove "Near you" and the location button at the top. The map should start at the top of the viewport, and remain centered on the current location at all times (even when moving)." Then: "The map should remain square." And on 18 November: "the map shouldn't occupy the status bar. That remains with time, bars, dynamic island, etc. The space I wanted the map to use is what was before reserved for "Near me" and the location button on the right." The square's top edge is the bottom of the status bar. The rider and the ring are centred in the whole square, at the scale of 1.2 (8). |
+| O14 | A stop's name leaves with its last line. "I like the name of the stop remaining stuck as we scroll up, but it should disappear once no more lines are visible for that stop." Reviewed on 17 November: the name stays while the stop's lines pass under it and leaves together with the last one, name first. It never covers the last line. A stop with one line does not stick. |
+| O15 | "The direction names should be left aligned, regardless of the width of the pill on their left." |
+| O16 | "We don't need "In " in front of each time here." |
+
+O13 supersedes A10: there is no location button. Pull to refresh asks for a new fix as well as new times.
+
+These choices filled the gaps. Paolo reviewed A17 to A22 on 17 November. A20 and A23 have not been reviewed by him. A16 is not used: an earlier proposal for the map's size was withdrawn, and O13 records the owner's own decision instead.
+
+| ID | Question | Choice | Review |
+| --- | --- | --- | --- |
+| A17 | Pan and zoom on the home map | None. Nothing could bring a moved map back, and it stays centred. The line screen's map stays interactive | Approved |
+| A18 | The 400 m ring | Drawn around the point the map is centred on, beneath the stop labels. The list's area still changes only after a 150 m move (A15), so for a while the ring can be ahead of the stops listed. The framing never depends on the ring: hiding it is one line, `StopsMapView.showsRing` | Approved. "Ok, although I plan to hide the circle later, but still thinking about it." |
+| A19 | No usable location, but a saved area | The map stands on the saved area's centre, with the ring. Once the location request has failed, one tinted row at the top of the list reads "Couldn't find your location · Try again". It replaces the "Last area" title and the location button's retry, and never shows while a request is still running | Approved |
+| A20 | What the map centres on | In order: MapKit's live location when it is precise (100 m or better) and the app holds a usable fix; else the app's usable fix; else the saved area's centre; else nothing, with no ring. MapKit's coarse location, which Precise Location off gives, never moves the map. The app's own fix arrives only every 30 to 60 seconds, so MapKit's location is what makes the map follow a walk | Not reviewed |
+| A21 | Destinations at accessibility text sizes | No shared badge column. Rows stay as they are, because a wide column would force more wrapping | Approved |
+| A22 | "In" on the line screen | Dropped as well: "12 min" on the left, "00:00" on the right, so the two screens read the same. The owner pointed at the home list only | Approved |
+| A23 | How a pinned stop name looks | It sits on the list's own background, so the lines passing under it are hidden instead of showing through, blurred. At standard text sizes the list has no top edge effect, and the name is drawn as one layer. In 1.2 (8) the lines showed blurred behind a pinned name and dimmed it. With an opaque background alone, iOS 26 still lightened a pinned name: darkest pixel 10 instead of 0 in light, 245 instead of 255 in dark | Not reviewed |
+
+The sketches, the rules on rows, time wording, the stop header and the home map, the states and the risks below are updated. VoiceOver keeps the full phrases: "Bus 13A toward Wien Skodagasse. In 3 min. From Siebensterngasse." and "In 12 min. 00:00".
+
 ## The two screens
 
 ### Home
 
 ```
 ┌──────────────────────────────────────────┐
-│ Near you                             ➤   │  title · locate (O11)
+│ 9:41                             ▮▮▮ ▭   │  status bar, unchanged; no bar (O13)
 ├──────────────────────────────────────────┤
 │                                          │
 │              ▐13A·49▌                    │
-│                  ◉          ▐48A▌        │  square map: radius, you,
-│       ▐14A▌                              │  one label per listed stop
-│                ▐U3▌                      │
+│                  ◉          ▐48A▌        │  square map: always centred on
+│       ▐14A▌                              │  you, the radius, one label per
+│                ▐U3▌                      │  listed stop; no pan or zoom
 │                                          │
 ├──────────────────────────────────────────┤
-│ Siebensterngasse · 1 min walk            │
-│ ▐13A▌ Skodagasse               In 2 min  │
-│ ▐13A▌ Hauptbahnhof             In 3 min  │
-│ ▐49▌  Parlament/Volkstheater   In 5 min  │
+│ Siebensterngasse · 1 min walk            │  leaves with its last line (O14)
+│ ▐13A▌ Skodagasse                  2 min  │
+│ ▐13A▌ Hauptbahnhof                3 min  │  destinations start at one x (O15)
+│ ▐49▌  Parlament/Volkstheater      5 min  │  "N min", no "In" (O16)
 │ ▐49▌  Hütteldorf, Bujattigasse      Now  │
 │ Burggasse/Neubaugasse · 4 min walk       │
-│ ▐48A▌ Parlament/Volkstheater   In 3 min  │
+│ ▐48A▌ Parlament/Volkstheater      3 min  │
 └──────────────────────────────────────────┘
 ```
 
@@ -105,10 +132,10 @@ The home sketch, the states table and the risks below are updated. The phases, t
 │                                          │
 ├──────────────────────────────────────────┤
 │ Siebensterngasse · 1 min walk · 20 m     │
-│ In 2 min                          12:58  │
-│ In 6 min                          13:02  │
-│ In 10 min                         13:06  │
-│ In 14 min                         13:10  │
+│ 2 min                             12:58  │  no "In" (A22)
+│ 6 min                             13:02  │
+│ 10 min                            13:06  │
+│ 14 min                            13:10  │
 └──────────────────────────────────────────┘
 ```
 
@@ -146,15 +173,15 @@ The sample, with these rules applied:
 
 ### What a row says
 
-11. Badge, destination, time. The badge is unchanged: line name, mode color, mode symbol. The destination takes up to two lines and hides a city prefix shared by every destination, as today.
-12. The time reads "Now" under one minute and "In N min" up to 60 minutes. It uses the locale's duration format through the string catalog. It is the largest text in the row and uses the label color.
+11. Badge, destination, time. The badge is unchanged: line name, mode color, mode symbol. The destination takes up to two lines and hides a city prefix shared by every destination, as today. At standard text sizes the badges sit in one column as wide as the widest badge of every listed line, pinned rows included, so every destination starts at the same x (O15). The width comes from the data, not from the rows on screen, so nothing shifts while scrolling. At accessibility sizes there is no shared column (A21).
+12. The time reads "Now" under one minute and "N min" up to 60 minutes (O16). VoiceOver still says "In N min". It uses the locale's duration format. It is the largest text in the row and uses the label color.
 13. There is no second line. Home has no live or scheduled label.
-14. The stop header shows the stop name in primary text and the walking time in secondary text. In 1.1 (6) the stop name is secondary gray at 3.44:1.
+14. The stop header shows the stop name in primary text and the walking time in secondary text. In 1.1 (6) the stop name is secondary gray at 3.44:1. The name stays at the top while the stop's lines pass under it and leaves together with the last line, name first. It never covers that line, and a stop with one line does not stick (O14). A "Couldn't load this stop · Retry" row counts as the last line, and the "Pinned" header follows the same rule. A pinned name keeps the colour of an unpinned one and hides what passes under it (A23).
 15. A row is 44 pt tall at the default text size with a one-line destination.
 
 ### Home map
 
-16. The map is a square as wide as the screen, directly under the navigation bar. It shows the search radius, the user's location, and one label per stop that has at least one row, pinned rows included.
+16. The map is a square as wide as the screen. Home has no bar, so its top edge is the bottom of the status bar, which stays as it is (O13). It shows the search radius, the user's location, and one label per stop that has at least one row, pinned rows included. The map is always centred on the rider and spans 960 m, so the 400 m ring's radius is the width ÷ 2.4. Between the app's fixes it follows MapKit's live location (A20). It cannot be panned or zoomed (A17). The ring is drawn around the map's centre, beneath the labels (A18).
 17. A label holds the line numbers of that stop's rows, in list order, each drawn as the list badge. It shows up to three, then "+N".
 18. Tapping a label follows O7. A stop with one row opens that line. A stop with several rows scrolls the list to its header and shows the selection ring.
 19. The list never waits for the map. Rows appear even when map tiles fail to load.
@@ -175,20 +202,20 @@ The freshness rules in [ios-fast-answers.md](../ios-fast-answers.md) stay: a boa
 | S6 | The stops request failed on first load | The error and "Try again". Not "No stops in this area", and not "Checking departures…" |
 | S7 | No stop inside the radius | "No stops within 400 m". No other search is offered (O10, O11) |
 | S8 | Stops, but nothing within 60 minutes | "Nothing leaves here in the next hour". No other search is offered (O10) |
-| S9 | Location off | The explanation and "Open Settings". No departures and no map labels. Pinned routes stay reachable. The location button reports "Location is off" to VoiceOver (O12, A11) |
+| S9 | Location off | The explanation and "Open Settings". No departures, no map labels and no ring. Pinned routes stay reachable (O12, A11) |
 | S10 | Location denied, area chosen | Removed with place search (O11) |
-| S11 | The rider moves more than 150 m | The list returns to the top and the map recenters. A fix closer than that changes neither (A15) |
+| S11 | The rider moves more than 150 m | The list returns to the top around the new position. The map has followed the rider all along (O13). A fix closer than 150 m reloads nothing (A15) |
 | S12 | No usable fix, nothing saved | "Couldn't find your location. Check that Precise Location is on.", with "Try again" and "Open Settings" (A12) |
-| S13 | No usable fix, an area saved | The saved rows, titled "Last area", with their times updating. Walks are measured "from this area" |
+| S13 | No usable fix, an area saved | The saved rows, with their times updating, under one row: "Couldn't find your location · Try again" once the request has failed (A19). The map stands on the saved area. Walks are measured "from this area" |
 
 "Try again", "Retry", "Refresh" and "Open Settings" are drawn as buttons, in the tint color with a symbol.
 
 ### Line screen
 
-21. The title is the line and its full destination. The toolbar holds the pin button and the Apple Maps walking-directions button, both as system items with a title and a symbol (A5).
+21. The line screen keeps its bar: the back button, spoken "Back", and the title, the line and its full destination. The toolbar holds the pin button and the Apple Maps walking-directions button, both as system items with a title and a symbol (A5).
 22. The map is square. It shows the walking route from the walking origin to the platform, the stop label and the user's location. Without a route it shows both points.
 23. One line under the map names the stop once, with walking time and distance. Without a usable location it says "from this area", as today.
-24. Up to four departures follow. Each shows "In N min" and the clock time. Beyond 60 minutes it shows the clock time only. A live departure carries the live symbol, and "N min late" from one minute of delay. A scheduled departure carries nothing (A8).
+24. Up to four departures follow. Each shows "N min" and the clock time (A22). Beyond 60 minutes it shows the clock time only. A live departure carries the live symbol, and "N min late" from one minute of delay. A scheduled departure carries nothing (A8).
 25. Nothing is crossed out or greyed. There is no advice card and no "Other lines at this stop".
 26. States mirror home: checking, "Couldn't load · Retry", saved clock times with "Refresh", and "Nothing in the next hour".
 
@@ -202,7 +229,7 @@ The freshness rules in [ios-fast-answers.md](../ios-fast-answers.md) stay: a boa
 ### Text size
 
 31. Up to the largest standard size, the map is fixed and the list scrolls under it.
-32. At accessibility sizes the map stays square and on top, and scrolls away with the list (A2). On a 667-pt display the list area is 218 pt, and at the largest size a stop header alone measured 137 pt.
+32. At accessibility sizes the map stays square and on top, and scrolls away with the list (A2). With the list at the top it starts under the status bar. Text scrolled under the status bar is faded by the system's scroll edge effect, so the status bar stays readable. On a 667-pt display the list area is 272 pt since O13, and at the largest size a stop header alone measured 137 pt.
 
 ### Accessibility
 
@@ -379,7 +406,9 @@ These filled gaps in the owner's initial decisions. Paolo reviewed A1–A9 on 16
 - **One request, one failure.** A failed departures call now affects the whole list. Rules 9 and 20 keep the last list on screen, and the server retries once.
 - **Night.** With idle lines hidden, state S8 will be common at night. Since O10 it offers nothing else to do. Its wording needs a check on a device.
 - **Location is the only input.** Since O11 there is no way around a missing or coarse fix. States S9, S12 and S13 cover it. They need a check on a device, indoors and with Precise Location off.
-- **Less room for the list.** The square map leaves 356 pt on an iPhone 17 Pro and 218 pt on a 667-pt display.
+- **Less room for the list.** The square map leaves 410 pt on an iPhone 17 Pro and 272 pt on a 667-pt display since O13. It left 356 pt and 218 pt under the bar.
+- **The ring can lead the list.** The map follows the rider continuously, but the list's area changes only after 150 m (A15). Until then the ring is drawn around the rider while the stops listed belong to the earlier centre (A18).
+- **A coarse fix freezes the map.** With Precise Location off, MapKit's location never moves the map (A20). The map then follows only the app's fixes, which a coarse fix never provides, so it stays on the saved area. This needs a check on a phone.
 - **Provider limits.** The number of ids per HERE call and its cost per call are unverified until Phase 0.
 - **Large hubs.** A platform with more than 25 lines and destinations can still exceed the 50-departure cap. Lines beyond it are not listed. No such platform is in the sample.
 - **Pins may still go.** O8 keeps them as a trial. Rules 27 to 30 are written so they can be removed without touching the rest.
