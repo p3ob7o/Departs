@@ -26,7 +26,7 @@ shutil.copytree(ROOT / "ios/Departs", project)
 # These phrases stress German word lengths and sentence order. The remaining
 # strings are bounded, accented English with added length, not a translation.
 german = {
-    "Near you": "In deiner Umgebung",
+    "Couldn't find your location · Try again": "Standort nicht gefunden · Erneut versuchen",
     "In %@": "In %@",
     "Now": "Jetzt",
     "Walking directions": "Wegbeschreibung zu Fuß",

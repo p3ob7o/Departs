@@ -1,9 +1,11 @@
 import SwiftUI
 
 struct NearbyStopsView: View {
+    typealias StopGroup = TransitStore.StopGroup
     @Bindable var store: TransitStore
     let locationState: LocationService.State
     let onSelect: (StopLineSelection) -> Void
+    /// Asks for a new fix: "Try again" when no usable location arrived.
     let onLocate: () -> Void
     let onRefresh: () async -> Void
     var onDistantPins: () -> Void = {}
@@ -11,74 +13,19 @@ struct NearbyStopsView: View {
     @Environment(\.dynamicTypeSize) private var textSize
     @Environment(\.openURL) private var openURL
     @State private var selectedMapStop: String?
-    @State private var recenter = 0
     @State private var countdownStart = Date.now
+    /// The widest badge among every listed line, so destinations share one x.
+    @State private var badgeColumn: CGFloat?
 
     var body: some View {
         GeometryReader { geometry in
             ScrollViewReader { proxy in
-                VStack(spacing: 0) {
-                    if !textSize.isAccessibilitySize { map(width: geometry.size.width, proxy: proxy) }
-                    TimelineView(.periodic(from: countdownStart, by: 15)) { timeline in
-                        let date = max(timeline.date, Date.now)
-                        List {
-                            if textSize.isAccessibilitySize {
-                                map(width: geometry.size.width, proxy: proxy)
-                                    .listRowInsets(EdgeInsets()).listRowSeparator(.hidden).id("home-top")
-                            } else {
-                                Color.clear.frame(height: 1).listRowInsets(EdgeInsets())
-                                    .listRowSeparator(.hidden).accessibilityHidden(true).id("home-top")
-                            }
-                            states(at: date)
-                            if !store.nearbyPins.isEmpty || !store.distantPins.isEmpty {
-                                Section {
-                                    ForEach(store.nearbyPins) { row($0, at: date, showStop: true) }
-                                    if !store.distantPins.isEmpty {
-                                        Button(action: onDistantPins) {
-                                            Label("Pinned elsewhere (\(store.distantPins.count))", systemImage: "pin")
-                                                .frame(minHeight: 44)
-                                        }.foregroundStyle(.tint)
-                                    }
-                                } header: { Text("Pinned").foregroundStyle(Color.primary).textCase(nil) }
-                                .id("pinned")
-                            }
-                            ForEach(store.groups) { group in
-                                Section {
-                                    ForEach(group.active) { row($0, at: date) }
-                                    if group.hasMissingBoard {
-                                        Button { Task { await onRefresh() } } label: {
-                                            Label("Couldn't load this stop · Retry", systemImage: "arrow.clockwise")
-                                                .frame(minHeight: 44)
-                                        }.foregroundStyle(.tint).accessibilityIdentifier("retry-stop")
-                                    }
-                                } header: {
-                                    let layout = textSize.isAccessibilitySize
-                                        ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
-                                        : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 4))
-                                    layout {
-                                        Text(group.name).fontWeight(.semibold).foregroundStyle(Color.primary)
-                                        if let walk = store.walk(for: group, at: date) {
-                                            Text(TransitFormat.walk(walk.route, fromCurrentLocation: store.location?.isUsable(at: date) == true))
-                                                .foregroundStyle(StopPalette.secondaryText)
-                                        }
-                                    }
-                                    .font(.subheadline).textCase(nil)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                    .accessibilityIdentifier("stop-section")
-                                    .id(group.id)
-                                }
-                            }
-                        }
-                        .listStyle(.plain)
-                        .id(store.areaRevision)
-                        .environment(\.defaultMinListRowHeight, 0)
-                        .environment(\.defaultMinListHeaderHeight, 0)
-                        .listSectionSpacing(0)
-                        .contentMargins(.top, 0, for: .scrollContent)
-                        .accessibilityIdentifier("nearby-list")
-                        .onScrollPhaseChange { _, phase in store.setInteracting(phase != .idle, presentationID: interactionID) }
-                        .onDisappear { store.clearPresentation(interactionID) }
-                        .refreshable { await onRefresh() }
+                TimelineView(.periodic(from: countdownStart, by: 15)) { timeline in
+                    let date = max(timeline.date, Date.now)
+                    VStack(spacing: 0) {
+                        // Home has no bar: the square starts under the status bar.
+                        if !textSize.isAccessibilitySize { map(width: geometry.size.width, at: date, proxy: proxy) }
+                        list(width: geometry.size.width, at: date, proxy: proxy)
                     }
                 }
                 .onChange(of: store.areaRevision) { _, _ in
@@ -87,24 +34,111 @@ struct NearbyStopsView: View {
                 }
             }
         }
-        .navigationTitle(areaTitle)
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                Button("Use my location", systemImage: showsCurrentLocation ? "location.fill" : "location") {
-                    // The only way back after panning the map away.
-                    recenter += 1
-                    onLocate()
-                }
-                    .accessibilityLabel(String(localized: "Use my location. \(locationValue)."))
-                    .accessibilityIdentifier("locate")
+        .toolbarVisibility(.hidden, for: .navigationBar)
+    }
+
+    private func list(width: CGFloat, at date: Date, proxy: ScrollViewProxy) -> some View {
+        List {
+            if textSize.isAccessibilitySize {
+                map(width: width, at: date, proxy: proxy)
+                    .listRowInsets(EdgeInsets()).listRowSeparator(.hidden).id("home-top")
+            } else {
+                Color.clear.frame(height: 1).listRowInsets(EdgeInsets())
+                    .listRowSeparator(.hidden).accessibilityHidden(true).id("home-top")
+            }
+            states(at: date)
+            pinnedSections(at: date)
+            ForEach(store.groups) { stopSections($0, at: date) }
+        }
+        .listStyle(.plain)
+        .id(store.areaRevision)
+        .environment(\.defaultMinListRowHeight, 0)
+        .environment(\.defaultMinListHeaderHeight, 0)
+        .listSectionSpacing(0)
+        .contentMargins(.top, 0, for: .scrollContent)
+        // iOS 26 fades whatever passes the list's top edge, a pinned stop name
+        // included. Below the map nothing needs it, and the name keeps its colour.
+        // At accessibility sizes the list reaches the status bar, which needs it.
+        .scrollEdgeEffectHidden(!textSize.isAccessibilitySize, for: .top)
+        .background(alignment: .topLeading) {
+            if !textSize.isAccessibilitySize {
+                BadgeColumn.Reader(lines: BadgeColumn.lines(in: store.displayedOptions)) { badgeColumn = $0 }
+            }
+        }
+        .accessibilityIdentifier("nearby-list")
+        .onScrollPhaseChange { _, phase in store.setInteracting(phase != .idle, presentationID: interactionID) }
+        .onDisappear { store.clearPresentation(interactionID) }
+        .refreshable { await onRefresh() }
+    }
+
+    /// A stop's name stays at the top while its lines pass under it and leaves
+    /// together with its last line. The last line therefore sits in a second,
+    /// headerless section: the system pushes a pinned header out when its
+    /// section ends. A stop with one line has an empty first section and never pins.
+    @ViewBuilder private func stopSections(_ group: StopGroup, at date: Date) -> some View {
+        let leading = group.hasMissingBoard ? group.active : Array(group.active.dropLast())
+        Section {
+            ForEach(leading) { row($0, at: date).listRowSeparator(.visible, edges: .bottom) }
+        } header: { header(group, at: date) }
+        Section {
+            if group.hasMissingBoard {
+                // The recovery row counts as the stop's last line.
+                Button { Task { await onRefresh() } } label: {
+                    Label("Couldn't load this stop · Retry", systemImage: "arrow.clockwise")
+                        .frame(minHeight: 44)
+                }.foregroundStyle(.tint).accessibilityIdentifier("retry-stop")
+            } else if let last = group.active.last {
+                row(last, at: date)
             }
         }
     }
 
-    private func map(width: CGFloat, proxy: ScrollViewProxy) -> some View {
-        StopsMapView(userCoordinate: store.center?.clLocationCoordinate2D, groups: store.mapGroups,
-                     selectedStopID: selectedMapStop, recenter: recenter) { selected in
+    /// The same rule for pins: "Pinned elsewhere", when present, is the last line.
+    @ViewBuilder private func pinnedSections(at date: Date) -> some View {
+        let pins = store.nearbyPins
+        let elsewhere = !store.distantPins.isEmpty
+        if !pins.isEmpty || elsewhere {
+            let leading = elsewhere ? pins : Array(pins.dropLast())
+            Section {
+                ForEach(leading) { row($0, at: date, showStop: true).listRowSeparator(.visible, edges: .bottom) }
+            } header: { Text("Pinned").foregroundStyle(Color.primary).textCase(nil).modifier(StopHeader()) }
+            .id("pinned")
+            Section {
+                if elsewhere {
+                    Button(action: onDistantPins) {
+                        Label("Pinned elsewhere (\(store.distantPins.count))", systemImage: "pin")
+                            .frame(minHeight: 44)
+                    }.foregroundStyle(.tint)
+                } else if let last = pins.last {
+                    row(last, at: date, showStop: true)
+                }
+            }
+        }
+    }
+
+    private func header(_ group: StopGroup, at date: Date) -> some View {
+        let layout = textSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 2))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 4))
+        return layout {
+            Text(group.name).fontWeight(.semibold).foregroundStyle(Color.primary)
+            if let walk = store.walk(for: group, at: date) {
+                Text(TransitFormat.walk(walk.route, fromCurrentLocation: store.location?.isUsable(at: date) == true))
+                    .foregroundStyle(StopPalette.secondaryText)
+            }
+        }
+        .font(.subheadline).textCase(nil)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityIdentifier("stop-section")
+        .modifier(StopHeader())
+        .id(group.id)
+    }
+
+    private func map(width: CGFloat, at date: Date, proxy: ScrollViewProxy) -> some View {
+        let usable = store.location.flatMap { $0.isUsable(at: date) ? $0.coordinate : nil }
+        return StopsMapView(fallbackCenter: (usable ?? store.center)?.clLocationCoordinate2D,
+                            followsLiveLocation: usable != nil, groups: store.mapGroups,
+                            selectedStopID: selectedMapStop) { selected in
             selectedMapStop = selected
             guard let group = store.mapGroups.first(where: { $0.id == selected }) else { return }
             if group.active.count == 1, let selection = group.active.first { onSelect(selection) }
@@ -118,6 +152,13 @@ struct NearbyStopsView: View {
     }
 
     @ViewBuilder private func states(at date: Date) -> some View {
+        if locationState == .failed, store.center != nil, store.location?.isUsable(at: date) != true {
+            // A saved area stays on screen. Say once, at the top, that the
+            // position behind it is not current, and offer to look again.
+            Button(action: onLocate) {
+                Label("Couldn't find your location · Try again", systemImage: "arrow.clockwise").frame(minHeight: 44)
+            }.foregroundStyle(.tint).accessibilityIdentifier("location-retry")
+        }
         if locationState == .denied {
             Text("Location is off. Turn it on to see what leaves near you.").accessibilityIdentifier("location-status")
             settingsButton
@@ -168,23 +209,31 @@ struct NearbyStopsView: View {
             Label("Open Settings", systemImage: "gear").frame(minHeight: 44)
         }.foregroundStyle(.tint)
     }
-    private var showsCurrentLocation: Bool { store.location?.isUsable(at: .now) == true }
-    private var areaTitle: String {
-        showsCurrentLocation ? String(localized: "Near you") : store.center == nil ? "Departs" : String(localized: "Last area")
-    }
-    private var locationValue: String {
-        if locationState == .denied { return String(localized: "Location is off") }
-        if showsCurrentLocation { return String(localized: "Following your location") }
-        if store.center != nil { return String(localized: "Showing your last area") }
-        return locationState == .failed ? String(localized: "Location not found") : String(localized: "Finding your location")
-    }
     private func row(_ selection: StopLineSelection, at date: Date, showStop: Bool = false) -> some View {
         StopRowView(selection: selection, board: store.home.boards[selection.id],
                     fresh: store.isHomeBoardFresh(for: selection, at: date), pinned: store.isPinned(selection), now: date,
                     onOpen: { onSelect(selection) }, onPin: { store.togglePin(selection) },
-                    direction: Self.displayDirection(selection.line.direction, among: store.displayedOptions.map { $0.line.direction }), showStop: showStop)
+                    direction: Self.displayDirection(selection.line.direction, among: store.displayedOptions.map { $0.line.direction }), showStop: showStop,
+                    badgeWidth: textSize.isAccessibilitySize ? nil : badgeColumn)
             .listRowInsets(.vertical, 0).listRowInsets(.horizontal, 16)
     }
+    /// A pinned name sits on the list's own background, so the lines passing
+    /// under it are hidden rather than showing through its text. iOS 26 also
+    /// treats each text in a pinned header as a scroll-pocket element and
+    /// shifts its colour slightly (measured 0 to 10 in light, 255 to 245 in
+    /// dark), even with the edge effect hidden. Drawing the name as one layer
+    /// keeps a pinned name exactly the colour of an unpinned one.
+    struct StopHeader: ViewModifier {
+        func body(content: Content) -> some View {
+            content
+                .drawingGroup()
+                .padding(.horizontal, 16).padding(.vertical, 10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color(uiColor: .systemBackground))
+                .listRowInsets(EdgeInsets())
+        }
+    }
+
     static func displayDirection(_ direction: String, among directions: [String]) -> String {
         let unique = Set(directions)
         guard unique.count >= 3, let prefix = direction.split(separator: " ").first,

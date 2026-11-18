@@ -13,7 +13,7 @@ The owner retired the browser client on 15 November. iOS is the sole product cli
 - Home selects the eight rows in the Vienna sample from 17 platforms. A single batch replaces departure fan-out; opening takes one stops request, one batch and one walk per listed physical stop.
 - Fresh rows show a single countdown. Saved rows retain their position and show clock times with a recovery action. Cached content appears before networking.
 - The line screen keeps the full destination visible, shows up to four departures and opens Apple Maps walking directions to the platform. Live times carry a symbol and full-minute delay. There is no scheduled label or leave advice.
-- Local pins and App Shortcuts remain. Pins are still a product trial under O8. There is no search of any kind: the top bar holds the location button only.
+- Local pins and App Shortcuts remain. Pins are still a product trial under O8. There is no search of any kind. Since the owner's corrections of 17 and 18 November, home has no top bar: its square map starts under the status bar and stays centred on you.
 - Both screens support accessibility text, with the map scrolling away at accessibility sizes. iPhone returns to portrait only. iOS 26 remains the minimum.
 
 See [native behavior](ios-fast-answers.md) and the [final validation](plans/ios-two-screens-phase-3-validation.md). The old fast-answer roadmap's advice, optional-map and split-view work is superseded.
@@ -28,11 +28,14 @@ The uploaded build uses the tested release branch. Backend-first is satisfied. C
 
 **Departs 1.2 (8) followed on 17 November: uploaded, VALID and IN_BETA_TESTING for internal testers.** It removes place search and the wider search, and fixes two defects found in the test of 1.2 (7): the list started over about every five minutes on a phone, and a coarse location fix left home waiting forever. [PR #32](https://github.com/p3ob7o/Departs/pull/32) is merged. The [release record](releases/1.2-8.md) lists the checks and seven open findings that need the owner's decision.
 
+**Four corrections followed the owner's use of 1.2 (8) on 17 November**, recorded as O13 to O16 in the [plan's second amendment](plans/ios-two-screens.md#second-amendment-the-map-at-the-top): home loses its bar and the map is centred on you at all times, a stop's name leaves with its last line, destinations start at one x, and times read "7 min". O17 followed on 18 November: badges show only the line's identifier, so "FlixBus N70" reads "N70". The owner approved merging [PR #34](https://github.com/p3ob7o/Departs/pull/34) and sending the result to TestFlight as **Departs 1.2 (9)**; the [release record](releases/1.2-9.md) lists its checks.
+
 ## Next decisions and checks
 
 - Rewrite the [iPhone Duo plan, PR #18](https://github.com/p3ob7o/Departs/pull/18) and [iPad plan, PR #19](https://github.com/p3ob7o/Departs/pull/19) for map and list side by side. Both predate this design. Device support and the Xcode upgrade remain outside this work.
+- Review A20, A23 and A24 in the [second amendment](plans/ios-two-screens.md#second-amendment-the-map-at-the-top): what the map centres on, how a pinned stop name looks, and which words of a line's name are kept.
 - Decide the seven open findings in the [1.2 (8) record](releases/1.2-8.md#open-findings-not-changed-in-this-build). The first is a defect: a stop with no departures is shown as a failed load, seen at Berlin Alexanderplatz.
-- With build 8 on a phone: leave the app open in one place for ten minutes, walk a few hundred metres, and try Location off and Precise Location off.
+- With build 8 on a phone: leave the app open in one place for ten minutes, walk a few hundred metres, and try Location off and Precise Location off. With the next build, check that the map follows a walk smoothly and stays put with Precise Location off.
 - Check map selection, long destinations and empty nighttime results on a phone. Observe whether people find the available service without opening several lines.
 - Verify VoiceOver speech, haptics, GPS accuracy, foreground return, Shortcuts discovery and Home Screen icon appearances on a signed device.
 - Measure cold/warm startup on mobile data and provider quota/cost under the batch model. Check a capped hub and operators with realtime coverage. The Vienna sample supplied scheduled data only.

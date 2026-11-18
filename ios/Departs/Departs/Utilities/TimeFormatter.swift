@@ -1,13 +1,24 @@
 import Foundation
 
+/// A fresh time within the hour. Rows show "7 min"; VoiceOver keeps the
+/// full phrase, "In 7 min". Below one minute both read "Now".
+struct Countdown: Equatable {
+    let text: String
+    let spoken: String
+}
+
 enum TimeFormatter {
-    static func countdown(_ time: String, now: Date) -> String? {
+    static func countdown(_ time: String, now: Date) -> Countdown? {
         guard let date = parseISO(time) else { return nil }
         let seconds = date.timeIntervalSince(now)
         guard seconds <= TransitStore.runningHorizon else { return nil }
+        if seconds < 60 {
+            let now = String(localized: "Now")
+            return Countdown(text: now, spoken: now)
+        }
         let duration = Duration.seconds(Int(ceil(seconds / 60)) * 60)
             .formatted(.units(allowed: [.minutes], width: .abbreviated))
-        return seconds < 60 ? String(localized: "Now") : String(localized: "In \(duration)")
+        return Countdown(text: duration, spoken: String(localized: "In \(duration)"))
     }
 
     private static let isoFormatter: ISO8601DateFormatter = {
