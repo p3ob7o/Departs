@@ -166,21 +166,22 @@ These choices filled the gaps. None has been reviewed by the owner.
 
 | ID | Question | Choice |
 | --- | --- | --- |
-| A34 | Which times share the column (O20) | The countdowns of the departures shown, "Now" included, right-aligned in a column as wide as the widest of them. The width is measured from the data, as for the badges on home (O15). A clock alone, for saved times or beyond the hour, keeps its place on the left. At accessibility sizes the stacked layout stays, with no column |
+| A34 | Which times share the column (O20) | The countdowns of the departures shown, "Now" included, right-aligned in a column as wide as the widest of them. The width is measured from the data, as for the badges on home (O15). A clock alone, for saved times or beyond the hour, keeps its place on the left. Every row's divider still starts at the row's leading edge, as before. At accessibility sizes the stacked layout stays, with no column |
 | A35 | When the choice is offered (O21) | Only when Google Maps is installed, which the app asks with `canOpenURL` on `comgooglemaps://`. Without it the button opens Apple Maps at once, as before, and a long press offers nothing. A remembered Google Maps that has been removed is forgotten, so after a reinstall the first tap asks again |
 | A36 | Where Google Maps goes | Walking directions to the stop's coordinate. Apple Maps opens as before, in walking mode to the platform |
 | A37 | The choice itself | A menu at the walk button, Apple Maps then Google Maps, with a checkmark on the remembered one. Picking an app opens it and remembers it, on this phone, for every line. The app names are not translated |
-| A38 | The controls under the map (O22) | Back (`chevron.backward`, spoken "Back"), the line and direction with the stop under them, then walk and pin, left to right. Plain symbols in the label colour, without glass capsules, each with a 44 × 44 pt target, aligned with the title's first line. The title wraps in full and is never truncated. The line is named once on the screen |
+| A38 | The controls under the map (O22) | Back (`chevron.backward`, spoken "Back"), the line and direction with the stop under them, then walk and pin, left to right. Plain symbols in the label colour, without glass capsules, each with a 44 × 44 pt target, aligned with the title's first line. The title wraps in full beside the buttons and is never truncated. The stop line below it runs from the title's leading edge to the list's 16 pt margin, under walk and pin, so a usual stop line fits on one line on a 402 pt phone. A no-break space keeps each "·" with the word before it, so a stop line that still wraps never starts with one. The line is named once on the screen |
 | A39 | The line screen at accessibility text sizes | As before: the bar holds back, walk and pin, and the map is a list row that scrolls away. A back button that scrolled out of reach would be worse than a bar |
 | A40 | Touches on the line map | Its strip under the status bar takes none, as on home (A26). The square pans and zooms as before (A17) |
-| A41 | Going back | The swipe from the left edge still goes back. Hiding the bar stopped it, so the app lets it begin again while the line screen is shown |
+| A41 | Going back | The swipe from the left edge goes back from every height, over the map as over the list. Hiding the bar stopped it, so the app lets it begin again while the line screen is shown. A pan that starts on the map, even 30 pt from the edge, still pans the map |
 | A42 | What replaces the ring (O23) | Nothing. The location dot stays at the centre, and the framing is unchanged |
 
 Found while implementing:
 
-- With the bar hidden, UIKit refuses the swipe from the left edge. The app takes over the gesture's delegate while the line screen is shown, and returns it afterwards, so the root screen never starts a pop it cannot finish.
+- With the bar hidden, UIKit refuses the swipe from the left edge: the system's own delegate for it turns it down in a private check of each event. The app takes over the gesture's delegate while the line screen is shown and returns it afterwards, so the root screen never starts a pop it cannot finish. It answers that event check and whether the swipe may begin, and passes every other delegate call to the system's delegate. That delegate settles the swipe against MapKit's pan: without it, the swipe went back over the list but not over the map. The first version of this change, reviewed at `9bd828f`, had that defect.
 - MapKit keeps the route inside the safe area, so inside the square: with the map reaching the top, both ends of the walk measured inside the square on iPhone 17 Pro and on the SE.
 - In UI tests, a fast horizontal drag that starts on a home row opened that row's line, on `main` as on this branch. A finger was not tried.
+- Not tried: VoiceOver's two-finger scrub to go back with the bar hidden. It needs VoiceOver on a phone.
 
 The sketches and the rules on the home map and the line screen below are updated.
 
@@ -218,11 +219,13 @@ The sketches and the rules on the home map and the line screen below are updated
 │                                          │
 │          ◉┄┄┄┄┄┄┐                        │  square map: the walking
 │                 ┆                        │  route from you to the stop
-│                 └┄┄▐13A▌                 │
+│                 └┄┄▐48A▌                 │
 │                                          │
 ├──────────────────────────────────────────┤
-│ ‹  13A Wien Skodagasse            🚶  ⚑  │  back · line · walk · pin (O22)
-│    Siebensterngasse · 1 min walk · 20 m  │
+│ ‹  48A Wien Parlament/            🚶  ⚑  │  back · line · walk · pin (O22);
+│    Volkstheater                          │  the title wraps beside them
+│    Burggasse/Neubaugasse · 5 min walk ·… │  the stop line runs under walk
+│                                          │  and pin, to the 16 pt margin (A38)
 │  2 min                            12:58  │  no "In" (A22), countdowns
 │  6 min                            13:02  │  right-aligned in one column (O20)
 │ 10 min                            13:06  │
@@ -303,10 +306,10 @@ The freshness rules in [ios-fast-answers.md](../ios-fast-answers.md) stay: a boa
 
 ### Line screen
 
-21. At standard text sizes the line screen has no bar (O22). Under the map, fixed above the list: the back button, spoken "Back", the line and its full destination, then the walk and pin buttons (A38). The swipe from the left edge goes back (A41). The walk button opens Apple Maps; with Google Maps installed its first tap offers both, a tap then opens the one used last, and a long press offers the choice again (O21, A35 to A37). At accessibility sizes the bar keeps back, walk and pin, as before (A39).
+21. At standard text sizes the line screen has no bar (O22). Under the map, fixed above the list: the back button, spoken "Back", the line and its full destination, then the walk and pin buttons (A38). The swipe from the left edge goes back, over the map as over the list (A41). The walk button opens Apple Maps; with Google Maps installed its first tap offers both, a tap then opens the one used last, and a long press offers the choice again (O21, A35 to A37). At accessibility sizes the bar keeps back, walk and pin, as before (A39).
 22. At standard text sizes the map has home's frame: a square under the status bar, and above it the strip under a status bar at least 44 pt tall, blurred by iOS (O22, A27). The strip takes no touch (A40); the square pans and zooms (A17). The map shows the walking route from the walking origin to the platform, the stop label and the user's location, inside the square. Without a route it shows both points. At accessibility sizes it is a square that scrolls away with the list.
-23. The stop is named once, with walking time and distance, directly under the line and its direction. Without a usable location it says "from this area", as today.
-24. Up to four departures follow. Each shows "N min" and the clock time (A22). The countdowns sit right-aligned in one column, as wide as the widest of them (O20, A34). Beyond 60 minutes it shows the clock time only. A live departure carries the live symbol, and "N min late" from one minute of delay. A scheduled departure carries nothing (A8).
+23. The stop is named once, with walking time and distance, directly under the line and its direction. It runs from the title's leading edge to the list's margin, under walk and pin, and wraps only after a "·" (A38). Without a usable location it says "from this area", as today.
+24. Up to four departures follow. Each shows "N min" and the clock time (A22). The countdowns sit right-aligned in one column, as wide as the widest of them (O20, A34). Each divider starts at the row's leading edge. Beyond 60 minutes it shows the clock time only. A live departure carries the live symbol, and "N min late" from one minute of delay. A scheduled departure carries nothing (A8).
 25. Nothing is crossed out or greyed. There is no advice card and no "Other lines at this stop".
 26. States mirror home: checking, "Couldn't load · Retry", saved clock times with "Refresh", and "Nothing in the next hour".
 
