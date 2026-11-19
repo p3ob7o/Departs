@@ -32,14 +32,17 @@ The uploaded build uses the tested release branch. Backend-first is satisfied. C
 
 **The map under the status bar followed on 18 November**, recorded as O18 in the [plan's third amendment](plans/ios-two-screens.md#third-amendment-the-map-under-the-status-bar). The owner saw four treatments captured from the app and chose the blur iOS draws by itself. He approved merging [PR #36](https://github.com/p3ob7o/Departs/pull/36) and sending the result to TestFlight as **Departs 1.2 (10)**; the [release record](releases/1.2-10.md) lists its checks.
 
+**A tap on a map label followed on 19 November**, recorded as O19 in the [plan's fourth amendment](plans/ios-two-screens.md#fourth-amendment-a-tap-on-a-map-label). With 1.2 (10) on his phone, the owner found that taps on some labels did nothing. Each badge now opens its line, or offers its directions when the line runs more than one way, and a label that is already selected answers the next tap. The owner approved merging [PR #38](https://github.com/p3ob7o/Departs/pull/38) and sending the result to TestFlight as **Departs 1.2 (11)**; the [release record](releases/1.2-11.md) lists its checks.
+
 ## Next decisions and checks
 
+- Review A28 to A33 in the [fourth amendment](plans/ios-two-screens.md#fourth-amendment-a-tap-on-a-map-label): what "+N" offers, what VoiceOver gets, when a label is ringed, and which of two overlapping labels takes a tap.
 - Review A27 in the [third amendment](plans/ios-two-screens.md#third-amendment-the-map-under-the-status-bar): an iPhone SE keeps the square alone, because its status bar is too short for the blur. On a phone, check that the clock and the status icons stay readable over the map in light and in dark.
 - Rewrite the [iPhone Duo plan, PR #18](https://github.com/p3ob7o/Departs/pull/18) and [iPad plan, PR #19](https://github.com/p3ob7o/Departs/pull/19) for map and list side by side. Both predate this design. Device support and the Xcode upgrade remain outside this work.
 - Review A20, A23 and A24 in the [second amendment](plans/ios-two-screens.md#second-amendment-the-map-at-the-top): what the map centres on, how a pinned stop name looks, and which words of a line's name are kept.
 - Decide the seven open findings in the [1.2 (8) record](releases/1.2-8.md#open-findings-not-changed-in-this-build). The first is a defect: a stop with no departures is shown as a failed load, seen at Berlin Alexanderplatz.
 - With build 8 on a phone: leave the app open in one place for ten minutes, walk a few hundred metres, and try Location off and Precise Location off. With the next build, check that the map follows a walk smoothly and stays put with Precise Location off.
-- Check map selection, long destinations and empty nighttime results on a phone. Observe whether people find the available service without opening several lines.
+- Check taps on map labels and their choice of directions, long destinations and empty nighttime results on a phone. Observe whether people find the available service without opening several lines.
 - Verify VoiceOver speech, haptics, GPS accuracy, foreground return, Shortcuts discovery and Home Screen icon appearances on a signed device.
 - Measure cold/warm startup on mobile data and provider quota/cost under the batch model. Check a capped hub and operators with realtime coverage. The Vienna sample supplied scheduled data only.
 - Decide whether to keep pins after observing use. Widgets, Live Activities, notifications, accounts, German and journey planning remain out of scope.

@@ -13,6 +13,14 @@ struct NearbyStopsView: View {
     @Environment(\.dynamicTypeSize) private var textSize
     @Environment(\.openURL) private var openURL
     @State private var selectedMapStop: String?
+    /// The directions offered at a map badge whose line runs more than one way.
+    @State private var mapChoice: MapChoice?
+    /// Where the choice points. Kept after it closes: an anchor that changed
+    /// with the choice would move it while it is being dismissed.
+    @State private var mapChoiceAnchor = CGRect.zero
+    /// True from picking a direction until its choice has closed, so the stop
+    /// keeps its ring as it does when a badge opens a line directly.
+    @State private var pickedDirection = false
     @State private var countdownStart = Date.now
     /// The widest badge among every listed line, so destinations share one x.
     @State private var badgeColumn: CGFloat?
@@ -29,6 +37,45 @@ struct NearbyStopsView: View {
         !accessibilitySize && statusBar >= tallStatusBar ? statusBar : 0
     }
 
+    /// A choice of directions, offered at the badge that was tapped.
+    struct MapChoice: Identifiable, Equatable {
+        let id = UUID()
+        let rows: [StopLineSelection]
+        static func == (a: Self, b: Self) -> Bool { a.id == b.id }
+    }
+
+    /// The rows a touch on a stop's label stands for (O19). A badge is its
+    /// line: every direction it runs from this stop. "+N" stands for the lines
+    /// the label has no room for, and the whole label for all of them.
+    static func rows(for part: StopsMapView.LabelPart, in group: StopGroup) -> [StopLineSelection] {
+        let lines = group.lines.map(\.lineIdentity)
+        let shown = lines.prefix(MapLineAnnotationView.shownLines)
+        let rows: [StopLineSelection]
+        switch part {
+        case .line(let index) where shown.indices.contains(index):
+            rows = group.active.filter { $0.line.lineIdentity == shown[index] }
+        case .more:
+            rows = group.active.filter { !shown.contains($0.line.lineIdentity) }
+        default:
+            rows = group.active
+        }
+        return rows.isEmpty ? group.active : rows
+    }
+
+    /// One direction opens its line. Several are offered at the badge.
+    private func tappedLabel(_ stopID: String, _ part: StopsMapView.LabelPart, at frame: CGRect) {
+        guard let group = store.mapGroups.first(where: { $0.id == stopID }) else { return }
+        selectedMapStop = stopID
+        let rows = Self.rows(for: part, in: group)
+        if rows.count == 1 {
+            mapChoice = nil
+            onSelect(rows[0])
+        } else if !rows.isEmpty {
+            mapChoiceAnchor = frame
+            mapChoice = MapChoice(rows: rows)
+        }
+    }
+
     var body: some View {
         GeometryReader { geometry in
             let strip = Self.strip(statusBar: geometry.safeAreaInsets.top, accessibilitySize: textSize.isAccessibilitySize)
@@ -39,25 +86,32 @@ struct NearbyStopsView: View {
                         // Home has no bar. The square sits under the status bar,
                         // and on a tall status bar the map continues above it.
                         if !textSize.isAccessibilitySize {
-                            map(width: geometry.size.width, strip: strip, at: date, proxy: proxy)
+                            map(width: geometry.size.width, strip: strip, at: date)
                         }
-                        list(width: geometry.size.width, at: date, proxy: proxy)
+                        list(width: geometry.size.width, at: date)
                     }
                     .ignoresSafeArea(.container, edges: strip > 0 ? .top : [])
                 }
                 .onChange(of: store.areaRevision) { _, _ in
                     selectedMapStop = nil
+                    mapChoice = nil
                     proxy.scrollTo("home-top", anchor: .top)
+                }
+                .onChange(of: mapChoice) { _, choice in
+                    guard choice == nil else { return }
+                    // Closed without a direction: nothing is selected.
+                    if !pickedDirection { selectedMapStop = nil }
+                    pickedDirection = false
                 }
             }
         }
         .toolbarVisibility(.hidden, for: .navigationBar)
     }
 
-    private func list(width: CGFloat, at date: Date, proxy: ScrollViewProxy) -> some View {
+    private func list(width: CGFloat, at date: Date) -> some View {
         List {
             if textSize.isAccessibilitySize {
-                map(width: width, at: date, proxy: proxy)
+                map(width: width, at: date)
                     .listRowInsets(EdgeInsets()).listRowSeparator(.hidden).id("home-top")
             } else {
                 Color.clear.frame(height: 1).listRowInsets(EdgeInsets())
@@ -154,21 +208,27 @@ struct NearbyStopsView: View {
     /// The square, plus `strip` points above it when the map reaches the top of
     /// the screen. MapKit keeps its centre and span inside the safe area, so the
     /// square shows what it showed without the strip.
-    private func map(width: CGFloat, strip: CGFloat = 0, at date: Date, proxy: ScrollViewProxy) -> some View {
+    private func map(width: CGFloat, strip: CGFloat = 0, at date: Date) -> some View {
         let usable = store.location.flatMap { $0.isUsable(at: date) ? $0.coordinate : nil }
         return StopsMapView(fallbackCenter: (usable ?? store.center)?.clLocationCoordinate2D,
                             followsLiveLocation: usable != nil, groups: store.mapGroups,
-                            selectedStopID: selectedMapStop) { selected in
-            selectedMapStop = selected
-            guard let group = store.mapGroups.first(where: { $0.id == selected }) else { return }
-            if group.active.count == 1, let selection = group.active.first { onSelect(selection) }
-            else {
-                let target = group.active.allSatisfy { store.isPinned($0) } ? "pinned" : group.id
-                proxy.scrollTo(target, anchor: .top)
-            }
-        }
+                            selectedStopID: selectedMapStop, onSelect: { selectedMapStop = $0 },
+                            onTap: { stop, part, frame in tappedLabel(stop, part, at: frame) })
         .frame(width: width, height: width + strip)
+        .popover(item: $mapChoice, attachmentAnchor: .rect(.rect(mapChoiceAnchor)), arrowEdge: .top) { choice in
+            MapDirections(rows: choice.rows, direction: { displayDirection($0) }) { selection in
+                pickedDirection = true
+                mapChoice = nil
+                onSelect(selection)
+            }
+            .presentationCompactAdaptation(.popover)
+        }
         .accessibilityIdentifier("home-map")
+    }
+
+    /// A direction as the list shows it.
+    private func displayDirection(_ selection: StopLineSelection) -> String {
+        Self.displayDirection(selection.line.direction, among: store.displayedOptions.map { $0.line.direction })
     }
 
     @ViewBuilder private func states(at date: Date) -> some View {
