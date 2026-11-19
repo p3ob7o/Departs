@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O17: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). Amended on 18 November by O18: see [Third amendment: the map under the status bar](#third-amendment-the-map-under-the-status-bar). Amended on 19 November by O19: see [Fourth amendment: a tap on a map label](#fourth-amendment-a-tap-on-a-map-label). |
+| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O17: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). Amended on 18 November by O18: see [Third amendment: the map under the status bar](#third-amendment-the-map-under-the-status-bar). Amended on 19 November by O19: see [Fourth amendment: a tap on a map label](#fourth-amendment-a-tap-on-a-map-label). Amended later on 19 November by O20–O23: see [Fifth amendment: the line screen's controls under its map](#fifth-amendment-the-line-screens-controls-under-its-map). |
 | Date | 16 November 2026 |
 | Based on | Departs 1.1 (6), `main` at `6430c94` |
 | Branch | `feat/ios-two-screens` |
@@ -86,7 +86,7 @@ These choices filled the gaps. Paolo reviewed A17 to A22 on 17 November. A20, A2
 | ID | Question | Choice | Review |
 | --- | --- | --- | --- |
 | A17 | Pan and zoom on the home map | None. Nothing could bring a moved map back, and it stays centred. The line screen's map stays interactive | Approved |
-| A18 | The 400 m ring | Drawn around the point the map is centred on, beneath the stop labels. The list's area still changes only after a 150 m move (A15), so for a while the ring can be ahead of the stops listed. The framing never depends on the ring: hiding it is one line, `StopsMapView.showsRing` | Approved. "Ok, although I plan to hide the circle later, but still thinking about it." |
+| A18 | The 400 m ring | Drawn around the point the map is centred on, beneath the stop labels. The list's area still changes only after a 150 m move (A15), so for a while the ring can be ahead of the stops listed. The framing never depends on the ring: hiding it is one line, `StopsMapView.showsRing` | Approved. "Ok, although I plan to hide the circle later, but still thinking about it." Hidden on 19 November by O23 |
 | A19 | No usable location, but a saved area | The map stands on the saved area's centre, with the ring. Once the location request has failed, one tinted row at the top of the list reads "Couldn't find your location · Try again". It replaces the "Last area" title and the location button's retry, and never shows while a request is still running | Approved |
 | A20 | What the map centres on | In order: MapKit's live location when it is precise (100 m or better) and the app holds a usable fix; else the app's usable fix; else the saved area's centre; else nothing, with no ring. MapKit's coarse location, which Precise Location off gives, never moves the map. The app's own fix arrives only every 30 to 60 seconds, so MapKit's location is what makes the map follow a walk | Not reviewed |
 | A21 | Destinations at accessibility text sizes | No shared badge column. Rows stay as they are, because a wide column would force more wrapping | Approved |
@@ -149,6 +149,42 @@ These choices filled the gaps. None has been reviewed by the owner.
 
 The rule on tapping a label below is updated.
 
+## Fifth amendment: the line screen's controls under its map
+
+Paolo used Departs 1.2 (11) on his phone on 19 November 2026 and sent a screenshot of the line screen of 14A toward Reumannplatz with four requests.
+
+| ID | Decision |
+| --- | --- |
+| O20 | "On the detailed page the times to next departures on the left should be properly aligned (i.e., right aligned in their column, so that 4 in "4 min" is above the 0 in "10 min"!" |
+| O21 | "The first time the walk icon on top is tapped, it should offer a choice between Google Maps and Apple Maps. After that it'll retain what was used last time. A long press on the icon will show the choice again." |
+| O22 | "I'd like the back button, the line and direction, the walk and pin buttons to move under the map, so that the map can have the same exact size as on the home, including the blur under the status bar." |
+| O23 | "Lastly, hide the blue circle on the map on the home." |
+
+O22 changes rule 21: at standard text sizes the line screen has no bar. O23 ends A18: the ring is no longer drawn.
+
+These choices filled the gaps. None has been reviewed by the owner.
+
+| ID | Question | Choice |
+| --- | --- | --- |
+| A34 | Which times share the column (O20) | The countdowns of the departures shown, "Now" included, right-aligned in a column as wide as the widest of them. The width is measured from the data, as for the badges on home (O15). A clock alone, for saved times or beyond the hour, keeps its place on the left. Every row's divider still starts at the row's leading edge, as before. At accessibility sizes the stacked layout stays, with no column |
+| A35 | When the choice is offered (O21) | Only when Google Maps is installed, which the app asks with `canOpenURL` on `comgooglemaps://`. Without it the button opens Apple Maps at once, as before, and a long press offers nothing. A remembered Google Maps that has been removed is forgotten, so after a reinstall the first tap asks again |
+| A36 | Where Google Maps goes | Walking directions to the stop's coordinate. Apple Maps opens as before, in walking mode to the platform |
+| A37 | The choice itself | A menu at the walk button, Apple Maps then Google Maps, with a checkmark on the remembered one. Picking an app opens it and remembers it, on this phone, for every line. The app names are not translated |
+| A38 | The controls under the map (O22) | Back (`chevron.backward`, spoken "Back"), the line and direction with the stop under them, then walk and pin, left to right. Plain symbols in the label colour, without glass capsules, each with a 44 × 44 pt target, aligned with the title's first line. The title wraps in full beside the buttons and is never truncated. The stop line below it runs from the title's leading edge to the list's 16 pt margin, under walk and pin, so a usual stop line fits on one line on a 402 pt phone. A no-break space keeps each "·" with the word before it, so a stop line that still wraps never starts with one. The line is named once on the screen |
+| A39 | The line screen at accessibility text sizes | As before: the bar holds back, walk and pin, and the map is a list row that scrolls away. A back button that scrolled out of reach would be worse than a bar |
+| A40 | Touches on the line map | Its strip under the status bar takes none, as on home (A26). The square pans and zooms as before (A17) |
+| A41 | Going back | The swipe from the left edge goes back from every height, over the map as over the list. Hiding the bar stopped it, so the app lets it begin again while the line screen is shown. A pan that starts on the map, even 30 pt from the edge, still pans the map |
+| A42 | What replaces the ring (O23) | Nothing. The location dot stays at the centre, and the framing is unchanged |
+
+Found while implementing:
+
+- With the bar hidden, UIKit refuses the swipe from the left edge. While the line screen is shown the app becomes the gesture's delegate, through public API only, and returns it afterwards, so the root screen never starts a pop it cannot finish. It lets the swipe begin and makes every other gesture on the screen wait for the swipe to fail, so a swipe from the edge goes back over the map instead of panning it. The swipe gives up when a touch starts away from the edge or moves along it: a tap on the back button's outer part, a tap at a home row's left end after going back, a long press on walk, and a pull to refresh or a scroll that starts at the edge still work. At accessibility sizes a 150 pt scroll from the edge moves the list 119 pt against 136 pt from the middle, the same on `main`. The first version, reviewed at `9bd828f`, went back over the list but not over the map. The second, reviewed at `ac483d2`, passed UIKit's private delegate calls on to the system's delegate and named one of them in the app, which App Store Connect may flag.
+- MapKit keeps the route inside the safe area, so inside the square: with the map reaching the top, both ends of the walk measured inside the square on iPhone 17 Pro and on the SE.
+- In UI tests, a fast horizontal drag that starts on a home row opened that row's line, on `main` as on this branch. A finger was not tried.
+- Not tried: VoiceOver's two-finger scrub to go back with the bar hidden. It needs VoiceOver on a phone.
+
+The sketches and the rules on the home map and the line screen below are updated.
+
 ## The two screens
 
 ### Home
@@ -160,8 +196,8 @@ The rule on tapping a label below is updated.
 │                                          │
 │              ▐13A·49▌                    │
 │                  ◉          ▐48A▌        │  square map: always centred on
-│       ▐14A▌                              │  you, the radius, one label per
-│                ▐U3▌                      │  listed stop; no pan or zoom
+│       ▐14A▌                              │  you, one label per listed stop,
+│                ▐U3▌                      │  no ring (O23), no pan or zoom
 │                                          │
 ├──────────────────────────────────────────┤
 │ Siebensterngasse · 1 min walk            │  leaves with its last line (O14)
@@ -178,17 +214,20 @@ The rule on tapping a label below is updated.
 
 ```
 ┌──────────────────────────────────────────┐
-│ ‹        13A Wien Skodagasse     🚶   ⚑  │  back · line · Apple Maps · pin
-├──────────────────────────────────────────┤
+│ 9:41                             ▮▮▮ ▭   │  status bar, over the blurred map (O22)
+│ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─ ─  │  the square starts here, no bar
 │                                          │
 │          ◉┄┄┄┄┄┄┐                        │  square map: the walking
 │                 ┆                        │  route from you to the stop
-│                 └┄┄▐13A▌                 │
+│                 └┄┄▐48A▌                 │
 │                                          │
 ├──────────────────────────────────────────┤
-│ Siebensterngasse · 1 min walk · 20 m     │
-│ 2 min                             12:58  │  no "In" (A22)
-│ 6 min                             13:02  │
+│ ‹  48A Wien Parlament/            🚶  ⚑  │  back · line · walk · pin (O22);
+│    Volkstheater                          │  the title wraps beside them
+│    Burggasse/Neubaugasse · 5 min walk ·… │  the stop line runs under walk
+│                                          │  and pin, to the 16 pt margin (A38)
+│  2 min                            12:58  │  no "In" (A22), countdowns
+│  6 min                            13:02  │  right-aligned in one column (O20)
 │ 10 min                            13:06  │
 │ 14 min                            13:10  │
 └──────────────────────────────────────────┘
@@ -236,7 +275,7 @@ The sample, with these rules applied:
 
 ### Home map
 
-16. The map is a square as wide as the screen. Home has no bar, so the square's top edge is the bottom of the status bar (O13). Where the status bar is at least 44 pt tall the map continues above the square to the top of the screen: iOS blurs it there, nothing there takes a touch, and the square shows what it showed without it (O18, A26, A27). It shows the search radius, the user's location, and one label per stop that has at least one row, pinned rows included. The map is always centred on the rider and spans 960 m, so the 400 m ring's radius is the width ÷ 2.4. Between the app's fixes it follows MapKit's live location (A20). It cannot be panned or zoomed (A17). The ring is drawn around the map's centre, beneath the labels (A18).
+16. The map is a square as wide as the screen. Home has no bar, so the square's top edge is the bottom of the status bar (O13). Where the status bar is at least 44 pt tall the map continues above the square to the top of the screen: iOS blurs it there, nothing there takes a touch, and the square shows what it showed without it (O18, A26, A27). It shows the user's location and one label per stop that has at least one row, pinned rows included. The map is always centred on the rider and spans 960 m, so the 400 m radius reaches to the width ÷ 2.4 from the centre. Between the app's fixes it follows MapKit's live location (A20). It cannot be panned or zoomed (A17). No ring marks the radius (O23, A42); until 19 November one was drawn around the map's centre (A18).
 17. A label holds the line numbers of that stop's rows, in list order, each drawn as the list badge. It shows up to three, then "+N".
 18. Tapping a label follows O19. Each badge is its line: with one direction from this stop it opens that line, and with several it offers them at the badge, without times. "+N" offers the lines that have no badge (A28). Every tap counts, also on a label that is already selected. The ring marks the stop whose choice is open or whose line was opened last (A30).
 19. The list never waits for the map. Rows appear even when map tiles fail to load.
@@ -267,10 +306,10 @@ The freshness rules in [ios-fast-answers.md](../ios-fast-answers.md) stay: a boa
 
 ### Line screen
 
-21. The line screen keeps its bar: the back button, spoken "Back", and the title, the line and its full destination. The toolbar holds the pin button and the Apple Maps walking-directions button, both as system items with a title and a symbol (A5).
-22. The map is square. It shows the walking route from the walking origin to the platform, the stop label and the user's location. Without a route it shows both points.
-23. One line under the map names the stop once, with walking time and distance. Without a usable location it says "from this area", as today.
-24. Up to four departures follow. Each shows "N min" and the clock time (A22). Beyond 60 minutes it shows the clock time only. A live departure carries the live symbol, and "N min late" from one minute of delay. A scheduled departure carries nothing (A8).
+21. At standard text sizes the line screen has no bar (O22). Under the map, fixed above the list: the back button, spoken "Back", the line and its full destination, then the walk and pin buttons (A38). The swipe from the left edge goes back, over the map as over the list (A41). The walk button opens Apple Maps; with Google Maps installed its first tap offers both, a tap then opens the one used last, and a long press offers the choice again (O21, A35 to A37). At accessibility sizes the bar keeps back, walk and pin, as before (A39).
+22. At standard text sizes the map has home's frame: a square under the status bar, and above it the strip under a status bar at least 44 pt tall, blurred by iOS (O22, A27). The strip takes no touch (A40); the square pans and zooms (A17). The map shows the walking route from the walking origin to the platform, the stop label and the user's location, inside the square. Without a route it shows both points. At accessibility sizes it is a square that scrolls away with the list.
+23. The stop is named once, with walking time and distance, directly under the line and its direction. It runs from the title's leading edge to the list's margin, under walk and pin, and wraps only after a "·" (A38). Without a usable location it says "from this area", as today.
+24. Up to four departures follow. Each shows "N min" and the clock time (A22). The countdowns sit right-aligned in one column, as wide as the widest of them (O20, A34). Each divider starts at the row's leading edge. Beyond 60 minutes it shows the clock time only. A live departure carries the live symbol, and "N min late" from one minute of delay. A scheduled departure carries nothing (A8).
 25. Nothing is crossed out or greyed. There is no advice card and no "Other lines at this stop".
 26. States mirror home: checking, "Couldn't load · Retry", saved clock times with "Refresh", and "Nothing in the next hour".
 
@@ -462,7 +501,7 @@ These filled gaps in the owner's initial decisions. Paolo reviewed A1–A9 on 16
 - **Night.** With idle lines hidden, state S8 will be common at night. Since O10 it offers nothing else to do. Its wording needs a check on a device.
 - **Location is the only input.** Since O11 there is no way around a missing or coarse fix. States S9, S12 and S13 cover it. They need a check on a device, indoors and with Precise Location off.
 - **Less room for the list.** The square map leaves 410 pt on an iPhone 17 Pro and 272 pt on a 667-pt display since O13. It left 356 pt and 218 pt under the bar.
-- **The ring can lead the list.** The map follows the rider continuously, but the list's area changes only after 150 m (A15). Until then the ring is drawn around the rider while the stops listed belong to the earlier centre (A18).
+- **The ring could lead the list**, until O23 hid it. The map follows the rider continuously, but the list's area changes only after 150 m (A15). Until then the ring is drawn around the rider while the stops listed belong to the earlier centre (A18).
 - **A coarse fix freezes the map.** With Precise Location off, MapKit's location never moves the map (A20). The map then follows only the app's fixes, which a coarse fix never provides, so it stays on the saved area. This needs a check on a phone.
 - **Provider limits.** The number of ids per HERE call and its cost per call are unverified until Phase 0.
 - **Large hubs.** A platform with more than 25 lines and destinations can still exceed the 50-departure cap. Lines beyond it are not listed. No such platform is in the sample.

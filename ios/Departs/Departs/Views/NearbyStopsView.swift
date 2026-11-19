@@ -25,18 +25,6 @@ struct NearbyStopsView: View {
     /// The widest badge among every listed line, so destinations share one x.
     @State private var badgeColumn: CGFloat?
 
-    /// A status bar at least this tall has a Dynamic Island or a notch. Only
-    /// there does the map reach the top of the screen (O18): iOS blurs a map
-    /// under the status bar by itself, and that strip is tall enough to keep
-    /// the clock clear. On the 20 pt bar of an iPhone SE the blur is too short,
-    /// and map labels would sit right behind the clock (A27).
-    static let tallStatusBar: CGFloat = 44
-
-    /// How far the home map reaches above its square, under the status bar.
-    static func strip(statusBar: CGFloat, accessibilitySize: Bool) -> CGFloat {
-        !accessibilitySize && statusBar >= tallStatusBar ? statusBar : 0
-    }
-
     /// A choice of directions, offered at the badge that was tapped.
     struct MapChoice: Identifiable, Equatable {
         let id = UUID()
@@ -78,7 +66,7 @@ struct NearbyStopsView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let strip = Self.strip(statusBar: geometry.safeAreaInsets.top, accessibilitySize: textSize.isAccessibilitySize)
+            let strip = MapStrip.height(statusBar: geometry.safeAreaInsets.top, accessibilitySize: textSize.isAccessibilitySize)
             ScrollViewReader { proxy in
                 TimelineView(.periodic(from: countdownStart, by: 15)) { timeline in
                     let date = max(timeline.date, Date.now)

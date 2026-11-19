@@ -800,11 +800,86 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertEqual(StopsMapView.span, 960)
     }
 
+    @MainActor func testHomeMapDrawsNoRingAndKeepsItsFraming() {
+        XCTAssertFalse(StopsMapView.showsRing, "The owner had the ring hidden (O23)")
+        let map = MKMapView(frame: CGRect(x: 0, y: 0, width: 400, height: 400))
+        let coordinator = StopsMapView.Coordinator()
+        coordinator.fallback = CLLocationCoordinate2D(latitude: 48.20134, longitude: 16.34941)
+        coordinator.frame(map)
+        XCTAssertTrue(map.overlays.isEmpty, "No circle around the rider")
+        XCTAssertEqual(map.region.center.latitude, 48.20134, accuracy: 0.0005, "The map still centres on the rider")
+        coordinator.fallback = nil
+        coordinator.frame(map)
+        XCTAssertTrue(map.overlays.isEmpty)
+    }
+
+    func testLineCountdownColumnTakesOnlyTheCountdownsShown() {
+        let shown = [departure(0.5), departure(4), departure(10), departure(16)]
+        XCTAssertEqual(CountdownColumn.texts(shown, fresh: true, now: instant), ["Now", "4 min", "10 min", "16 min"])
+        XCTAssertEqual(CountdownColumn.texts(shown, fresh: false, now: instant), [], "Saved times show clocks, outside the column")
+        XCTAssertEqual(CountdownColumn.texts([departure(4), departure(75)], fresh: true, now: instant), ["4 min"],
+                       "A departure beyond the hour shows its clock alone")
+    }
+
+    @MainActor func testLineCountdownColumnIsAsWideAsTheWidestCountdown() {
+        func width(_ view: some View) -> CGFloat {
+            UIHostingController(rootView: view).sizeThatFits(in: CGSize(width: 1000, height: 1000)).width
+        }
+        let texts = ["4 min", "10 min", "Now", "16 min"]
+        let widths = texts.map { width(Text($0).font(CountdownColumn.font).monospacedDigit().fixedSize()) }
+        XCTAssertGreaterThan(widths[1], widths[0] + 4, "Two digits are wider than one")
+        XCTAssertEqual(width(CountdownColumn.Stack(texts: texts).fixedSize()), widths.max()!, accuracy: 0.5)
+        XCTAssertEqual(width(CountdownColumn.Stack(texts: ["4 min", "6 min"]).fixedSize()), widths[0], accuracy: 0.5,
+                       "One-digit countdowns need no wider column")
+    }
+
+    func testWalkButtonOpensAppleMapsWithoutAChoiceWhenGoogleMapsIsMissing() {
+        let disk = persistence()
+        let choice = MapAppChoice(persistence: disk) { _ in false }
+        XCTAssertFalse(choice.offersChoice)
+        XCTAssertEqual(choice.tap(), .open(.apple), "Without Google Maps the button opens Apple Maps, as before")
+        disk.saveMapApp(.google)
+        XCTAssertEqual(choice.tap(), .open(.apple), "A remembered Google Maps that was removed is not used")
+        XCTAssertNil(disk.loadMapApp(), "and is forgotten")
+    }
+
+    func testWalkButtonAsksFirstThenRemembersTheChoice() {
+        let disk = persistence()
+        var installed = true
+        let choice = MapAppChoice(persistence: disk) { $0.scheme == "comgooglemaps" && installed }
+        XCTAssertTrue(choice.offersChoice)
+        XCTAssertEqual(choice.tap(), .showChoice, "The first tap offers the choice")
+        choice.choose(.google)
+        XCTAssertEqual(choice.tap(), .open(.google), "Afterwards a tap opens what was used last time")
+        XCTAssertEqual(MapAppChoice(persistence: TransitPersistence(defaults: disk.defaults)) { _ in true }.tap(), .open(.google),
+                       "The choice survives a relaunch")
+        choice.choose(.apple)
+        XCTAssertEqual(choice.tap(), .open(.apple))
+        choice.choose(.google)
+        installed = false
+        XCTAssertEqual(choice.tap(), .open(.apple), "Google Maps removed: Apple Maps, no choice")
+        installed = true
+        XCTAssertEqual(choice.tap(), .showChoice, "Reinstalled: as if nothing was remembered")
+    }
+
+    func testGoogleMapsOpensWalkingDirectionsToTheStop() {
+        let stop = NearbyStop(id: "x", name: "Neubaugasse", type: .bus, lines: [], location: .init(lat: 48.198081, lon: 16.350874), distance: nil)
+        XCTAssertEqual(MapAppChoice.googleURL(for: stop).absoluteString, "comgooglemaps://?daddr=48.198081,16.350874&directionsmode=walking")
+        XCTAssertEqual(MapApp.allCases.map(\.name), ["Apple Maps", "Google Maps"])
+    }
+
+    func testAWrappedStopLineNeverStartsWithADot() {
+        let line = StopLine.walk(stop: "Burggasse/Neubaugasse", walk: "5 min walk", distance: "350 m")
+        XCTAssertEqual(line, "Burggasse/Neubaugasse\u{00A0}· 5 min walk\u{00A0}· 350 m")
+        XCTAssertFalse(line.contains(" ·"), "A breaking space before a dot would let a line start with it")
+        XCTAssertEqual(StopLine.fromThisArea(stop: "Siebensterngasse"), "Siebensterngasse\u{00A0}· from this area")
+    }
+
     func testHomeMapReachesTheTopOnlyOnATallStatusBarAtStandardTextSizes() {
-        XCTAssertEqual(NearbyStopsView.strip(statusBar: 62, accessibilitySize: false), 62, "Dynamic Island")
-        XCTAssertEqual(NearbyStopsView.strip(statusBar: 47, accessibilitySize: false), 47, "Notch")
-        XCTAssertEqual(NearbyStopsView.strip(statusBar: 20, accessibilitySize: false), 0, "An iPhone SE keeps the square alone")
-        XCTAssertEqual(NearbyStopsView.strip(statusBar: 62, accessibilitySize: true), 0,
+        XCTAssertEqual(MapStrip.height(statusBar: 62, accessibilitySize: false), 62, "Dynamic Island")
+        XCTAssertEqual(MapStrip.height(statusBar: 47, accessibilitySize: false), 47, "Notch")
+        XCTAssertEqual(MapStrip.height(statusBar: 20, accessibilitySize: false), 0, "An iPhone SE keeps the square alone")
+        XCTAssertEqual(MapStrip.height(statusBar: 62, accessibilitySize: true), 0,
                        "At accessibility sizes the map is a list row and scrolls away")
     }
 
@@ -825,6 +900,24 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertNil(map.hitTest(CGPoint(x: 160, y: strip / 2), with: nil), "Nothing under the status bar can be tapped")
         XCTAssertNil(map.hitTest(CGPoint(x: 160, y: strip - 1), with: nil))
         XCTAssertNotNil(map.hitTest(CGPoint(x: 160, y: strip + 1), with: nil), "The square below takes touches as before")
+    }
+
+    @MainActor func testLineMapTakesNoTouchUnderTheStatusBar() throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        let controller = UIViewController()
+        controller.additionalSafeAreaInsets.top = 30
+        window.rootViewController = controller
+        window.isHidden = false
+        defer { window.isHidden = true }
+        let map = RouteMapView.MapContainerView(mapView: MKMapView())
+        map.frame = CGRect(x: 0, y: 0, width: 320, height: 420)
+        controller.view.addSubview(map)
+        window.layoutIfNeeded()
+        let strip = map.safeAreaInsets.top
+        XCTAssertGreaterThanOrEqual(strip, 30, "The line map lies under the status bar")
+        XCTAssertNil(map.hitTest(CGPoint(x: 160, y: strip - 1), with: nil), "Nothing under the status bar can be touched (A26)")
+        XCTAssertNotNil(map.hitTest(CGPoint(x: 160, y: strip + 1), with: nil), "The square pans and zooms as before (A17)")
     }
 
     func testAMapBadgeStandsForItsLineInEveryDirection() {

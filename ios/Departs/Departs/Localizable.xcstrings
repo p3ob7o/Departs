@@ -73,23 +73,23 @@
         }
       }
     },
-    "%@ · %@ · %@": {
+    "%@ · %@ · %@": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ · %@ · %@"
+            "value": "%@ · %@ · %@"
           }
         }
       },
       "shouldTranslate": false
     },
-    "%@ · from this area": {
+    "%@ · from this area": {
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "%@ · from this area"
+            "value": "%@ · from this area"
           }
         }
       }
@@ -122,6 +122,16 @@
           "stringUnit": {
             "state": "translated",
             "value": "%@. %@. From %@."
+          }
+        }
+      }
+    },
+    "Back": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
           }
         }
       }

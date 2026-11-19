@@ -25,9 +25,10 @@ struct StopsMapView: UIViewRepresentable {
         case whole
     }
 
-    /// The 400 m ring around the point the map is centred on. The framing
-    /// below never depends on it, so hiding it is this one line.
-    static let showsRing = true
+    /// The 400 m ring around the point the map is centred on. The owner had it
+    /// hidden on 19 November 2026 (O23). The framing below never depends on
+    /// it, so it can return by setting this line back to true.
+    static let showsRing = false
     /// The square always spans this many metres, centred on the rider: the
     /// 400 m ring and its margin. The ring's radius is the width ÷ 2.4.
     static let span = Double(TransitStore.radius) * 2.4
@@ -379,6 +380,21 @@ final class MapLineBadge: UIView {
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
+}
+
+/// How far a screen's map reaches above its square, under the status bar.
+/// Home (O18) and the line screen (O22) follow the same rule.
+enum MapStrip {
+    /// A status bar at least this tall has a Dynamic Island or a notch. Only
+    /// there does a map reach the top of the screen: iOS blurs a map under the
+    /// status bar by itself, and that strip is tall enough to keep the clock
+    /// clear. On the 20 pt bar of an iPhone SE the blur is too short, and map
+    /// labels would sit right behind the clock (A27).
+    static let tallStatusBar: CGFloat = 44
+
+    static func height(statusBar: CGFloat, accessibilitySize: Bool) -> CGFloat {
+        !accessibilitySize && statusBar >= tallStatusBar ? statusBar : 0
+    }
 }
 
 /// Reports size changes, so the fixed span is applied once the square has its size.

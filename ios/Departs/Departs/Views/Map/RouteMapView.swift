@@ -114,6 +114,12 @@ struct RouteMapView: UIViewRepresentable {
 
         required init?(coder: NSCoder) { fatalError() }
 
+        /// Under the status bar the map is shown and takes no touch, as on home
+        /// (A26). The square below pans and zooms as before (A17).
+        override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+            point.y < safeAreaInsets.top ? nil : super.hitTest(point, with: event)
+        }
+
         override func layoutSubviews() {
             super.layoutSubviews()
             mapView.frame = bounds
