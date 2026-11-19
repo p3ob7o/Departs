@@ -813,6 +813,26 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertTrue(map.overlays.isEmpty)
     }
 
+    func testLineCountdownColumnTakesOnlyTheCountdownsShown() {
+        let shown = [departure(0.5), departure(4), departure(10), departure(16)]
+        XCTAssertEqual(CountdownColumn.texts(shown, fresh: true, now: instant), ["Now", "4 min", "10 min", "16 min"])
+        XCTAssertEqual(CountdownColumn.texts(shown, fresh: false, now: instant), [], "Saved times show clocks, outside the column")
+        XCTAssertEqual(CountdownColumn.texts([departure(4), departure(75)], fresh: true, now: instant), ["4 min"],
+                       "A departure beyond the hour shows its clock alone")
+    }
+
+    @MainActor func testLineCountdownColumnIsAsWideAsTheWidestCountdown() {
+        func width(_ view: some View) -> CGFloat {
+            UIHostingController(rootView: view).sizeThatFits(in: CGSize(width: 1000, height: 1000)).width
+        }
+        let texts = ["4 min", "10 min", "Now", "16 min"]
+        let widths = texts.map { width(Text($0).font(CountdownColumn.font).monospacedDigit().fixedSize()) }
+        XCTAssertGreaterThan(widths[1], widths[0] + 4, "Two digits are wider than one")
+        XCTAssertEqual(width(CountdownColumn.Stack(texts: texts).fixedSize()), widths.max()!, accuracy: 0.5)
+        XCTAssertEqual(width(CountdownColumn.Stack(texts: ["4 min", "6 min"]).fixedSize()), widths[0], accuracy: 0.5,
+                       "One-digit countdowns need no wider column")
+    }
+
     func testHomeMapReachesTheTopOnlyOnATallStatusBarAtStandardTextSizes() {
         XCTAssertEqual(NearbyStopsView.strip(statusBar: 62, accessibilitySize: false), 62, "Dynamic Island")
         XCTAssertEqual(NearbyStopsView.strip(statusBar: 47, accessibilitySize: false), 47, "Notch")

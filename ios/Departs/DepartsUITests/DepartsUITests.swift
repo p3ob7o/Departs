@@ -616,6 +616,23 @@ final class DepartsUITests: XCTestCase {
         XCTAssertTrue(lineList.frame.contains(lineRows.element(boundBy: 3).frame))
     }
 
+    func testLineCountdownsShareOneRightAlignedColumn() {
+        launch(); waitForRows(); rows.firstMatch.tap()
+        waitUntil { self.lineRows.count == 4 }
+        // The countdowns are drawn inside each row's single accessibility
+        // element, so they are found on screen: "2 min", "6 min", "10 min", "14 min".
+        let countdowns = recognizedBoxes().filter {
+            $0.text.range(of: #"^\d+ min$"#, options: .regularExpression) != nil && $0.frame.minX < app.frame.width / 2
+        }
+        print("COUNTDOWNS \(countdowns.map { "\($0.text) \($0.frame)" })")
+        XCTAssertEqual(countdowns.count, 4, "\(countdowns)")
+        XCTAssertTrue(countdowns.contains { $0.text.count == 5 } && countdowns.contains { $0.text.count == 6 })
+        let rights = countdowns.map(\.frame.maxX), lefts = countdowns.map(\.frame.minX)
+        XCTAssertLessThan(rights.max()! - rights.min()!, 2, "Right-aligned: every countdown ends at one x")
+        XCTAssertGreaterThan(lefts.max()! - lefts.min()!, 5, "A two-digit countdown starts further left")
+        capture("Line countdown column")
+    }
+
     func testLineFailedRefreshKeepsClockTimesAndRecoversInOneRequest() {
         launch(); waitForRows(); rows.firstMatch.tap()
         waitUntil { self.lineRows.count == 4 }
@@ -843,6 +860,21 @@ final class DepartsUITests: XCTestCase {
     private func dismissChoice() {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
         XCTAssertTrue(app.buttons["map-direction"].waitForNonExistence(timeout: 5))
+    }
+    /// Text as drawn on screen with where it is, in points.
+    private func recognizedBoxes() -> [(text: String, frame: CGRect)] {
+        guard let image = XCUIScreen.main.screenshot().image.cgImage else { return [] }
+        let request = VNRecognizeTextRequest()
+        request.recognitionLevel = .accurate
+        request.usesLanguageCorrection = false
+        try? VNImageRequestHandler(cgImage: image).perform([request])
+        let size = app.frame.size
+        return (request.results ?? []).compactMap { observation in
+            guard let text = observation.topCandidates(1).first?.string else { return nil }
+            let box = observation.boundingBox
+            return (text, CGRect(x: box.minX * size.width, y: (1 - box.maxY) * size.height,
+                                 width: box.width * size.width, height: box.height * size.height))
+        }
     }
     /// Text as drawn on screen, or in one part of it. A row's spoken label
     /// differs from what it shows.
