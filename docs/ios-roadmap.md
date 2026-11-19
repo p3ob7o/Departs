@@ -32,7 +32,7 @@ The uploaded build uses the tested release branch. Backend-first is satisfied. C
 
 **The map under the status bar followed on 18 November**, recorded as O18 in the [plan's third amendment](plans/ios-two-screens.md#third-amendment-the-map-under-the-status-bar). The owner saw four treatments captured from the app and chose the blur iOS draws by itself. He approved merging [PR #36](https://github.com/p3ob7o/Departs/pull/36) and sending the result to TestFlight as **Departs 1.2 (10)**; the [release record](releases/1.2-10.md) lists its checks.
 
-**A tap on a map label followed on 19 November**, recorded as O19 in the [plan's fourth amendment](plans/ios-two-screens.md#fourth-amendment-a-tap-on-a-map-label). With 1.2 (10) on his phone, the owner found that taps on some labels did nothing. Each badge now opens its line, or offers its directions when the line runs more than one way, and a label that is already selected answers the next tap. [PR #38](https://github.com/p3ob7o/Departs/pull/38) holds the change. It is not in a TestFlight build.
+**A tap on a map label followed on 19 November**, recorded as O19 in the [plan's fourth amendment](plans/ios-two-screens.md#fourth-amendment-a-tap-on-a-map-label). With 1.2 (10) on his phone, the owner found that taps on some labels did nothing. Each badge now opens its line, or offers its directions when the line runs more than one way, and a label that is already selected answers the next tap. The owner approved merging [PR #38](https://github.com/p3ob7o/Departs/pull/38) and sending the result to TestFlight as **Departs 1.2 (11)**; the [release record](releases/1.2-11.md) lists its checks.
 
 ## Next decisions and checks
 
