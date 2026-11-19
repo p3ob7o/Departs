@@ -305,21 +305,70 @@ final class DepartsUITests: XCTestCase {
         capture("Line from the last area")
     }
 
-    func testMapOneRowOpensLineAndSeveralRowsScrollAndSelect() {
+    func testMapBadgeOpensItsLineOrOffersItsDirections() {
         launch(); waitForRows()
-        let many = app.buttons.matching(NSPredicate(format: "identifier == 'stop-map-pin' AND label CONTAINS 'Subway U3'")).firstMatch
-        XCTAssertTrue(many.waitForExistence(timeout: 8), app.debugDescription)
-        assertTarget(many)
-        many.tap()
-        waitUntil { many.isSelected }
-        let underground = rows.matching(NSPredicate(format: "label CONTAINS 'Subway U3'")).firstMatch
-        XCTAssertTrue(nearbyList.frame.contains(underground.frame))
-        capture("Home selected map stop")
-        let single = app.buttons.matching(NSPredicate(format: "identifier == 'stop-map-pin' AND label CONTAINS 'Bus 48A'")).firstMatch
-        XCTAssertTrue(single.exists)
-        single.tap()
-        XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
-        XCTAssertTrue(app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS '48A'")).firstMatch.exists)
+        let directions = app.buttons.matching(identifier: "map-direction")
+        // U3 runs both ways from its stop: its badge offers the two directions.
+        let both = mapLabel("Subway U3")
+        XCTAssertTrue(both.waitForExistence(timeout: 8), app.debugDescription)
+        assertTarget(both)
+        both.tap()
+        XCTAssertTrue(directions.firstMatch.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertEqual(directions.allElementsBoundByIndex.map(\.label), ["Subway U3 toward Wien Simmering", "Subway U3 toward Wien Ottakring"])
+        directions.allElementsBoundByIndex.forEach { assertTarget($0) }
+        XCTAssertTrue(both.isSelected)
+        XCTAssertEqual(app.navigationBars.count, 0, "Nothing opens before a direction is chosen")
+        // The choice carries no times: the list below has them.
+        let frames = directions.allElementsBoundByIndex.map(\.frame)
+        let shown = recognizedText(in: frames.dropFirst().reduce(frames[0]) { $0.union($1) })
+        print("CHOICE text=\(shown) frames=\(frames)")
+        XCTAssertTrue(shown.contains { $0.contains("Simmering") }, "\(shown)")
+        XCTAssertFalse(shown.contains { $0.range(of: #"\d\s*min|Now|\d{1,2}:\d{2}"#, options: .regularExpression) != nil }, "\(shown)")
+        capture("Home map direction choice")
+        // Closed without a direction: nothing is selected, and nothing opened.
+        dismissChoice()
+        waitUntil { !both.isSelected }
+        XCTAssertEqual(app.navigationBars.count, 0)
+        // A direction opens that line.
+        both.tap()
+        XCTAssertTrue(directions.firstMatch.waitForExistence(timeout: 5))
+        directions.matching(NSPredicate(format: "label CONTAINS 'Ottakring'")).firstMatch.tap()
+        XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS 'Ottakring'")).firstMatch.exists)
+        app.navigationBars.buttons.firstMatch.tap()
+        // 48A runs one way from its stop: its badge opens the line, and a
+        // label that is still selected answers the next tap too.
+        let single = mapLabel("Bus 48A")
+        for attempt in 1...2 {
+            XCTAssertTrue(single.waitForExistence(timeout: 5))
+            single.tap()
+            XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5), "Tap \(attempt) on the label opens its line")
+            XCTAssertTrue(app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS '48A'")).firstMatch.exists)
+            XCTAssertFalse(directions.firstMatch.exists)
+            app.navigationBars.buttons.firstMatch.tap()
+        }
+        XCTAssertTrue(single.waitForExistence(timeout: 5))
+        XCTAssertTrue(single.isSelected, "The stop keeps its ring after its line was opened")
+    }
+
+    func testEachBadgeOfALabelIsItsOwnLine() {
+        launch(); waitForRows()
+        let directions = app.buttons.matching(identifier: "map-direction")
+        // Siebensterngasse: 13A and 49, each in two directions.
+        let label = mapLabel("Tram 49")
+        XCTAssertTrue(label.waitForExistence(timeout: 8), app.debugDescription)
+        XCTAssertTrue(label.label.contains("Bus 13A"))
+        label.coordinate(withNormalizedOffset: CGVector(dx: 0.25, dy: 0.5)).tap()
+        XCTAssertTrue(directions.firstMatch.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertEqual(directions.allElementsBoundByIndex.map(\.label), ["Bus 13A toward Wien Skodagasse", "Bus 13A toward Wien Hauptbahnhof"])
+        dismissChoice()
+        label.coordinate(withNormalizedOffset: CGVector(dx: 0.75, dy: 0.5)).tap()
+        XCTAssertTrue(directions.firstMatch.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertEqual(directions.allElementsBoundByIndex.map(\.label),
+                       ["Tram 49 toward Wien Parlament/Volkstheater", "Tram 49 toward Wien Hütteldorf, Bujattigasse"])
+        directions.matching(NSPredicate(format: "label CONTAINS 'Hütteldorf'")).firstMatch.tap()
+        XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertTrue(app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS 'Hütteldorf'")).firstMatch.exists)
     }
 
     func testHomeMapIgnoresDragAndPinchAndLabelsStillWork() {
@@ -334,7 +383,8 @@ final class DepartsUITests: XCTestCase {
         homeMap.swipeLeft()
         homeMap.pinch(withScale: 2.5, velocity: 1)
         homeMap.pinch(withScale: 0.4, velocity: -1)
-        homeMap.doubleTap()
+        // Beside every label: a double tap must not zoom, and it is no tap on a badge.
+        homeMap.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: 0.25)).doubleTap()
         // Give any animation time to finish before measuring.
         let settle = expectation(description: "settle"); DispatchQueue.main.asyncAfter(deadline: .now() + 1) { settle.fulfill() }
         wait(for: [settle], timeout: 2)
@@ -343,8 +393,11 @@ final class DepartsUITests: XCTestCase {
         XCTAssertEqual(label.frame.midY, home.midY, accuracy: 1)
         XCTAssertEqual(label.frame.width, home.width, accuracy: 1, "A pinch must not zoom it")
         XCTAssertEqual(server.radii, [400])
+        XCTAssertFalse(app.buttons["map-direction"].exists, "None of those gestures is a tap on a badge")
         label.tap()
         waitUntil { label.isSelected }
+        XCTAssertTrue(app.buttons["map-direction"].waitForExistence(timeout: 5))
+        dismissChoice()
         let single = mapLabel("Bus 48A")
         XCTAssertTrue(single.exists)
         single.tap()
@@ -786,9 +839,21 @@ final class DepartsUITests: XCTestCase {
         }
         return darkest
     }
-    /// Text as drawn on screen. A row's spoken label differs from what it shows.
-    private func recognizedText() -> [String] {
-        guard let image = XCUIScreen.main.screenshot().image.cgImage else { return [] }
+    /// Closes a choice of directions by touching the list beside it.
+    private func dismissChoice() {
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
+        XCTAssertTrue(app.buttons["map-direction"].waitForNonExistence(timeout: 5))
+    }
+    /// Text as drawn on screen, or in one part of it. A row's spoken label
+    /// differs from what it shows.
+    private func recognizedText(in frame: CGRect? = nil) -> [String] {
+        guard var image = XCUIScreen.main.screenshot().image.cgImage else { return [] }
+        if let frame {
+            let scale = CGFloat(image.width) / app.frame.width
+            let box = CGRect(x: frame.minX * scale, y: frame.minY * scale, width: frame.width * scale, height: frame.height * scale)
+            guard let part = image.cropping(to: box.integral) else { return [] }
+            image = part
+        }
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = false

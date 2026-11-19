@@ -827,6 +827,88 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertNotNil(map.hitTest(CGPoint(x: 160, y: strip + 1), with: nil), "The square below takes touches as before")
     }
 
+    func testAMapBadgeStandsForItsLineInEveryDirection() {
+        func row(_ name: String, _ direction: String, _ type: TransportType = .bus) -> StopLineSelection {
+            .init(stop: stop(), line: LineInfo(name: name, direction: direction, type: type), lineIndex: 0)
+        }
+        // The owner's stop of 19 November: 13A one way, 46 both ways.
+        let stopWithBoth = TransitStore.StopGroup(id: "s", name: "Strozzigasse", stops: [stop()], active: [
+            row("13A", "Hauptbahnhof"), row("46", "Joachimsthalerplatz", .tram), row("46", "Parlament/Volkstheater", .tram)])
+        XCTAssertEqual(NearbyStopsView.rows(for: .line(0), in: stopWithBoth).map(\.line.direction), ["Hauptbahnhof"],
+                       "One direction: the badge opens its line")
+        XCTAssertEqual(NearbyStopsView.rows(for: .line(1), in: stopWithBoth).map(\.line.direction),
+                       ["Joachimsthalerplatz", "Parlament/Volkstheater"], "Two directions: both are offered")
+        XCTAssertEqual(NearbyStopsView.rows(for: .whole, in: stopWithBoth).count, 3, "VoiceOver activates the stop: every row")
+        XCTAssertEqual(NearbyStopsView.rows(for: .line(5), in: stopWithBoth).count, 3, "A badge that is gone falls back to the stop")
+        XCTAssertEqual(NearbyStopsView.rows(for: .more, in: stopWithBoth).count, 3, "So does +N when every line has a badge")
+        // Five lines: three badges and "+2".
+        let hub = TransitStore.StopGroup(id: "h", name: "Hub", stops: [stop()], active: [
+            row("1", "A"), row("2", "B"), row("2", "C"), row("3", "D"), row("4", "E"), row("5", "F"), row("5", "G")])
+        XCTAssertEqual(NearbyStopsView.rows(for: .line(1), in: hub).map(\.line.direction), ["B", "C"])
+        XCTAssertEqual(NearbyStopsView.rows(for: .line(2), in: hub).map(\.line.direction), ["D"])
+        XCTAssertEqual(NearbyStopsView.rows(for: .more, in: hub).map(\.line.direction), ["E", "F", "G"],
+                       "+N stands for the lines without a badge")
+    }
+
+    @MainActor func testATouchOnALabelFindsItsBadge() {
+        func label(_ names: [String]) -> MapLineAnnotationView {
+            let view = MapLineAnnotationView(annotation: nil, reuseIdentifier: nil)
+            view.configure(lines: names.map { LineInfo(name: $0, direction: "x", type: .bus) })
+            return view
+        }
+        let two = label(["13A", "46"])
+        let first = two.rect(of: .line(0)), second = two.rect(of: .line(1))
+        XCTAssertLessThan(first.maxX, second.minX)
+        XCTAssertGreaterThanOrEqual(two.bounds.height, 44)
+        XCTAssertEqual(two.part(at: CGPoint(x: first.midX, y: 1)), .line(0), "Above the badge, inside the 44-point region")
+        XCTAssertEqual(two.part(at: CGPoint(x: second.midX, y: two.bounds.midY)), .line(1))
+        XCTAssertEqual(two.part(at: CGPoint(x: 0, y: two.bounds.midY)), .line(0), "The margin belongs to the nearest badge")
+        XCTAssertEqual(two.part(at: CGPoint(x: two.bounds.maxX, y: two.bounds.midY)), .line(1))
+        let five = label(["1", "2", "3", "4", "5"])
+        XCTAssertEqual(five.part(at: CGPoint(x: five.rect(of: .line(2)).midX, y: five.bounds.midY)), .line(2))
+        XCTAssertEqual(five.part(at: CGPoint(x: five.rect(of: .more).midX, y: five.bounds.midY)), .more)
+        XCTAssertEqual(five.rect(of: .whole).minX, five.rect(of: .line(0)).minX, accuracy: 0.5)
+        XCTAssertEqual(five.rect(of: .whole).maxX, five.rect(of: .more).maxX, accuracy: 0.5)
+        XCTAssertEqual(label(["7"]).part(at: .zero), .line(0))
+    }
+
+    @MainActor func testVoiceOverActivatesTheStopNotOneBadge() throws {
+        let coordinator = StopsMapView.Coordinator()
+        let map = HomeMapView(frame: CGRect(x: 0, y: 0, width: 320, height: 320))
+        map.delegate = coordinator
+        let rows = ["Joachimsthalerplatz", "Parlament/Volkstheater"].map {
+            StopLineSelection(stop: stop(), line: LineInfo(name: "46", direction: $0, type: .tram), lineIndex: 0)
+        }
+        let pin = StopsMapView.StopAnnotation(group: .init(id: "strozzi", name: "Strozzigasse", stops: [stop()], active: rows))
+        map.addAnnotation(pin)
+        let label = try XCTUnwrap(coordinator.mapView(map, viewFor: pin) as? MapLineAnnotationView)
+        let reported = expectation(description: "The stop is reported as a whole")
+        coordinator.onTap = { stop, part, _ in
+            XCTAssertEqual(stop, "strozzi")
+            XCTAssertEqual(part, .whole)
+            reported.fulfill()
+        }
+        XCTAssertTrue(label.accessibilityActivate(), "The label handles its own activation")
+        wait(for: [reported], timeout: 2)
+    }
+
+    @MainActor func testTheDirectionChoiceFitsItsNamesAndWrapsALongOne() {
+        func size(_ directions: [String]) -> CGSize {
+            let rows = directions.map { StopLineSelection(stop: stop(), line: LineInfo(name: "46", direction: $0, type: .tram), lineIndex: 0) }
+            let choice = MapDirections(rows: rows, direction: { $0.line.direction }, onPick: { _ in })
+            return UIHostingController(rootView: choice).sizeThatFits(in: CGSize(width: 1000, height: 1000))
+        }
+        let short = size(["Dornbach", "Friedrich-Engels-Platz"])
+        XCTAssertLessThan(short.width, 280, "As wide as its longest direction")
+        XCTAssertGreaterThanOrEqual(short.height, 88, "Two rows of at least 44 points")
+        XCTAssertLessThan(size(["Dornbach", "Ottakring"]).width, short.width)
+        let long = size(["Kaiserebersdorf, Zinnergasse über Hauptbahnhof und Simmering", "Ottakring"])
+        XCTAssertEqual(long.width, MapDirections.widthLimit, accuracy: 0.5, "A long direction stops at the limit")
+        XCTAssertGreaterThan(long.height, short.height, "and wraps instead")
+        XCTAssertEqual(MapDirections.spoken(LineInfo(name: "46", direction: "Wien Dornbach", type: .tram)), "Tram 46 toward Wien Dornbach",
+                       "Spoken without a time, like what is shown")
+    }
+
     func testNearbyURLAlwaysAsksForFourHundredMetres() throws {
         let url = try APIService.nearbyStopsURL(lat: 48.2, lon: 16.3)
         XCTAssertEqual(url.host, "departs.vercel.app")

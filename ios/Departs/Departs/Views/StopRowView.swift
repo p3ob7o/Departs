@@ -133,6 +133,70 @@ struct LineBadge: View {
     }
 }
 
+/// The directions offered at a map badge whose line runs more than one way
+/// from its stop (O19). They carry no times: the list below has the next
+/// departure, and the line screen has the ones after it.
+struct MapDirections: View {
+    let rows: [StopLineSelection]
+    let direction: (StopLineSelection) -> String
+    let onPick: (StopLineSelection) -> Void
+    /// Past this width a long direction wraps instead of widening the choice.
+    static let widthLimit: CGFloat = 320
+
+    var body: some View {
+        let lines = BadgeColumn.lines(in: rows)
+        WidthCapped(limit: Self.widthLimit) {
+            VStack(alignment: .leading, spacing: 0) {
+                ForEach(Array(rows.enumerated()), id: \.element.id) { index, selection in
+                    if index > 0 { Divider().padding(.leading, 16) }
+                    Button { onPick(selection) } label: {
+                        HStack(spacing: 8) {
+                            // Directions start at one x when the lines differ.
+                            ZStack(alignment: .leading) {
+                                BadgeColumn.Stack(lines: lines).hidden()
+                                LineBadge(line: selection.line).fixedSize()
+                            }
+                            .accessibilityHidden(true)
+                            Text(direction(selection)).font(.subheadline)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.horizontal, 16).padding(.vertical, 6)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(Self.spoken(selection.line))
+                    .accessibilityIdentifier("map-direction")
+                }
+            }
+            .padding(.vertical, 4)
+        }
+    }
+
+    static func spoken(_ line: LineInfo) -> String {
+        line.direction.isEmpty
+            ? "\(line.type.displayName) \(line.shortName)"
+            : String(localized: "\(line.type.displayName) \(line.shortName) toward \(line.direction)")
+    }
+}
+
+/// As wide as its content asks, up to a limit. Past it the content is given
+/// the limit and grows taller instead.
+struct WidthCapped: Layout {
+    let limit: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        guard let content = subviews.first else { return .zero }
+        let cap = min(limit, proposal.width ?? limit)
+        let ideal = content.sizeThatFits(.unspecified)
+        return ideal.width <= cap ? ideal : content.sizeThatFits(ProposedViewSize(width: cap, height: nil))
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        subviews.first?.place(at: bounds.origin, proposal: ProposedViewSize(width: bounds.width, height: bounds.height))
+    }
+}
+
 struct CountdownTransition: ViewModifier {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     let value: String

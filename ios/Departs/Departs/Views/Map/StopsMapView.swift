@@ -11,6 +11,19 @@ struct StopsMapView: UIViewRepresentable {
     let groups: [TransitStore.StopGroup]
     var selectedStopID: String? = nil
     var onSelect: (String?) -> Void = { _ in }
+    /// Every tap on a label: its stop, what was under the finger, and that
+    /// part's frame in the map, where a choice of directions is anchored.
+    var onTap: (String, LabelPart, CGRect) -> Void = { _, _, _ in }
+
+    /// What a touch on a stop's label stands for (O19).
+    enum LabelPart: Equatable {
+        /// One of the badges, by its place among the label's lines.
+        case line(Int)
+        /// "+N": the lines the label has no room for.
+        case more
+        /// The label as a whole, which is how VoiceOver activates it.
+        case whole
+    }
 
     /// The 400 m ring around the point the map is centred on. The framing
     /// below never depends on it, so hiding it is this one line.
@@ -35,11 +48,19 @@ struct StopsMapView: UIViewRepresentable {
             guard let coordinator, let map else { return }
             coordinator.frame(map, reset: true)
         }
+        // MapKit reports a selection only when it changes, so it says nothing
+        // about a second tap on a selected label. This recognizer hears every
+        // tap, and tells which badge it was on.
+        let tap = UITapGestureRecognizer(target: context.coordinator, action: #selector(Coordinator.tapped(_:)))
+        tap.cancelsTouchesInView = false
+        tap.delegate = context.coordinator
+        map.addGestureRecognizer(tap)
         return map
     }
 
     func updateUIView(_ map: HomeMapView, context: Context) {
         context.coordinator.onSelect = onSelect
+        context.coordinator.onTap = onTap
         context.coordinator.restoringSelection = true
         defer { context.coordinator.restoringSelection = false }
         context.coordinator.fallback = fallbackCenter
@@ -84,9 +105,46 @@ struct StopsMapView: UIViewRepresentable {
         }
     }
 
-    final class Coordinator: NSObject, MKMapViewDelegate {
+    final class Coordinator: NSObject, MKMapViewDelegate, UIGestureRecognizerDelegate {
         var onSelect: (String?) -> Void = { _ in }
+        var onTap: (String, LabelPart, CGRect) -> Void = { _, _, _ in }
         var restoringSelection = false
+
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldRecognizeSimultaneouslyWith other: UIGestureRecognizer) -> Bool { true }
+
+        @objc func tapped(_ recognizer: UITapGestureRecognizer) {
+            guard let map = recognizer.view as? MKMapView else { return }
+            let point = recognizer.location(in: map)
+            guard let (pin, view) = Self.label(at: point, in: map) else { return }
+            act(on: pin, view.part(at: view.convert(point, from: map)), of: view, in: map)
+        }
+
+        /// The label under a point. Labels can overlap: the selected one is
+        /// drawn on top, so it wins. Otherwise the nearest centre does.
+        static func label(at point: CGPoint, in map: MKMapView) -> (StopAnnotation, MapLineAnnotationView)? {
+            let hits = map.annotations.compactMap { annotation -> (StopAnnotation, MapLineAnnotationView)? in
+                guard let pin = annotation as? StopAnnotation, let view = map.view(for: pin) as? MapLineAnnotationView,
+                      view.bounds.contains(view.convert(point, from: map)) else { return nil }
+                return (pin, view)
+            }
+            func distance(_ view: UIView) -> CGFloat {
+                let centre = view.convert(CGPoint(x: view.bounds.midX, y: view.bounds.midY), to: map)
+                return hypot(centre.x - point.x, centre.y - point.y)
+            }
+            return hits.first { $0.1.isSelected } ?? hits.min { distance($0.1) < distance($1.1) }
+        }
+
+        /// Reports a tap once MapKit has dealt with the same touch, and makes
+        /// its selection agree with the label that was hit.
+        private func act(on pin: StopAnnotation, _ part: LabelPart, of view: MapLineAnnotationView, in map: MKMapView) {
+            let frame = view.convert(view.rect(of: part), to: map)
+            DispatchQueue.main.async { [weak self, weak map] in
+                guard let self, let map, map.annotations.contains(where: { $0 === pin }) else { return }
+                if !map.selectedAnnotations.contains(where: { $0 === pin }) { map.selectAnnotation(pin, animated: false) }
+                self.onTap(pin.stopId, part, frame)
+            }
+        }
         var fallback: CLLocationCoordinate2D?
         var followsLive = false
         /// MapKit's latest location, kept only while it is precise.
@@ -151,6 +209,11 @@ struct StopsMapView: UIViewRepresentable {
             view.configure(lines: pin.lines)
             view.accessibilityLabel = pin.spokenLabel
             view.accessibilityIdentifier = "stop-map-pin"
+            // VoiceOver has no finger on a badge: it activates the stop.
+            view.onActivate = { [weak self, weak mapView, weak view] in
+                guard let self, let mapView, let view else { return }
+                self.act(on: pin, .whole, of: view, in: mapView)
+            }
             return view
         }
 
@@ -178,16 +241,46 @@ struct StopsMapView: UIViewRepresentable {
 /// The drawing stays compact on the map; the annotation's transparent hit region
 /// is at least 44 points. VoiceOver exposes the complete stop and service names.
 final class MapLineAnnotationView: MKAnnotationView {
+    /// A label has room for this many lines. The rest are counted as "+N".
+    static let shownLines = 3
     private var badges: [MapLineBadge] = []
     private var moreLabel: UILabel?
+    /// Set on the home map, where activating a label acts on its stop.
+    var onActivate: (() -> Void)?
 
     func configure(name: String, type: TransportType, color: Color) {
         arrange([MapLineBadge(name: name, type: type, color: color)], extra: 0)
     }
 
     func configure(lines: [LineInfo]) {
-        arrange(lines.prefix(3).map { MapLineBadge(name: $0.shortName, type: $0.type, color: StopPalette.modeColor($0.type)) },
-                extra: max(0, lines.count - 3))
+        arrange(lines.prefix(Self.shownLines).map { MapLineBadge(name: $0.shortName, type: $0.type, color: StopPalette.modeColor($0.type)) },
+                extra: max(0, lines.count - Self.shownLines))
+    }
+
+    /// What a point in the label stands for: the badge it is on or nearest to,
+    /// or "+N". The hit region is taller than the badges, so only x counts.
+    func part(at point: CGPoint) -> StopsMapView.LabelPart {
+        let drawings: [UIView] = badges + (moreLabel.map { [$0] } ?? [])
+        func gap(_ view: UIView) -> CGFloat { max(view.frame.minX - point.x, point.x - view.frame.maxX, 0) }
+        guard let nearest = drawings.indices.min(by: { gap(drawings[$0]) < gap(drawings[$1]) }) else { return .whole }
+        return nearest < badges.count ? .line(nearest) : .more
+    }
+
+    /// Where a part is drawn, in the label's own coordinates.
+    func rect(of part: StopsMapView.LabelPart) -> CGRect {
+        switch part {
+        case .line(let index) where badges.indices.contains(index): return badges[index].frame
+        case .more where moreLabel != nil: return moreLabel?.frame ?? bounds
+        default:
+            let drawings: [UIView] = badges + (moreLabel.map { [$0] } ?? [])
+            return drawings.dropFirst().reduce(drawings.first?.frame ?? bounds) { $0.union($1.frame) }
+        }
+    }
+
+    override func accessibilityActivate() -> Bool {
+        guard let onActivate else { return super.accessibilityActivate() }
+        onActivate()
+        return true
     }
 
     private func arrange(_ newBadges: [MapLineBadge], extra: Int) {
