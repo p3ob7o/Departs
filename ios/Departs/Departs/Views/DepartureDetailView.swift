@@ -253,8 +253,9 @@ struct LineDepartureContent {
 
 /// UIKit stops the swipe from the left edge on a screen that hides its bar,
 /// and the line screen hides it at standard sizes (O22). While the line screen
-/// is shown this lets the swipe begin again; afterwards the gesture gets its
-/// own delegate back, so the root screen never starts a pop it cannot finish.
+/// is shown this becomes the swipe's delegate, through public API only, and
+/// lets it begin again; afterwards the gesture gets its own delegate back, so
+/// the root screen never starts a pop it cannot finish.
 struct EdgeSwipeBack: UIViewControllerRepresentable {
     func makeUIViewController(context: Context) -> Controller { Controller() }
     func updateUIViewController(_ controller: Controller, context: Context) {}
@@ -281,26 +282,14 @@ struct EdgeSwipeBack: UIViewControllerRepresentable {
             (navigationController?.viewControllers.count ?? 0) > 1
         }
 
-        /// Every gesture delegate call this class does not answer goes on to the
-        /// system delegate, which settles the swipe against the map's pan: a
-        /// swipe that starts at the edge goes back over the map, as with the bar.
-        /// Two calls stay here: whether the swipe may begin, and the private
-        /// event check, with which the system delegate refuses the swipe while
-        /// the bar is hidden.
-        private static func forwards(_ selector: Selector) -> Bool {
-            let name = NSStringFromSelector(selector)
-            if name == "_gestureRecognizer:shouldReceiveEvent:" { return false }
-            return name.hasPrefix("gestureRecognizer") || name.hasPrefix("_gestureRecognizer")
-        }
-
-        override func responds(to selector: Selector!) -> Bool {
-            if super.responds(to: selector) { return true }
-            return Self.forwards(selector) && original?.responds(to: selector) == true
-        }
-
-        override func forwardingTarget(for selector: Selector!) -> Any? {
-            if Self.forwards(selector), let original, original.responds(to: selector) { return original }
-            return super.forwardingTarget(for: selector)
+        /// Every other gesture on the screen waits for the swipe to fail, so a
+        /// swipe that starts at the edge goes back over the map too, instead of
+        /// panning it. The swipe gives up when a touch starts away from the edge
+        /// or moves along it, so taps, long presses, scrolls and other pans still
+        /// work (`testEdgeSwipeLeavesTapsLongPressesAndScrollsAlone`).
+        func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
+                               shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
+            true
         }
     }
 }

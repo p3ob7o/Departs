@@ -719,6 +719,78 @@ final class DepartsUITests: XCTestCase {
         XCTAssertTrue(lineMap.waitForExistence(timeout: 5), "Home still opens a line after a swipe at its edge")
     }
 
+    /// While the line screen is shown, every other gesture waits for the swipe
+    /// from the left edge to fail. Touches that start at the edge but do not
+    /// swipe right still do what they did.
+    func testEdgeSwipeLeavesTapsLongPressesAndScrollsAlone() {
+        app.launchEnvironment["DEPARTS_TEST_GOOGLE_MAPS"] = "1"
+        launch(); waitForRows()
+        func open(atX x: CGFloat) {
+            rows.firstMatch.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: 0.5)).withOffset(CGVector(dx: x, dy: 0)).tap()
+            XCTAssertTrue(lineMap.waitForExistence(timeout: 5), "A tap \(Int(x)) pt into a home row opens its line")
+            waitUntil { self.lineRows.count == 4 }
+        }
+        func point(_ x: CGFloat, _ y: CGFloat) -> XCUICoordinate {
+            app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: x, dy: y))
+        }
+        let back = app.buttons["line-back"], walk = app.buttons["walking-directions"]
+        let opened = app.descendants(matching: .any)["opened-map-app"]
+        func choice(_ name: String) -> XCUIElement { app.buttons.matching(NSPredicate(format: "label == %@", name)).firstMatch }
+        // The back button starts 4 pt from the edge: a tap on its outer part
+        // still goes back, as one on its centre does.
+        var timings: [String] = []
+        for dx in [0.5, 0.1] as [CGFloat] {
+            open(atX: dx == 0.5 ? rows.firstMatch.frame.width / 2 : 4)
+            let x = Int(back.frame.minX + back.frame.width * dx), start = Date()
+            back.coordinate(withNormalizedOffset: CGVector(dx: dx, dy: 0.5)).tap()
+            XCTAssertTrue(lineMap.waitForNonExistence(timeout: 3), "A tap at x = \(x) goes back")
+            timings.append("back x=\(x) \(String(format: "%.2f", Date().timeIntervalSince(start)))s")
+        }
+        // After a swipe back too, home's rows answer a tap at their left end.
+        open(atX: 4)
+        point(0, lineList.frame.midY).press(forDuration: 0.05, thenDragTo: point(app.frame.width * 0.95, lineList.frame.midY),
+                                            withVelocity: 600, thenHoldForDuration: 0)
+        XCTAssertTrue(lineMap.waitForNonExistence(timeout: 5))
+        open(atX: 4)
+        // A long press on walk opens the choice while the finger is still down:
+        // sliding to Apple Maps and lifting picks it.
+        walk.tap()
+        XCTAssertTrue(choice("Google Maps").waitForExistence(timeout: 3))
+        let apple = choice("Apple Maps").frame
+        choice("Google Maps").tap()
+        waitUntil { opened.label == "Google Maps 1" }
+        walk.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+            .press(forDuration: 1.2, thenDragTo: point(apple.midX, apple.midY), withVelocity: .slow, thenHoldForDuration: 0.3)
+        waitUntil { opened.label == "Apple Maps 2" }
+        XCTAssertFalse(choice("Google Maps").exists)
+        // A pull to refresh that starts at the edge still refreshes.
+        let calls = server.individualCount
+        point(2, lineList.frame.minY + lineList.frame.height * 0.2)
+            .press(forDuration: 0.1, thenDragTo: point(2, lineList.frame.minY + lineList.frame.height * 0.95),
+                   withVelocity: .slow, thenHoldForDuration: 0.5)
+        waitUntil { self.server.individualCount > calls }
+        XCTAssertTrue(lineMap.exists, "A pull from the edge stays on the line screen")
+        // At accessibility sizes the list scrolls: a vertical scroll that
+        // starts at the edge moves it as far as one that starts in the middle.
+        app.terminate()
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        launch(); waitForRows()
+        rows.matching(NSPredicate(format: "label CONTAINS 'Skodagasse'")).firstMatch.tap()
+        XCTAssertTrue(lineMap.waitForExistence(timeout: 5))
+        var scrolled: [CGFloat] = []
+        for x in [app.frame.width / 2, 2] {
+            let before = lineMap.frame.minY, y = lineMap.frame.maxY + 40
+            point(x, y + 150).press(forDuration: 0.05, thenDragTo: point(x, y), withVelocity: .slow, thenHoldForDuration: 0.3)
+            XCTAssertTrue(lineMap.exists, "A scroll from x = \(Int(x)) stays on the line screen")
+            scrolled.append(before - lineMap.frame.minY)
+            point(app.frame.width / 2, y).press(forDuration: 0.05, thenDragTo: point(app.frame.width / 2, y + 150),
+                                                 withVelocity: .slow, thenHoldForDuration: 0.3)
+        }
+        print("EDGE_OTHERS \(timings) scrolled=\(scrolled)")
+        XCTAssertGreaterThan(scrolled[1], 60, "A scroll from the edge moves the list")
+        XCTAssertEqual(scrolled[1], scrolled[0], accuracy: 30, "and about as far as one from the middle")
+    }
+
     func testStopLineRunsUnderTheButtonsOnOneLine() {
         launch(); waitForRows()
         waitUntil { self.server.walkCount == 4 }
