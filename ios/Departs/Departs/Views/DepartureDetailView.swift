@@ -113,46 +113,75 @@ struct DepartureDetailView: View {
     /// with the stop below them, then walk and pin (O22). Plain symbols in the
     /// label colour with 44 pt targets, aligned with the title's first line.
     private func controls(walk: CachedWalk?, at date: Date) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 0) {
-            Button { dismiss() } label: { ControlSymbol(name: "chevron.backward") }
-                .accessibilityLabel(Text("Back"))
-                .accessibilityIdentifier("line-back")
-            heading(walk: walk, at: date)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.trailing, 4)
-            WalkingDirectionsButton(selection: selection) { ControlSymbol(name: "figure.walk") }
-            Button { store.togglePin(selection) } label: { ControlSymbol(name: pinSymbol) }
-                .accessibilityLabel(Text(pinLabel))
-                .accessibilityIdentifier(pinID)
+        // The title shares its line with the buttons and wraps beside them. The
+        // stop line below runs under walk and pin to the list's 16 pt margin
+        // (A38). Both layers meet at the title's first baseline.
+        ZStack(alignment: Alignment(horizontal: .leading, vertical: .firstTextBaseline)) {
+            VStack(alignment: .leading, spacing: 4) {
+                titleText.padding(.trailing, Self.buttonWidth * 2 + 4)
+                stopLineText(walk: walk, at: date).padding(.trailing, 16 - Self.edge)
+            }
+            .padding(.leading, Self.buttonWidth)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .foregroundStyle(Color.primary)
+            HStack(alignment: .firstTextBaseline, spacing: 0) {
+                Button { dismiss() } label: { ControlSymbol(name: "chevron.backward") }
+                    .accessibilityLabel(Text("Back"))
+                    .accessibilityIdentifier("line-back")
+                    .accessibilitySortPriority(3)
+                Spacer(minLength: 0)
+                WalkingDirectionsButton(selection: selection) { ControlSymbol(name: "figure.walk") }
+                Button { store.togglePin(selection) } label: { ControlSymbol(name: pinSymbol) }
+                    .accessibilityLabel(Text(pinLabel))
+                    .accessibilityIdentifier(pinID)
+            }
         }
+        // VoiceOver reads back, the line, the stop, then walk and pin.
+        .accessibilityElement(children: .contain)
         .buttonStyle(.plain)
         .foregroundStyle(Color.primary)
-        .padding(.horizontal, 4)
+        .padding(.horizontal, Self.edge)
         .padding(.top, 4)
         .padding(.bottom, 8)
     }
 
+    /// The controls sit this close to the screen's edges; each takes this width.
+    private static let edge: CGFloat = 4
+    private static let buttonWidth: CGFloat = 44
+
+    /// The full service, wrapped and never truncated. At standard sizes this is
+    /// the only place the line is named on screen.
+    private var titleText: some View {
+        Text(title).font(.headline)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityAddTraits(.isHeader)
+            .accessibilityIdentifier("detail-direction")
+            .accessibilitySortPriority(2)
+    }
+
+    private func stopLineText(walk: CachedWalk?, at date: Date) -> some View {
+        Text(stopSummary(walk: walk, at: date)).font(.subheadline)
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityIdentifier("detail-stop-name")
+            .accessibilitySortPriority(1)
+    }
+
+    /// At accessibility sizes the line and the stop form a row of the list.
     private func heading(walk: CachedWalk?, at date: Date) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            // The full service, wrapped and never truncated. At standard sizes
-            // this is the only place the line is named on screen.
-            Text(title).font(.headline)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-                .accessibilityIdentifier("detail-direction")
-            Text(stopSummary(walk: walk, at: date)).font(.subheadline)
-                .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("detail-stop-name")
+            titleText
+            stopLineText(walk: walk, at: date)
         }.foregroundStyle(Color.primary)
     }
 
     private func stopSummary(walk: CachedWalk?, at date: Date) -> String {
         let current = store.location?.isUsable(at: date) == true
         if let walk {
-            return String(localized: "\(selection.stop.name) · \(TransitFormat.walk(walk.route, fromCurrentLocation: current)) · \(TransitFormat.distance(walk.route.distance))")
+            return StopLine.walk(stop: selection.stop.name, walk: TransitFormat.walk(walk.route, fromCurrentLocation: current),
+                                 distance: TransitFormat.distance(walk.route.distance))
         }
         // No origin at all: a pinned route opened while location is off.
-        return current || store.walkingOrigin == nil ? selection.stop.name
-            : String(localized: "\(selection.stop.name) · from this area")
+        return current || store.walkingOrigin == nil ? selection.stop.name : StopLine.fromThisArea(stop: selection.stop.name)
     }
 
     private func refreshButton(savedAt: Date?) -> some View {
@@ -178,6 +207,9 @@ struct DepartureDetailView: View {
             Text(content.countdown ?? content.clock).font(CountdownColumn.font).monospacedDigit()
                 .modifier(CountdownTransition(value: content.countdown ?? content.clock))
                 .frame(minWidth: column, alignment: .trailing)
+                // A row's divider starts at its first text. Inside the column
+                // that text moves right, so the divider starts at the column.
+                .alignmentGuide(.listRowSeparatorLeading) { $0[.leading] }
             if !textSize.isAccessibilitySize { Spacer(minLength: 0) }
             if content.live {
                 HStack(spacing: 4) {
@@ -248,6 +280,40 @@ struct EdgeSwipeBack: UIViewControllerRepresentable {
         func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
             (navigationController?.viewControllers.count ?? 0) > 1
         }
+
+        /// Every gesture delegate call this class does not answer goes on to the
+        /// system delegate, which settles the swipe against the map's pan: a
+        /// swipe that starts at the edge goes back over the map, as with the bar.
+        /// Two calls stay here: whether the swipe may begin, and the private
+        /// event check, with which the system delegate refuses the swipe while
+        /// the bar is hidden.
+        private static func forwards(_ selector: Selector) -> Bool {
+            let name = NSStringFromSelector(selector)
+            if name == "_gestureRecognizer:shouldReceiveEvent:" { return false }
+            return name.hasPrefix("gestureRecognizer") || name.hasPrefix("_gestureRecognizer")
+        }
+
+        override func responds(to selector: Selector!) -> Bool {
+            if super.responds(to: selector) { return true }
+            return Self.forwards(selector) && original?.responds(to: selector) == true
+        }
+
+        override func forwardingTarget(for selector: Selector!) -> Any? {
+            if Self.forwards(selector), let original, original.responds(to: selector) { return original }
+            return super.forwardingTarget(for: selector)
+        }
+    }
+}
+
+/// The stop under the line and its direction. A no-break space keeps each "·"
+/// with the word before it, so a wrapped stop line never starts with one.
+enum StopLine {
+    static func walk(stop: String, walk: String, distance: String) -> String {
+        String(localized: "\(stop)\u{00A0}· \(walk)\u{00A0}· \(distance)")
+    }
+
+    static func fromThisArea(stop: String) -> String {
+        String(localized: "\(stop)\u{00A0}· from this area")
     }
 }
 

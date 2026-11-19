@@ -868,6 +868,13 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertEqual(MapApp.allCases.map(\.name), ["Apple Maps", "Google Maps"])
     }
 
+    func testAWrappedStopLineNeverStartsWithADot() {
+        let line = StopLine.walk(stop: "Burggasse/Neubaugasse", walk: "5 min walk", distance: "350 m")
+        XCTAssertEqual(line, "Burggasse/Neubaugasse\u{00A0}· 5 min walk\u{00A0}· 350 m")
+        XCTAssertFalse(line.contains(" ·"), "A breaking space before a dot would let a line start with it")
+        XCTAssertEqual(StopLine.fromThisArea(stop: "Siebensterngasse"), "Siebensterngasse\u{00A0}· from this area")
+    }
+
     func testHomeMapReachesTheTopOnlyOnATallStatusBarAtStandardTextSizes() {
         XCTAssertEqual(MapStrip.height(statusBar: 62, accessibilitySize: false), 62, "Dynamic Island")
         XCTAssertEqual(MapStrip.height(statusBar: 47, accessibilitySize: false), 47, "Notch")

@@ -658,35 +658,121 @@ final class DepartsUITests: XCTestCase {
     }
 
     func testLineScreenGoesBackWithItsButtonAndTheEdgeSwipe() {
-        launch(); waitForRows(); rows.firstMatch.tap()
+        launch(); waitForRows()
+        func open() {
+            rows.firstMatch.tap()
+            XCTAssertTrue(lineMap.waitForExistence(timeout: 5))
+            waitUntil { self.lineRows.count == 4 }
+        }
+        /// A drag across most of the width completes a pop on its progress; a
+        /// short fast one can be cancelled by UIKit, as with a finger.
+        func drag(fromX x0: CGFloat, to x1: CGFloat, y: CGFloat, velocity: XCUIGestureVelocity) {
+            let size = app.frame.size
+            app.coordinate(withNormalizedOffset: CGVector(dx: x0 / size.width, dy: y / size.height))
+                .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: x1 / size.width, dy: y / size.height)),
+                       withVelocity: velocity, thenHoldForDuration: 0)
+        }
+        let width = app.frame.width
+        open()
         let back = app.buttons["line-back"]
-        XCTAssertTrue(back.waitForExistence(timeout: 5))
         back.tap()
         XCTAssertTrue(lineMap.waitForNonExistence(timeout: 5), "The back button goes back")
-        XCTAssertTrue(homeMap.exists)
-        rows.firstMatch.tap()
-        XCTAssertTrue(lineMap.waitForExistence(timeout: 5))
-        waitUntil { self.lineRows.count == 4 }
-        // With the bar hidden, the swipe from the left edge still goes back.
-        // A drag across most of the width completes the pop on its progress;
-        // a short fast one can be cancelled by UIKit, as with a finger.
-        let y = (lineList.frame.minY + lineList.frame.maxY) / 2 / app.frame.height
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: y))
-            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: y)),
-                   withVelocity: 600, thenHoldForDuration: 0)
-        XCTAssertTrue(lineMap.waitForNonExistence(timeout: 5), "The edge swipe goes back: \(app.debugDescription)")
-        XCTAssertTrue(homeMap.exists)
+        // With the bar hidden, the swipe from the left edge goes back from
+        // every height: over the map, the controls and the list.
+        var heights: [String] = []
+        for place in ["map middle", "map bottom", "controls", "list"] {
+            open()
+            let y: CGFloat
+            switch place {
+            case "map middle": y = lineMap.frame.midY
+            case "map bottom": y = lineMap.frame.maxY - 60
+            case "controls": y = app.staticTexts["detail-stop-name"].frame.midY
+            default: y = lineList.frame.midY
+            }
+            drag(fromX: 0, to: width * 0.95, y: y, velocity: 600)
+            heights.append("\(place) y=\(Int(y))")
+            XCTAssertTrue(lineMap.waitForNonExistence(timeout: 5), "The edge swipe goes back from the \(place), y = \(Int(y))")
+            if lineMap.exists { back.tap(); XCTAssertTrue(lineMap.waitForNonExistence(timeout: 5)) }
+        }
+        print("SWIPES \(heights)")
+        // A pan on the map still pans and stays, also one that starts 30 pt
+        // from the left edge.
+        open()
+        let platform = app.descendants(matching: .any)["route-platform"]
+        for startX in [width * 0.4, 30] {
+            let before = platform.frame
+            drag(fromX: startX, to: startX + width * 0.4, y: lineMap.frame.midY, velocity: 300)
+            let moved = expectation(for: NSPredicate { _, _ in platform.exists && platform.frame.midX > before.midX + 60 }, evaluatedWith: nil)
+            wait(for: [moved], timeout: 5)
+            print("PAN from x=\(Int(startX)): \(before.midX) -> \(platform.frame.midX)")
+            XCTAssertTrue(lineMap.exists, "A pan from x = \(Int(startX)) stays on the line screen")
+        }
+        back.tap()
+        XCTAssertTrue(lineMap.waitForNonExistence(timeout: 5))
         // On home there is nothing to go back to: the swipe changes nothing,
         // and home still answers a tap. It crosses the map, which takes no
         // drag; a fast drag that starts on a row can open that row's line.
-        let homeY = (homeMap.frame.maxY - 30) / app.frame.height
-        app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: homeY))
-            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: homeY)),
-                   withVelocity: .fast, thenHoldForDuration: 0)
+        drag(fromX: 0, to: width * 0.95, y: homeMap.frame.maxY - 30, velocity: 600)
         XCTAssertTrue(homeMap.waitForExistence(timeout: 3))
         XCTAssertFalse(lineMap.exists)
         rows.firstMatch.tap()
         XCTAssertTrue(lineMap.waitForExistence(timeout: 5), "Home still opens a line after a swipe at its edge")
+    }
+
+    func testStopLineRunsUnderTheButtonsOnOneLine() {
+        launch(); waitForRows()
+        waitUntil { self.server.walkCount == 4 }
+        rows.matching(NSPredicate(format: "label CONTAINS 'Bus 48A'")).firstMatch.tap()
+        waitUntil { self.lineRows.count == 4 }
+        let summary = app.staticTexts["detail-stop-name"], walk = app.buttons["walking-directions"], pin = app.buttons["pin-route"]
+        waitUntil { summary.label.contains("walk") && summary.label.contains("m") }
+        print("STOPLINE \(summary.label) \(summary.frame) title=\(lineTitle.frame) walk=\(walk.frame)")
+        // "Burggasse/Neubaugasse · 4 min walk · 310 m" needs more room than
+        // the title has beside the buttons; it runs on under them.
+        XCTAssertEqual(summary.frame.minX, lineTitle.frame.minX, accuracy: 0.5)
+        XCTAssertGreaterThan(summary.frame.maxX, walk.frame.minX, "The stop line passes under walk and pin")
+        if app.frame.width >= 402 {
+            XCTAssertLessThan(summary.frame.height, 26, "One line on a 402 pt phone: \(summary.frame)")
+        } else {
+            // Narrower, it may wrap, but no line starts with the dot.
+            let lines = recognizedText(in: summary.frame.insetBy(dx: -2, dy: -2))
+            print("STOPLINE lines=\(lines)")
+            XCTAssertFalse(lines.contains { $0.hasPrefix("·") || $0.hasPrefix("•") }, "\(lines)")
+        }
+        XCTAssertLessThanOrEqual(summary.frame.maxX, app.frame.width - 16 + 0.5, "It stops at the list's margin")
+        XCTAssertGreaterThanOrEqual(summary.frame.minY, lineTitle.frame.maxY - 0.5)
+        // The title wraps here; the buttons stay on its first line.
+        XCTAssertGreaterThan(lineTitle.frame.height, 30, "This title wraps beside the buttons")
+        XCTAssertEqual(walk.frame.midY, lineTitle.frame.minY + 10.2, accuracy: 3, "The buttons stay on the title's first line")
+        XCTAssertEqual(pin.frame.midY, walk.frame.midY, accuracy: 0.5)
+        capture("Line stop line under the buttons")
+    }
+
+    func testLineDividersStartWhereTheRowStarts() {
+        launch(); waitForRows(); rows.firstMatch.tap()
+        waitUntil { self.lineRows.count == 4 }
+        func starts(_ situation: String) {
+            // Rows whose bottom edge, where the divider is, lies on screen.
+            let frames = lineRows.allElementsBoundByIndex.map(\.frame).filter { $0.maxY + 1 < lineList.frame.maxY }
+            let found = frames.compactMap { separatorStart(below: $0) }
+            print("DIVIDERS \(situation): \(found) rows=\(frames.count)")
+            XCTAssertGreaterThanOrEqual(frames.count, 2, "\(situation)")
+            XCTAssertEqual(found.count, frames.count, "\(situation): a divider under every row shown")
+            for x in found {
+                XCTAssertEqual(x, lineList.frame.minX + 16, accuracy: 1, "\(situation): every divider starts at the row's leading edge")
+            }
+            capture("Line dividers, \(situation)")
+        }
+        starts("2, 6, 10 and 14 min")
+        server.setLineMinutes([0.5, 4, 10, 16])
+        refreshLineByPull()
+        waitUntil { self.lineRows.firstMatch.label.hasPrefix("Now") }
+        starts("Now, 4, 10 and 16 min")
+        server.setOffline(true)
+        refreshLineByPull()
+        XCTAssertTrue(app.buttons["refresh-line"].waitForExistence(timeout: 8))
+        waitUntil { !self.lineRows.firstMatch.label.contains("min") }
+        starts("saved clock times")
     }
 
     func testLineFailedRefreshKeepsClockTimesAndRecoversInOneRequest() {
@@ -967,6 +1053,39 @@ final class DepartsUITests: XCTestCase {
     private func dismissChoice() {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)).tap()
         XCTAssertTrue(app.buttons["map-direction"].waitForNonExistence(timeout: 5))
+    }
+    /// Where a list divider drawn along a row's bottom edge starts, in points:
+    /// the leftmost pixel of the longest run that differs from the background.
+    private func separatorStart(below frame: CGRect) -> CGFloat? {
+        guard let image = XCUIScreen.main.screenshot().image.cgImage else { return nil }
+        let scale = CGFloat(image.width) / app.frame.width
+        let width = image.width, height = image.height
+        var pixels = [UInt8](repeating: 0, count: width * height)
+        let drawn = pixels.withUnsafeMutableBytes { buffer -> Bool in
+            guard let context = CGContext(data: buffer.baseAddress, width: width, height: height, bitsPerComponent: 8,
+                                          bytesPerRow: width, space: CGColorSpaceCreateDeviceGray(),
+                                          bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return false }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            return true
+        }
+        guard drawn else { return nil }
+        var best: (start: Int, length: Int)?
+        for y in Int((frame.maxY - 1.5) * scale)...Int((frame.maxY + 1.5) * scale) where y >= 0 && y < height {
+            let background = Int(pixels[y * width + 2])
+            var start: Int?, length = 0
+            for x in 0..<width {
+                if abs(Int(pixels[y * width + x]) - background) >= 6 {
+                    if start == nil { start = x }
+                    length += 1
+                } else if let first = start {
+                    if length > (best?.length ?? 0) { best = (first, length) }
+                    start = nil; length = 0
+                }
+            }
+            if let first = start, length > (best?.length ?? 0) { best = (first, length) }
+        }
+        guard let best, CGFloat(best.length) > app.frame.width * scale / 2 else { return nil }
+        return CGFloat(best.start) / scale
     }
     /// Text as drawn on screen with where it is, in points.
     private func recognizedBoxes() -> [(text: String, frame: CGRect)] {
