@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O17: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). Amended on 18 November by O18: see [Third amendment: the map under the status bar](#third-amendment-the-map-under-the-status-bar). |
+| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O17: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). Amended on 18 November by O18: see [Third amendment: the map under the status bar](#third-amendment-the-map-under-the-status-bar). Amended on 19 November by O19: see [Fourth amendment: a tap on a map label](#fourth-amendment-a-tap-on-a-map-label). |
 | Date | 16 November 2026 |
 | Based on | Departs 1.1 (6), `main` at `6430c94` |
 | Branch | `feat/ios-two-screens` |
@@ -38,7 +38,7 @@ Paolo made these on 16 November 2026. They are settled.
 | O4 | Leave advice goes everywhere: "Leave in", "Leave now", "Too tight" and crossed-out times. People can count. |
 | O5 | Home is a square map on top with the list underneath. The layout is always vertical. |
 | O6 | Tapping a row opens the line screen: the walking route on a square map, and the next four departures of that line underneath. |
-| O7 | The home map has one label per stop, showing its line numbers. Tapping it opens the line when the stop has one row. Otherwise it scrolls the list to that stop. This is a trial. |
+| O7 | The home map has one label per stop, showing its line numbers. Tapping it opens the line when the stop has one row. Otherwise it scrolls the list to that stop. This is a trial. The trial ended on 19 November: O19 replaces the second half. |
 | O8 | Pins stay for now. A pinned line with nothing soon is still shown, dimmed. The owner is undecided about pins as a whole. |
 | O9 | iPhone Duo and iPad will put map and list side by side, later. |
 
@@ -121,6 +121,33 @@ Found while the four treatments were captured:
 - A label that the square's top edge used to cut is whole now.
 
 The home sketch and the rules on the home map and text size below are updated.
+
+## Fourth amendment: a tap on a map label
+
+Paolo used Departs 1.2 (10) on his phone on 19 November 2026 and reported: "tapping these overlapping labels on the map fails. Tapping this one out of the circle fails also. This one, on the other hand, although overlapping, works".
+
+All three taps had registered. The two labels that failed stood for stops with more than one row, and the one that worked for a stop with one. O7's trial rule answered the first two by jumping the list, and the jump showed nothing: one stop was already first in the list, and the other was last, so the list could only go to its end. A second defect was found while this was reproduced: a label that was already selected ignored the next tap, so a line opened from the map could not be opened again from the same label.
+
+He was shown two fixes captured from a prototype and chose the first, with one change: "1, but when a stop has two directions, and we show the choice, we don't need the time to next depart there. It's already in the list below, and it'll be in the line detailed list."
+
+| ID | Decision |
+| --- | --- |
+| O19 | Each badge of a map label is its line. A badge whose line runs one way from the stop opens that line. A badge whose line runs more than one way offers its directions at the badge, without times, and the one picked opens. Every tap counts, also on a label that is already selected. |
+
+O19 replaces the second half of O7: the list no longer jumps to the stop.
+
+These choices filled the gaps. None has been reviewed by the owner.
+
+| ID | Question | Choice |
+| --- | --- | --- |
+| A28 | "+N", on a stop with more than three lines | It offers the rows of the lines that have no badge |
+| A29 | VoiceOver, which has no finger on a badge | Activating a label offers every row of the stop, or opens the line when the stop has one row |
+| A30 | The ring on a label | It marks the stop whose choice is open, or whose line was opened last. Closing a choice without picking removes it |
+| A31 | Two labels under one finger | The selected label wins, because it is drawn on top. Otherwise the one whose centre is nearer |
+| A32 | A touch beside the badges, inside the label's 44 pt region | It counts for the nearest badge |
+| A33 | A long direction | The choice is as wide as its longest direction, up to 320 pt. Past that the direction wraps |
+
+The rule on tapping a label below is updated.
 
 ## The two screens
 
@@ -211,7 +238,7 @@ The sample, with these rules applied:
 
 16. The map is a square as wide as the screen. Home has no bar, so the square's top edge is the bottom of the status bar (O13). Where the status bar is at least 44 pt tall the map continues above the square to the top of the screen: iOS blurs it there, nothing there takes a touch, and the square shows what it showed without it (O18, A26, A27). It shows the search radius, the user's location, and one label per stop that has at least one row, pinned rows included. The map is always centred on the rider and spans 960 m, so the 400 m ring's radius is the width ÷ 2.4. Between the app's fixes it follows MapKit's live location (A20). It cannot be panned or zoomed (A17). The ring is drawn around the map's centre, beneath the labels (A18).
 17. A label holds the line numbers of that stop's rows, in list order, each drawn as the list badge. It shows up to three, then "+N".
-18. Tapping a label follows O7. A stop with one row opens that line. A stop with several rows scrolls the list to its header and shows the selection ring.
+18. Tapping a label follows O19. Each badge is its line: with one direction from this stop it opens that line, and with several it offers them at the badge, without times. "+N" offers the lines that have no badge (A28). Every tap counts, also on a label that is already selected. The ring marks the stop whose choice is open or whose line was opened last (A30).
 19. The list never waits for the map. Rows appear even when map tiles fail to load.
 
 ### Freshness and failures
