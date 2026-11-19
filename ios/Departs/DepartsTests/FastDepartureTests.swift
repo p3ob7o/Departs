@@ -800,6 +800,19 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertEqual(StopsMapView.span, 960)
     }
 
+    @MainActor func testHomeMapDrawsNoRingAndKeepsItsFraming() {
+        XCTAssertFalse(StopsMapView.showsRing, "The owner had the ring hidden (O23)")
+        let map = MKMapView(frame: CGRect(x: 0, y: 0, width: 400, height: 400))
+        let coordinator = StopsMapView.Coordinator()
+        coordinator.fallback = CLLocationCoordinate2D(latitude: 48.20134, longitude: 16.34941)
+        coordinator.frame(map)
+        XCTAssertTrue(map.overlays.isEmpty, "No circle around the rider")
+        XCTAssertEqual(map.region.center.latitude, 48.20134, accuracy: 0.0005, "The map still centres on the rider")
+        coordinator.fallback = nil
+        coordinator.frame(map)
+        XCTAssertTrue(map.overlays.isEmpty)
+    }
+
     func testHomeMapReachesTheTopOnlyOnATallStatusBarAtStandardTextSizes() {
         XCTAssertEqual(NearbyStopsView.strip(statusBar: 62, accessibilitySize: false), 62, "Dynamic Island")
         XCTAssertEqual(NearbyStopsView.strip(statusBar: 47, accessibilitySize: false), 47, "Notch")

@@ -25,9 +25,10 @@ struct StopsMapView: UIViewRepresentable {
         case whole
     }
 
-    /// The 400 m ring around the point the map is centred on. The framing
-    /// below never depends on it, so hiding it is this one line.
-    static let showsRing = true
+    /// The 400 m ring around the point the map is centred on. The owner had it
+    /// hidden on 19 November 2026 (O23). The framing below never depends on
+    /// it, so it can return by setting this line back to true.
+    static let showsRing = false
     /// The square always spans this many metres, centred on the rider: the
     /// 400 m ring and its margin. The ring's radius is the width ÷ 2.4.
     static let span = Double(TransitStore.radius) * 2.4
