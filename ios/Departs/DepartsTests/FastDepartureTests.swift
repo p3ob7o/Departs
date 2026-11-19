@@ -833,6 +833,41 @@ final class FastDepartureTests: XCTestCase {
                        "One-digit countdowns need no wider column")
     }
 
+    func testWalkButtonOpensAppleMapsWithoutAChoiceWhenGoogleMapsIsMissing() {
+        let disk = persistence()
+        let choice = MapAppChoice(persistence: disk) { _ in false }
+        XCTAssertFalse(choice.offersChoice)
+        XCTAssertEqual(choice.tap(), .open(.apple), "Without Google Maps the button opens Apple Maps, as before")
+        disk.saveMapApp(.google)
+        XCTAssertEqual(choice.tap(), .open(.apple), "A remembered Google Maps that was removed is not used")
+        XCTAssertNil(disk.loadMapApp(), "and is forgotten")
+    }
+
+    func testWalkButtonAsksFirstThenRemembersTheChoice() {
+        let disk = persistence()
+        var installed = true
+        let choice = MapAppChoice(persistence: disk) { $0.scheme == "comgooglemaps" && installed }
+        XCTAssertTrue(choice.offersChoice)
+        XCTAssertEqual(choice.tap(), .showChoice, "The first tap offers the choice")
+        choice.choose(.google)
+        XCTAssertEqual(choice.tap(), .open(.google), "Afterwards a tap opens what was used last time")
+        XCTAssertEqual(MapAppChoice(persistence: TransitPersistence(defaults: disk.defaults)) { _ in true }.tap(), .open(.google),
+                       "The choice survives a relaunch")
+        choice.choose(.apple)
+        XCTAssertEqual(choice.tap(), .open(.apple))
+        choice.choose(.google)
+        installed = false
+        XCTAssertEqual(choice.tap(), .open(.apple), "Google Maps removed: Apple Maps, no choice")
+        installed = true
+        XCTAssertEqual(choice.tap(), .showChoice, "Reinstalled: as if nothing was remembered")
+    }
+
+    func testGoogleMapsOpensWalkingDirectionsToTheStop() {
+        let stop = NearbyStop(id: "x", name: "Neubaugasse", type: .bus, lines: [], location: .init(lat: 48.198081, lon: 16.350874), distance: nil)
+        XCTAssertEqual(MapAppChoice.googleURL(for: stop).absoluteString, "comgooglemaps://?daddr=48.198081,16.350874&directionsmode=walking")
+        XCTAssertEqual(MapApp.allCases.map(\.name), ["Apple Maps", "Google Maps"])
+    }
+
     func testHomeMapReachesTheTopOnlyOnATallStatusBarAtStandardTextSizes() {
         XCTAssertEqual(NearbyStopsView.strip(statusBar: 62, accessibilitySize: false), 62, "Dynamic Island")
         XCTAssertEqual(NearbyStopsView.strip(statusBar: 47, accessibilitySize: false), 47, "Notch")

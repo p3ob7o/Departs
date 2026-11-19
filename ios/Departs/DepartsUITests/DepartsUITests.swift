@@ -721,6 +721,44 @@ final class DepartsUITests: XCTestCase {
         print("APPLE_MAPS walkingSelected=\(walk.isSelected) destination=\(destination.label)")
     }
 
+    func testWalkButtonOffersMapAppsThenRemembersAndALongPressAsksAgain() {
+        // The simulator has no Google Maps: this Debug hook stands one in, and
+        // records which app would open instead of leaving the app.
+        app.launchEnvironment["DEPARTS_TEST_GOOGLE_MAPS"] = "1"
+        launch(); waitForRows(); rows.firstMatch.tap()
+        let walk = app.buttons["walking-directions"]
+        XCTAssertTrue(walk.waitForExistence(timeout: 5))
+        XCTAssertEqual(walk.label, "Walking directions")
+        let opened = app.descendants(matching: .any)["opened-map-app"]
+        XCTAssertTrue(opened.waitForExistence(timeout: 5), app.debugDescription)
+        XCTAssertEqual(opened.label, "none")
+        func choice(_ name: String) -> XCUIElement {
+            app.buttons.matching(NSPredicate(format: "label == %@", name)).firstMatch
+        }
+        walk.tap()
+        XCTAssertTrue(choice("Google Maps").waitForExistence(timeout: 3), "The first tap offers the choice: \(app.debugDescription)")
+        XCTAssertTrue(choice("Apple Maps").exists)
+        XCTAssertEqual(opened.label, "none", "Nothing opens before a choice")
+        capture("Map apps choice")
+        choice("Google Maps").tap()
+        waitUntil { opened.label == "Google Maps 1" }
+        walk.tap()
+        waitUntil { opened.label == "Google Maps 2" }
+        XCTAssertFalse(choice("Apple Maps").exists, "A remembered app opens without asking")
+        walk.press(forDuration: 1.2)
+        XCTAssertTrue(choice("Apple Maps").waitForExistence(timeout: 3), "A long press shows the choice again")
+        capture("Map apps choice after a long press")
+        choice("Apple Maps").tap()
+        waitUntil { opened.label == "Apple Maps 3" }
+        walk.tap()
+        waitUntil { opened.label == "Apple Maps 4" }
+        app.terminate(); app.launch(); waitForRows(); rows.firstMatch.tap()
+        XCTAssertTrue(walk.waitForExistence(timeout: 5))
+        walk.tap()
+        waitUntil { opened.label == "Apple Maps 1" }
+        XCTAssertFalse(choice("Google Maps").exists, "The choice is remembered across launches")
+    }
+
     func testLineWithoutWalkingRouteStillShowsBothEndpoints() {
         server.setDirectionsFailed(true)
         launch(); waitForRows(); rows.firstMatch.tap()

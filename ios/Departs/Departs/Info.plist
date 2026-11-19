@@ -6,6 +6,10 @@
 	<string>AppIcon</string>
 	<key>ITSAppUsesNonExemptEncryption</key>
 	<false/>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>comgooglemaps</string>
+	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
 	<string>Departs uses your location to find nearby stops and show walking directions.</string>
 	<key>CFBundleURLTypes</key>

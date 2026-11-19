@@ -63,10 +63,9 @@ struct DepartureDetailView: View {
         .toolbarVisibility(.visible, for: .navigationBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                Button("Walking directions", systemImage: "figure.walk") {
-                    WalkingDirections.destination(for: selection).openInMaps(
-                        launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
-                }.accessibilityIdentifier("walking-directions")
+                WalkingDirectionsButton(selection: selection) {
+                    SwiftUI.Label("Walking directions", systemImage: "figure.walk")
+                }
                 Button(store.isPinned(selection) ? String(localized: "Unpin this direction") : String(localized: "Pin this direction"),
                        systemImage: store.isPinned(selection) ? "pin.fill" : "pin") {
                     store.togglePin(selection)
@@ -74,6 +73,9 @@ struct DepartureDetailView: View {
             }
         }
         .task(id: selection.id) { await store.refreshSelection(selection) }
+        #if DEBUG
+        .overlay(alignment: .bottomLeading) { OpenedMapAppsMarker() }
+        #endif
     }
 
     private func map(width: CGFloat, walk: CachedWalk?, at date: Date) -> some View {
@@ -205,6 +207,153 @@ enum CountdownColumn {
         }
     }
 }
+
+/// The app that opens walking directions to the stop (O21).
+enum MapApp: String, Codable, CaseIterable, Identifiable {
+    case apple, google
+    var id: String { rawValue }
+    /// Product names: shown as they are, never translated.
+    var name: String { self == .apple ? "Apple Maps" : "Google Maps" }
+}
+
+/// What the walk button does. Google Maps is offered only when it is
+/// installed; without it the button opens Apple Maps, as before, and offers
+/// no choice. A choice is remembered until a long press changes it. A
+/// remembered Google Maps that has since been removed is forgotten.
+struct MapAppChoice {
+    enum Tap: Equatable {
+        case open(MapApp)
+        case showChoice
+    }
+
+    static let googleScheme = URL(string: "comgooglemaps://")!
+
+    let persistence: TransitPersistence
+    let canOpen: (URL) -> Bool
+
+    var offersChoice: Bool { canOpen(Self.googleScheme) }
+
+    /// The app a tap opens without asking, if one was chosen and is still there.
+    func remembered() -> MapApp? {
+        guard let app = persistence.loadMapApp() else { return nil }
+        if app == .google, !offersChoice {
+            persistence.clearMapApp()
+            return nil
+        }
+        return app
+    }
+
+    func tap() -> Tap {
+        let app = remembered() // first, so a removed Google Maps is forgotten
+        guard offersChoice else { return .open(.apple) }
+        return app.map(Tap.open) ?? .showChoice
+    }
+
+    func choose(_ app: MapApp) { persistence.saveMapApp(app) }
+
+    /// Walking directions to the stop's coordinate.
+    static func googleURL(for stop: NearbyStop) -> URL {
+        URL(string: String(format: "comgooglemaps://?daddr=%.6f,%.6f&directionsmode=walking", stop.location.lat, stop.location.lon))!
+    }
+
+    @MainActor static var live: MapAppChoice {
+        MapAppChoice(persistence: TransitPersistence()) { url in
+            #if DEBUG
+            // The simulator has no Google Maps. UI tests stand one in.
+            if url.scheme == googleScheme.scheme, testsGoogleMaps { return true }
+            #endif
+            return UIApplication.shared.canOpenURL(url)
+        }
+    }
+
+    #if DEBUG
+    static var testsGoogleMaps: Bool { ProcessInfo.processInfo.environment["DEPARTS_TEST_GOOGLE_MAPS"] == "1" }
+    #endif
+}
+
+/// The walk button: a plain button while only Apple Maps is there, a menu
+/// before the first choice, and once chosen a tap that opens the remembered
+/// app with the choice one long press away.
+struct WalkingDirectionsButton<Label: View>: View {
+    let selection: StopLineSelection
+    @ViewBuilder let label: () -> Label
+    @Environment(\.scenePhase) private var scenePhase
+    @Environment(\.openURL) private var openURL
+    @State private var offersChoice = false
+    @State private var remembered: MapApp?
+
+    var body: some View {
+        Group {
+            if !offersChoice {
+                Button { open(.apple) } label: { label() }
+            } else if let remembered {
+                Menu { choices } label: { label() } primaryAction: { open(remembered) }
+            } else {
+                Menu { choices } label: { label() }
+            }
+        }
+        .accessibilityLabel(Text("Walking directions"))
+        .accessibilityIdentifier("walking-directions")
+        .onAppear(perform: refresh)
+        .onChange(of: scenePhase) { _, phase in if phase == .active { refresh() } }
+    }
+
+    @ViewBuilder private var choices: some View {
+        ForEach(MapApp.allCases) { app in
+            Button {
+                MapAppChoice.live.choose(app)
+                remembered = app
+                open(app)
+            } label: {
+                if app == remembered {
+                    SwiftUI.Label { Text(verbatim: app.name) } icon: { Image(systemName: "checkmark") }
+                } else {
+                    Text(verbatim: app.name)
+                }
+            }
+            .accessibilityIdentifier("map-app-\(app.rawValue)")
+        }
+    }
+
+    private func refresh() {
+        let choice = MapAppChoice.live
+        offersChoice = choice.offersChoice
+        remembered = choice.remembered()
+    }
+
+    private func open(_ app: MapApp) {
+        #if DEBUG
+        if MapAppChoice.testsGoogleMaps { OpenedMapApps.shared.opened.append(app); return }
+        #endif
+        switch app {
+        case .apple:
+            WalkingDirections.destination(for: selection).openInMaps(
+                launchOptions: [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeWalking])
+        case .google:
+            openURL(MapAppChoice.googleURL(for: selection.stop))
+        }
+    }
+}
+
+#if DEBUG
+/// What a UI test reads instead of watching another app open. Debug only.
+@MainActor @Observable final class OpenedMapApps {
+    static let shared = OpenedMapApps()
+    var opened: [MapApp] = []
+}
+
+struct OpenedMapAppsMarker: View {
+    var body: some View {
+        if MapAppChoice.testsGoogleMaps {
+            let opened = OpenedMapApps.shared.opened
+            Color.clear.frame(width: 1, height: 1)
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel(Text(verbatim: opened.last.map { "\($0.name) \(opened.count)" } ?? "none"))
+                .accessibilityIdentifier("opened-map-app")
+        }
+    }
+}
+#endif
 
 enum WalkingDirections {
     static func destination(for selection: StopLineSelection) -> MKMapItem {

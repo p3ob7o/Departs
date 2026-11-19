@@ -14,6 +14,7 @@ struct TransitPersistence {
     private static let pinsKey = "departs.pins.v1"
     private static let snapshotKey = "departs.nearby.v2"
     private static let boardsKey = "departs.boards.v1"
+    private static let mapAppKey = "departs.mapApp.v1"
 
     /// Builds up to 1.2 (7) could save a searched place, a wider radius and
     /// recent places. None of them may return as "the last area".
@@ -28,6 +29,10 @@ struct TransitPersistence {
     func clearNearby() { defaults.removeObject(forKey: Self.snapshotKey) }
     func loadBoards() -> [String: DepartureBoard] { read(Self.boardsKey) ?? [:] }
     func loadHome() -> HomeSnapshot? { read("departs.home.v2") }
+    /// The app that last opened walking directions (O21).
+    func loadMapApp() -> MapApp? { defaults.string(forKey: Self.mapAppKey).flatMap(MapApp.init(rawValue:)) }
+    func saveMapApp(_ app: MapApp) { defaults.set(app.rawValue, forKey: Self.mapAppKey) }
+    func clearMapApp() { defaults.removeObject(forKey: Self.mapAppKey) }
     func saveHome(_ snapshot: HomeSnapshot) { write(snapshot, key: "departs.home.v2") }
 
     func saveBoards(_ boards: [String: DepartureBoard]) {
