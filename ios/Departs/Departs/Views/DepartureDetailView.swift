@@ -3,6 +3,7 @@ import SwiftUI
 
 struct DepartureDetailView: View {
     @Environment(\.dynamicTypeSize) private var textSize
+    @Environment(\.dismiss) private var dismiss
     let selection: StopLineSelection
     @Bindable var store: TransitStore
     @State private var countdownStart = Date.now
@@ -10,8 +11,14 @@ struct DepartureDetailView: View {
     /// right-aligned in one column: the 4 of "4 min" above the 0 of "10 min".
     @State private var countdownColumn: CGFloat?
 
+    private var title: String { "\(selection.line.shortName) \(selection.line.direction)" }
+
     var body: some View {
         GeometryReader { geometry in
+            let accessibility = textSize.isAccessibilitySize
+            // At standard sizes the bar is hidden and the map has home's frame:
+            // the square, plus the strip under a tall status bar (O22, A27).
+            let strip = MapStrip.height(statusBar: geometry.safeAreaInsets.top, accessibilitySize: accessibility)
             TimelineView(.periodic(from: countdownStart, by: 15)) { timeline in
                 let date = max(timeline.date, Date.now)
                 let board = store.boards[selection.id]
@@ -19,15 +26,20 @@ struct DepartureDetailView: View {
                 let walk = store.walk(for: selection.stop, at: date)
                 let shown = board.map { Array($0.upcoming(at: $0.checkedAt).prefix(4)) } ?? []
                 VStack(spacing: 0) {
-                    if !textSize.isAccessibilitySize { map(width: geometry.size.width, walk: walk, at: date) }
+                    if !accessibility {
+                        map(width: geometry.size.width, strip: strip, walk: walk, at: date)
+                        controls(walk: walk, at: date)
+                    }
                     List {
-                        if textSize.isAccessibilitySize {
+                        if accessibility {
+                            // As before: the map scrolls away and the bar keeps
+                            // back, walk and pin within reach (A39).
                             map(width: geometry.size.width, walk: walk, at: date)
                                 .listRowInsets(EdgeInsets()).listRowSeparator(.hidden)
+                            heading(walk: walk, at: date)
+                                .listRowSeparator(.hidden)
+                                .listRowInsets(.vertical, 8)
                         }
-                        heading(walk: walk, at: date)
-                            .listRowSeparator(.hidden)
-                            .listRowInsets(.vertical, 8)
                         if let board {
                             if !fresh { refreshButton(savedAt: board.checkedAt) }
                             if !board.hasDepartureWithinHorizon {
@@ -48,51 +60,86 @@ struct DepartureDetailView: View {
                     .environment(\.defaultMinListRowHeight, 0)
                     .contentMargins(.top, 0, for: .scrollContent)
                     .background(alignment: .topLeading) {
-                        if !textSize.isAccessibilitySize {
+                        if !accessibility {
                             CountdownColumn.Reader(texts: CountdownColumn.texts(shown, fresh: fresh, now: date)) { countdownColumn = $0 }
                         }
                     }
                     .accessibilityIdentifier("departure-detail")
                     .refreshable { await store.refreshSelection(selection, force: true) }
                 }
+                .ignoresSafeArea(.container, edges: strip > 0 ? .top : [])
             }
         }
-        .navigationTitle("\(selection.line.shortName) \(selection.line.direction)")
+        // Kept for VoiceOver and the back stack, also while the bar is hidden.
+        .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
-        // Home hides its bar; the line screen keeps back, title, walk and pin.
-        .toolbarVisibility(.visible, for: .navigationBar)
+        .toolbarVisibility(textSize.isAccessibilitySize ? .visible : .hidden, for: .navigationBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
-                WalkingDirectionsButton(selection: selection) {
-                    SwiftUI.Label("Walking directions", systemImage: "figure.walk")
+                if textSize.isAccessibilitySize {
+                    WalkingDirectionsButton(selection: selection) {
+                        SwiftUI.Label("Walking directions", systemImage: "figure.walk")
+                    }
+                    Button(pinLabel, systemImage: pinSymbol) { store.togglePin(selection) }
+                        .accessibilityIdentifier(pinID)
                 }
-                Button(store.isPinned(selection) ? String(localized: "Unpin this direction") : String(localized: "Pin this direction"),
-                       systemImage: store.isPinned(selection) ? "pin.fill" : "pin") {
-                    store.togglePin(selection)
-                }.accessibilityIdentifier(store.isPinned(selection) ? "unpin-route" : "pin-route")
             }
         }
         .task(id: selection.id) { await store.refreshSelection(selection) }
+        .background { EdgeSwipeBack().frame(width: 0, height: 0) }
         #if DEBUG
         .overlay(alignment: .bottomLeading) { OpenedMapAppsMarker() }
         #endif
     }
 
-    private func map(width: CGFloat, walk: CachedWalk?, at date: Date) -> some View {
+    private var pinLabel: String {
+        store.isPinned(selection) ? String(localized: "Unpin this direction") : String(localized: "Pin this direction")
+    }
+    private var pinSymbol: String { store.isPinned(selection) ? "pin.fill" : "pin" }
+    private var pinID: String { store.isPinned(selection) ? "unpin-route" : "pin-route" }
+
+    /// `strip` points of the map lie under the status bar, above its square.
+    /// MapKit keeps the route inside the safe area, so inside the square.
+    private func map(width: CGFloat, strip: CGFloat = 0, walk: CachedWalk?, at date: Date) -> some View {
         RouteMapView(userCoordinate: store.walkingOrigin?.clLocationCoordinate2D,
                      stop: selection.stop, stopColor: StopPalette.modeColor(selection.line.type),
                      walkingRoute: walk?.route, line: selection.line,
                      originIsCurrentLocation: store.location?.isUsable(at: date) == true)
-            .frame(width: width, height: width)
+            .frame(width: width, height: width + strip)
             .accessibilityIdentifier("line-map")
+    }
+
+    /// Under the map, fixed above the list: back, the line and its direction
+    /// with the stop below them, then walk and pin (O22). Plain symbols in the
+    /// label colour with 44 pt targets, aligned with the title's first line.
+    private func controls(walk: CachedWalk?, at date: Date) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+            Button { dismiss() } label: { ControlSymbol(name: "chevron.backward") }
+                .accessibilityLabel(Text("Back"))
+                .accessibilityIdentifier("line-back")
+            heading(walk: walk, at: date)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.trailing, 4)
+            WalkingDirectionsButton(selection: selection) { ControlSymbol(name: "figure.walk") }
+            Button { store.togglePin(selection) } label: { ControlSymbol(name: pinSymbol) }
+                .accessibilityLabel(Text(pinLabel))
+                .accessibilityIdentifier(pinID)
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(Color.primary)
+        .padding(.horizontal, 4)
+        .padding(.top, 4)
+        .padding(.bottom, 8)
     }
 
     private func heading(walk: CachedWalk?, at date: Date) -> some View {
         VStack(alignment: .leading, spacing: 4) {
-            // The system title can truncate a long headsign and does not grow
-            // with Dynamic Type. Keep the full service visible in the content.
-            Text("\(selection.line.shortName) \(selection.line.direction)").font(.headline)
-                .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("detail-direction")
+            // The full service, wrapped and never truncated. At standard sizes
+            // this is the only place the line is named on screen.
+            Text(title).font(.headline)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityIdentifier("detail-direction")
             Text(stopSummary(walk: walk, at: date)).font(.subheadline)
                 .fixedSize(horizontal: false, vertical: true).accessibilityIdentifier("detail-stop-name")
         }.foregroundStyle(Color.primary)
@@ -169,6 +216,49 @@ struct LineDepartureContent {
         live = fresh && departure.realTime
         let delayMinutes = Int(max(0, departure.delay ?? 0) / 60)
         delay = live && delayMinutes >= 1 ? String(localized: "\(TransitFormat.minutes(delayMinutes)) late") : nil
+    }
+}
+
+/// UIKit stops the swipe from the left edge on a screen that hides its bar,
+/// and the line screen hides it at standard sizes (O22). While the line screen
+/// is shown this lets the swipe begin again; afterwards the gesture gets its
+/// own delegate back, so the root screen never starts a pop it cannot finish.
+struct EdgeSwipeBack: UIViewControllerRepresentable {
+    func makeUIViewController(context: Context) -> Controller { Controller() }
+    func updateUIViewController(_ controller: Controller, context: Context) {}
+
+    final class Controller: UIViewController, UIGestureRecognizerDelegate {
+        private weak var gesture: UIGestureRecognizer?
+        private weak var original: (any UIGestureRecognizerDelegate)?
+
+        override func viewDidAppear(_ animated: Bool) {
+            super.viewDidAppear(animated)
+            guard let pop = navigationController?.interactivePopGestureRecognizer, pop.delegate !== self else { return }
+            original = pop.delegate
+            gesture = pop
+            pop.delegate = self
+            pop.isEnabled = true
+        }
+
+        override func viewDidDisappear(_ animated: Bool) {
+            super.viewDidDisappear(animated)
+            if let gesture, gesture.delegate === self { gesture.delegate = original }
+        }
+
+        func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            (navigationController?.viewControllers.count ?? 0) > 1
+        }
+    }
+}
+
+/// A control under the line map: a plain symbol in a 44 pt target.
+struct ControlSymbol: View {
+    let name: String
+    var body: some View {
+        Image(systemName: name)
+            .font(.title3)
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
     }
 }
 
@@ -292,6 +382,8 @@ struct WalkingDirectionsButton<Label: View>: View {
                 Menu { choices } label: { label() }
             }
         }
+        // Apple Maps first, also when the menu opens upwards.
+        .menuOrder(.fixed)
         .accessibilityLabel(Text("Walking directions"))
         .accessibilityIdentifier("walking-directions")
         .onAppear(perform: refresh)

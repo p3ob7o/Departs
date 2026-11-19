@@ -382,6 +382,21 @@ final class MapLineBadge: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
 }
 
+/// How far a screen's map reaches above its square, under the status bar.
+/// Home (O18) and the line screen (O22) follow the same rule.
+enum MapStrip {
+    /// A status bar at least this tall has a Dynamic Island or a notch. Only
+    /// there does a map reach the top of the screen: iOS blurs a map under the
+    /// status bar by itself, and that strip is tall enough to keep the clock
+    /// clear. On the 20 pt bar of an iPhone SE the blur is too short, and map
+    /// labels would sit right behind the clock (A27).
+    static let tallStatusBar: CGFloat = 44
+
+    static func height(statusBar: CGFloat, accessibilitySize: Bool) -> CGFloat {
+        !accessibilitySize && statusBar >= tallStatusBar ? statusBar : 0
+    }
+}
+
 /// Reports size changes, so the fixed span is applied once the square has its size.
 final class HomeMapView: MKMapView {
     var onResize: (() -> Void)?

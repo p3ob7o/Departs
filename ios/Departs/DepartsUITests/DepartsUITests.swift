@@ -317,7 +317,7 @@ final class DepartsUITests: XCTestCase {
         XCTAssertEqual(directions.allElementsBoundByIndex.map(\.label), ["Subway U3 toward Wien Simmering", "Subway U3 toward Wien Ottakring"])
         directions.allElementsBoundByIndex.forEach { assertTarget($0) }
         XCTAssertTrue(both.isSelected)
-        XCTAssertEqual(app.navigationBars.count, 0, "Nothing opens before a direction is chosen")
+        XCTAssertFalse(lineMap.exists, "Nothing opens before a direction is chosen")
         // The choice carries no times: the list below has them.
         let frames = directions.allElementsBoundByIndex.map(\.frame)
         let shown = recognizedText(in: frames.dropFirst().reduce(frames[0]) { $0.union($1) })
@@ -328,14 +328,14 @@ final class DepartsUITests: XCTestCase {
         // Closed without a direction: nothing is selected, and nothing opened.
         dismissChoice()
         waitUntil { !both.isSelected }
-        XCTAssertEqual(app.navigationBars.count, 0)
+        XCTAssertFalse(lineMap.exists)
         // A direction opens that line.
         both.tap()
         XCTAssertTrue(directions.firstMatch.waitForExistence(timeout: 5))
         directions.matching(NSPredicate(format: "label CONTAINS 'Ottakring'")).firstMatch.tap()
         XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertTrue(app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS 'Ottakring'")).firstMatch.exists)
-        app.navigationBars.buttons.firstMatch.tap()
+        XCTAssertTrue(lineTitle.label.contains("Ottakring"), lineTitle.label)
+        goBack()
         // 48A runs one way from its stop: its badge opens the line, and a
         // label that is still selected answers the next tap too.
         let single = mapLabel("Bus 48A")
@@ -343,9 +343,9 @@ final class DepartsUITests: XCTestCase {
             XCTAssertTrue(single.waitForExistence(timeout: 5))
             single.tap()
             XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5), "Tap \(attempt) on the label opens its line")
-            XCTAssertTrue(app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS '48A'")).firstMatch.exists)
+            XCTAssertTrue(lineTitle.label.contains("48A"), lineTitle.label)
             XCTAssertFalse(directions.firstMatch.exists)
-            app.navigationBars.buttons.firstMatch.tap()
+            goBack()
         }
         XCTAssertTrue(single.waitForExistence(timeout: 5))
         XCTAssertTrue(single.isSelected, "The stop keeps its ring after its line was opened")
@@ -368,7 +368,7 @@ final class DepartsUITests: XCTestCase {
                        ["Tram 49 toward Wien Parlament/Volkstheater", "Tram 49 toward Wien Hütteldorf, Bujattigasse"])
         directions.matching(NSPredicate(format: "label CONTAINS 'Hütteldorf'")).firstMatch.tap()
         XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5), app.debugDescription)
-        XCTAssertTrue(app.navigationBars.matching(NSPredicate(format: "identifier CONTAINS 'Hütteldorf'")).firstMatch.exists)
+        XCTAssertTrue(lineTitle.label.contains("Hütteldorf"), lineTitle.label)
     }
 
     func testHomeMapIgnoresDragAndPinchAndLabelsStillWork() {
@@ -594,15 +594,39 @@ final class DepartsUITests: XCTestCase {
         launch(); waitForRows()
         rows.firstMatch.tap()
         waitUntil { self.server.individualCount == 1 && self.lineRows.count == 4 }
+        // The map has home's frame: the square under the status bar, and the
+        // strip above it on a tall status bar. No bar is drawn (O22).
+        XCTAssertEqual(app.navigationBars.count, 0, "At standard sizes the line screen has no bar")
         XCTAssertEqual(lineMap.frame.width, app.frame.width, accuracy: 1)
-        XCTAssertEqual(lineMap.frame.height, app.frame.width, accuracy: 1)
-        XCTAssertEqual(lineMap.frame.minY, app.navigationBars.firstMatch.frame.maxY, accuracy: 1)
-        XCTAssertEqual(app.navigationBars.count, 1, "The line screen keeps its bar")
-        XCTAssertTrue(app.navigationBars.firstMatch.buttons["Back"].exists, app.navigationBars.firstMatch.debugDescription)
-        XCTAssertTrue(app.descendants(matching: .any)["route-platform"].exists)
-        XCTAssertTrue(app.descendants(matching: .any)["route-origin"].exists)
+        XCTAssertEqual(lineMap.frame.maxY, topInset + app.frame.width, accuracy: 1, "The square sits under the status bar, as on home")
+        XCTAssertEqual(lineMap.frame.minY, reachesTop ? 0 : topInset, accuracy: 1)
+        // Under the map: back, the line and its direction, walk, pin.
+        let back = app.buttons["line-back"], walk = app.buttons["walking-directions"], pin = app.buttons["pin-route"]
+        let summary = app.staticTexts["detail-stop-name"]
+        for control in [back, walk, pin] {
+            assertTarget(control)
+            XCTAssertGreaterThanOrEqual(control.frame.minY, lineMap.frame.maxY - 0.5, "\(control)")
+        }
+        XCTAssertEqual(back.label, "Back")
+        XCTAssertLessThanOrEqual(back.frame.maxX, lineTitle.frame.minX + 0.5)
+        XCTAssertLessThanOrEqual(lineTitle.frame.maxX, walk.frame.minX + 0.5)
+        XCTAssertLessThanOrEqual(walk.frame.maxX, pin.frame.minX + 0.5)
+        XCTAssertEqual(back.frame.midY, lineTitle.frame.midY, accuracy: 3, "The buttons align with the title's line")
+        XCTAssertEqual(pin.frame.midY, back.frame.midY, accuracy: 0.5)
+        XCTAssertEqual(summary.frame.minX, lineTitle.frame.minX, accuracy: 0.5)
+        XCTAssertGreaterThanOrEqual(summary.frame.minY, lineTitle.frame.maxY - 0.5, "The stop sits under the line and direction")
+        XCTAssertGreaterThanOrEqual(lineList.frame.minY, summary.frame.maxY - 0.5, "The list starts below the controls")
+        XCTAssertEqual(app.staticTexts.matching(NSPredicate(format: "label == '13A Wien Skodagasse'")).count, 1, "The line is named once")
         XCTAssertEqual(app.staticTexts.matching(identifier: "detail-stop-name").count, 1)
-        XCTAssertEqual(app.staticTexts["detail-direction"].label, "13A Wien Skodagasse")
+        XCTAssertEqual(lineTitle.label, "13A Wien Skodagasse")
+        // MapKit keeps the route inside the square, clear of the status bar.
+        let square = CGRect(x: 0, y: topInset, width: app.frame.width, height: app.frame.width)
+        let platform = app.descendants(matching: .any)["route-platform"], start = app.descendants(matching: .any)["route-origin"]
+        XCTAssertTrue(platform.exists)
+        XCTAssertTrue(start.exists)
+        print("LINE square=\(square) platform=\(platform.frame) origin=\(start.frame) controls=\(back.frame) \(lineTitle.frame) \(walk.frame) \(pin.frame)")
+        XCTAssertTrue(square.contains(CGPoint(x: platform.frame.midX, y: platform.frame.midY)), "\(platform.frame)")
+        XCTAssertTrue(square.contains(CGPoint(x: start.frame.midX, y: start.frame.midY)), "\(start.frame)")
         let visible = lineRows.allElementsBoundByIndex.filter { lineList.frame.contains($0.frame) }
         print("LINE map=\(lineMap.frame) list=\(lineList.frame) visibleRows=\(visible.count) firstRow=\(lineRows.firstMatch.frame)")
         XCTAssertGreaterThanOrEqual(visible.count, 3)
@@ -631,6 +655,38 @@ final class DepartsUITests: XCTestCase {
         XCTAssertLessThan(rights.max()! - rights.min()!, 2, "Right-aligned: every countdown ends at one x")
         XCTAssertGreaterThan(lefts.max()! - lefts.min()!, 5, "A two-digit countdown starts further left")
         capture("Line countdown column")
+    }
+
+    func testLineScreenGoesBackWithItsButtonAndTheEdgeSwipe() {
+        launch(); waitForRows(); rows.firstMatch.tap()
+        let back = app.buttons["line-back"]
+        XCTAssertTrue(back.waitForExistence(timeout: 5))
+        back.tap()
+        XCTAssertTrue(lineMap.waitForNonExistence(timeout: 5), "The back button goes back")
+        XCTAssertTrue(homeMap.exists)
+        rows.firstMatch.tap()
+        XCTAssertTrue(lineMap.waitForExistence(timeout: 5))
+        waitUntil { self.lineRows.count == 4 }
+        // With the bar hidden, the swipe from the left edge still goes back.
+        // A drag across most of the width completes the pop on its progress;
+        // a short fast one can be cancelled by UIKit, as with a finger.
+        let y = (lineList.frame.minY + lineList.frame.maxY) / 2 / app.frame.height
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: y))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.95, dy: y)),
+                   withVelocity: 600, thenHoldForDuration: 0)
+        XCTAssertTrue(lineMap.waitForNonExistence(timeout: 5), "The edge swipe goes back: \(app.debugDescription)")
+        XCTAssertTrue(homeMap.exists)
+        // On home there is nothing to go back to: the swipe changes nothing,
+        // and home still answers a tap. It crosses the map, which takes no
+        // drag; a fast drag that starts on a row can open that row's line.
+        let homeY = (homeMap.frame.maxY - 30) / app.frame.height
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0, dy: homeY))
+            .press(forDuration: 0.05, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.85, dy: homeY)),
+                   withVelocity: .fast, thenHoldForDuration: 0)
+        XCTAssertTrue(homeMap.waitForExistence(timeout: 3))
+        XCTAssertFalse(lineMap.exists)
+        rows.firstMatch.tap()
+        XCTAssertTrue(lineMap.waitForExistence(timeout: 5), "Home still opens a line after a swipe at its edge")
     }
 
     func testLineFailedRefreshKeepsClockTimesAndRecoversInOneRequest() {
@@ -678,6 +734,10 @@ final class DepartsUITests: XCTestCase {
         rows.matching(NSPredicate(format: "label CONTAINS 'Skodagasse'")).firstMatch.tap()
         XCTAssertTrue(lineMap.waitForExistence(timeout: 5))
         XCTAssertEqual(lineMap.frame.height, app.frame.width, accuracy: 1)
+        // At accessibility sizes the bar stays, with back, walk and pin (A39).
+        XCTAssertEqual(app.navigationBars.count, 1)
+        XCTAssertFalse(app.buttons["line-back"].exists)
+        XCTAssertTrue(app.buttons["walking-directions"].exists)
         let initial = lineMap.frame.minY
         capture("Line accessibility map")
         let listOrigin = lineList.coordinate(withNormalizedOffset: .zero)
@@ -844,6 +904,15 @@ final class DepartsUITests: XCTestCase {
     private var lineRows: XCUIElementQuery { app.otherElements.matching(identifier: "line-departure") }
     private var lineList: XCUIElement { app.collectionViews["departure-detail"] }
     private var lineMap: XCUIElement { app.descendants(matching: .any).matching(identifier: "line-map").firstMatch }
+    /// The line and its direction, under the line map at standard sizes.
+    private var lineTitle: XCUIElement { app.staticTexts["detail-direction"] }
+    /// The line screen's back button sits under the map at standard sizes,
+    /// and in the bar at accessibility sizes.
+    private func goBack() {
+        let back = app.buttons["line-back"]
+        if back.exists { back.tap() } else { app.navigationBars.buttons.firstMatch.tap() }
+        XCTAssertTrue(lineMap.waitForNonExistence(timeout: 5))
+    }
     private func refreshLineByPull() {
         let calls = server.individualCount
         lineList.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.2))

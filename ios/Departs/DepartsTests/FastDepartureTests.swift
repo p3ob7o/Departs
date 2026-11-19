@@ -869,10 +869,10 @@ final class FastDepartureTests: XCTestCase {
     }
 
     func testHomeMapReachesTheTopOnlyOnATallStatusBarAtStandardTextSizes() {
-        XCTAssertEqual(NearbyStopsView.strip(statusBar: 62, accessibilitySize: false), 62, "Dynamic Island")
-        XCTAssertEqual(NearbyStopsView.strip(statusBar: 47, accessibilitySize: false), 47, "Notch")
-        XCTAssertEqual(NearbyStopsView.strip(statusBar: 20, accessibilitySize: false), 0, "An iPhone SE keeps the square alone")
-        XCTAssertEqual(NearbyStopsView.strip(statusBar: 62, accessibilitySize: true), 0,
+        XCTAssertEqual(MapStrip.height(statusBar: 62, accessibilitySize: false), 62, "Dynamic Island")
+        XCTAssertEqual(MapStrip.height(statusBar: 47, accessibilitySize: false), 47, "Notch")
+        XCTAssertEqual(MapStrip.height(statusBar: 20, accessibilitySize: false), 0, "An iPhone SE keeps the square alone")
+        XCTAssertEqual(MapStrip.height(statusBar: 62, accessibilitySize: true), 0,
                        "At accessibility sizes the map is a list row and scrolls away")
     }
 
@@ -893,6 +893,24 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertNil(map.hitTest(CGPoint(x: 160, y: strip / 2), with: nil), "Nothing under the status bar can be tapped")
         XCTAssertNil(map.hitTest(CGPoint(x: 160, y: strip - 1), with: nil))
         XCTAssertNotNil(map.hitTest(CGPoint(x: 160, y: strip + 1), with: nil), "The square below takes touches as before")
+    }
+
+    @MainActor func testLineMapTakesNoTouchUnderTheStatusBar() throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        let controller = UIViewController()
+        controller.additionalSafeAreaInsets.top = 30
+        window.rootViewController = controller
+        window.isHidden = false
+        defer { window.isHidden = true }
+        let map = RouteMapView.MapContainerView(mapView: MKMapView())
+        map.frame = CGRect(x: 0, y: 0, width: 320, height: 420)
+        controller.view.addSubview(map)
+        window.layoutIfNeeded()
+        let strip = map.safeAreaInsets.top
+        XCTAssertGreaterThanOrEqual(strip, 30, "The line map lies under the status bar")
+        XCTAssertNil(map.hitTest(CGPoint(x: 160, y: strip - 1), with: nil), "Nothing under the status bar can be touched (A26)")
+        XCTAssertNotNil(map.hitTest(CGPoint(x: 160, y: strip + 1), with: nil), "The square pans and zooms as before (A17)")
     }
 
     func testAMapBadgeStandsForItsLineInEveryDirection() {

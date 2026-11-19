@@ -126,6 +126,16 @@
         }
       }
     },
+    "Back": {
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Back"
+          }
+        }
+      }
+    },
     "Bus": {
       "localizations": {
         "en": {
