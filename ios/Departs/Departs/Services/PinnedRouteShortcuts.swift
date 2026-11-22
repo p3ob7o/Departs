@@ -32,12 +32,21 @@ struct PinnedRouteEntity: AppEntity {
 }
 
 struct PinnedRouteQuery: EntityQuery {
+    private let defaultsSuiteName: String?
+
+    init() { defaultsSuiteName = nil }
+    init(defaultsSuiteName: String) { self.defaultsSuiteName = defaultsSuiteName }
+
+    private var persistence: TransitPersistence {
+        TransitPersistence(defaults: defaultsSuiteName.flatMap(UserDefaults.init(suiteName:)))
+    }
+
     func entities(for identifiers: [String]) async throws -> [PinnedRouteEntity] {
-        TransitPersistence().loadPins().filter { identifiers.contains($0.id) }.map(PinnedRouteEntity.init)
+        persistence.loadPins().filter { identifiers.contains($0.id) }.map(PinnedRouteEntity.init)
     }
 
     func suggestedEntities() async throws -> [PinnedRouteEntity] {
-        TransitPersistence().loadPins().map(PinnedRouteEntity.init)
+        persistence.loadPins().map(PinnedRouteEntity.init)
     }
 }
 

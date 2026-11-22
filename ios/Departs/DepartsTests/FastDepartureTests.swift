@@ -21,8 +21,7 @@ final class FastDepartureTests: XCTestCase {
         .init(geometry: .init(type: "LineString", coordinates: [[16.34941, 48.20134], [16.35, 48.202]]),
               duration: seconds, distance: 220)
     }
-    private func persistence() -> TransitPersistence {
-        let suite = "departs.tests.\(UUID())"
+    private func persistence(suite: String = "departs.tests.\(UUID())") -> TransitPersistence {
         let defaults = UserDefaults(suiteName: suite)!
         addTeardownBlock { defaults.removePersistentDomain(forName: suite) }
         return .init(defaults: defaults)
@@ -665,6 +664,78 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertNil(relaunched.center)
         XCTAssertTrue(relaunched.displayedOptions.isEmpty)
         XCTAssertEqual(relaunched.pins.map(\.id), [pin.id])
+    }
+
+    @MainActor func testPinsElsewhereFollowTheAreaCentreAndKeepNearbyRows() async {
+        let disk = persistence()
+        let viennaNearby = stop().lineSelections[0]
+        let viennaElsewhere = StopLineSelection(stop: platform("vienna-outside-area", meters: 1_000), line: line, lineIndex: 0)
+        let newYork = Coordinate(lat: 40.7128, lon: -74.0060)
+        let newYorkElsewhere = StopLineSelection(
+            stop: .init(id: "nyc-outside-area", name: "New York", type: .bus, lines: [],
+                        location: .init(lat: 40.75, lon: -73.99), distance: nil),
+            line: line, lineIndex: 0)
+        disk.savePins([newYorkElsewhere, viennaElsewhere, viennaNearby])
+        let store = makeStore(persistence: disk)
+
+        XCTAssertNil(store.center)
+        XCTAssertEqual(store.distantPins.map(\.id), [newYorkElsewhere.id, viennaElsewhere.id, viennaNearby.id])
+
+        await store.loadArea(coordinate)
+        XCTAssertEqual(store.nearbyPins.map(\.id), [viennaNearby.id])
+        XCTAssertTrue(store.displayedOptions.contains(viennaNearby))
+        XCTAssertEqual(store.distantPins.map(\.id), [viennaElsewhere.id])
+        let restored = makeStore(persistence: disk)
+        XCTAssertEqual(restored.distantPins.map(\.id), [viennaElsewhere.id])
+
+        await store.loadArea(newYork)
+        XCTAssertTrue(store.nearbyPins.isEmpty)
+        XCTAssertEqual(store.distantPins.map(\.id), [newYorkElsewhere.id])
+
+        store.clearArea()
+        XCTAssertEqual(store.distantPins.map(\.id), [newYorkElsewhere.id, viennaElsewhere.id, viennaNearby.id])
+    }
+
+    @MainActor func testPinsElsewhereRespectThe50KilometreBoundary() async {
+        let origin = Coordinate(lat: 0, lon: 0)
+        let inside = NearbyStop(id: "inside", name: "Inside", type: .bus, lines: [],
+                                location: .init(lat: 0, lon: 0.44915), distance: nil)
+        let outside = NearbyStop(id: "outside", name: "Outside", type: .bus, lines: [],
+                                 location: .init(lat: 0, lon: 0.44917), distance: nil)
+        let invalid = NearbyStop(id: "invalid", name: "Invalid", type: .bus, lines: [],
+                                 location: .init(lat: 91, lon: 0), distance: nil)
+        XCTAssertGreaterThan(origin.distance(to: inside.location), 49_998)
+        XCTAssertLessThan(origin.distance(to: inside.location), 50_000)
+        XCTAssertGreaterThan(origin.distance(to: outside.location), 50_000)
+        XCTAssertLessThan(origin.distance(to: outside.location), 50_002)
+        let store = makeStore()
+        store.togglePin(.init(stop: inside, line: line, lineIndex: 0))
+        store.togglePin(.init(stop: outside, line: line, lineIndex: 0))
+        store.togglePin(.init(stop: invalid, line: line, lineIndex: 0))
+        XCTAssertEqual(store.distantPins.count, 3)
+
+        await store.loadArea(origin)
+        XCTAssertEqual(store.distantPins.map { $0.stop.id }, [inside.id])
+    }
+
+    @MainActor func testShortcutsOfferAndResolvePinsFromEveryCity() async throws {
+        let suite = "departs.tests.\(UUID())"
+        let disk = persistence(suite: suite)
+        let vienna = stop().lineSelections[0]
+        let newYork = StopLineSelection(
+            stop: .init(id: "nyc", name: "New York", type: .bus, lines: [],
+                        location: .init(lat: 40.7128, lon: -74.0060), distance: nil),
+            line: line, lineIndex: 0)
+        disk.savePins([vienna, newYork])
+        let store = makeStore(persistence: disk)
+        await store.loadArea(coordinate)
+        XCTAssertTrue(store.distantPins.isEmpty)
+
+        let query = PinnedRouteQuery(defaultsSuiteName: suite)
+        let suggested = try await query.suggestedEntities()
+        let resolved = try await query.entities(for: [newYork.id])
+        XCTAssertEqual(suggested.map(\.id), [vienna.id, newYork.id])
+        XCTAssertEqual(resolved.map(\.id), [newYork.id])
     }
 
     @MainActor func testConcurrentBoardLoadsCoalesceAndFreshDataIsReused() async {

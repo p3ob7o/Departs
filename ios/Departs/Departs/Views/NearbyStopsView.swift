@@ -155,7 +155,8 @@ struct NearbyStopsView: View {
     /// The same rule for pins: "Pinned elsewhere", when present, is the last line.
     @ViewBuilder private func pinnedSections(at date: Date) -> some View {
         let pins = store.nearbyPins
-        let elsewhere = !store.distantPins.isEmpty
+        let elsewhereCount = store.distantPins.count
+        let elsewhere = elsewhereCount > 0
         if !pins.isEmpty || elsewhere {
             let leading = elsewhere ? pins : Array(pins.dropLast())
             Section {
@@ -165,7 +166,7 @@ struct NearbyStopsView: View {
             Section {
                 if elsewhere {
                     Button(action: onDistantPins) {
-                        Label("Pinned elsewhere (\(store.distantPins.count))", systemImage: "pin")
+                        Label("Pinned elsewhere (\(elsewhereCount))", systemImage: "pin")
                             .frame(minHeight: 44)
                     }.foregroundStyle(.tint)
                 } else if let last = pins.last {

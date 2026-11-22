@@ -14,7 +14,7 @@ Rows show a mode badge, destination and a single primary time. Fresh times read 
 
 A stop's name stays at the top while its lines pass under it and leaves together with the last line, name first. Each stop is two list sections, the second holding only the last line, so the system pushes the name out as that line reaches it. A stop with one line does not stick, and a "Couldn't load this stop" row counts as the last line. The name sits on the list's background, hiding what passes under it. At standard sizes the list has no top edge effect, and the name is drawn as one layer, because iOS 26 otherwise lightens a pinned header's text.
 
-Pinned directions come first, in pin order, with their stop name. The "Pinned" name follows the same rule, with "Pinned elsewhere" as its last line when present. Nearby pinned services suppress automatic duplicates. An idle pin stays dimmed with "Nothing soon"; other idle services disappear. "Pinned elsewhere" opens pins outside this area. Pin by swipe, long press or the line screen's system pin button.
+Pinned directions at stops in the 400 m area come first, in pin order, with their stop name. The "Pinned" name follows the same rule, with "Pinned elsewhere" as its last line when present. Nearby pinned services suppress automatic duplicates. An idle pin stays dimmed with "Nothing soon"; other idle services disappear. "Pinned elsewhere (n)" opens the pins outside the area and within 50 km of its centre, inclusive. The count follows the sheet as the centre changes. With no centre the sheet shows all saved pins. The row is absent when the sheet would be empty. Pin by swipe, long press or the line screen's system pin button.
 
 ## Maps and the line screen
 
@@ -52,7 +52,7 @@ UserDefaults stores pins, the last nearby response, the published home snapshot,
 
 ## Shortcuts
 
-Pin a direction, then select it in Departs' **Open pinned route** action in Shortcuts. The action opens the line and refreshes it. Existing `departs://pin?id=<encoded saved identity>` links still work. Intent execution and URL navigation are tested; Siri speech and discovery in Shortcuts need a signed physical-device check.
+Pin a direction, then select it in Departs' **Open pinned route** action in Shortcuts. Shortcuts and existing links reach pins from any city. The action opens the line and refreshes it. Existing `departs://pin?id=<encoded saved identity>` links still work. Intent execution and URL navigation are tested; Siri speech and discovery in Shortcuts need a signed physical-device check.
 
 ## Verification and release
 

@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O17: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). Amended on 18 November by O18: see [Third amendment: the map under the status bar](#third-amendment-the-map-under-the-status-bar). Amended on 19 November by O19: see [Fourth amendment: a tap on a map label](#fourth-amendment-a-tap-on-a-map-label). Amended later on 19 November by O20–O23: see [Fifth amendment: the line screen's controls under its map](#fifth-amendment-the-line-screens-controls-under-its-map). |
+| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O17: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). Amended on 18 November by O18: see [Third amendment: the map under the status bar](#third-amendment-the-map-under-the-status-bar). Amended on 19 November by O19: see [Fourth amendment: a tap on a map label](#fourth-amendment-a-tap-on-a-map-label). Amended later on 19 November by O20–O23: see [Fifth amendment: the line screen's controls under its map](#fifth-amendment-the-line-screens-controls-under-its-map). Amended by O24: see [Sixth amendment: pins in the current city](#sixth-amendment-pins-in-the-current-city). |
 | Date | 16 November 2026 |
 | Based on | Departs 1.1 (6), `main` at `6430c94` |
 | Branch | `feat/ios-two-screens` |
@@ -59,7 +59,7 @@ These follow from the three decisions and were chosen while implementing them. P
 | ID | Question | Choice |
 | --- | --- | --- |
 | A10 | What stays in the top bar | The location button, as in the option Paolo picked. It asks for a new fix and brings a panned map back to the circle. The title is plain text |
-| A11 | What "pinned routes only" means for the last area | With location off the last area is forgotten, not refreshed. Pinned routes stay behind "Pinned elsewhere (n)". A pinned line opened then shows its stop without a walking origin |
+| A11 | What "pinned routes only" means for the last area | With location off the last area is forgotten, not refreshed. Every saved pin is reachable behind "Pinned elsewhere (n)", because there is no area centre (A44). A pinned line opened then shows its stop without a walking origin |
 | A12 | No usable fix: none within 8 seconds, an error, or accuracy worse than 100 m, which is what Precise Location off produces | Without a saved area: "Couldn't find your location. Check that Precise Location is on.", with "Try again" and "Open Settings". With a saved area the list stays, titled "Last area". Before, home waited on "Finding departures…" for a request that was never made |
 | A13 | Saved data from 1.2 (7) that describes a searched place or a wider radius | Discarded on first launch |
 | A14 | The backend | Unchanged. The app still sends `radius=400`. The endpoint keeps accepting 100 to 2000 m for installed builds |
@@ -185,6 +185,29 @@ Found while implementing:
 
 The sketches and the rules on the home map and the line screen below are updated.
 
+## Sixth amendment: pins in the current city
+
+The owner asked to see the pins for the city he is in.
+
+| ID | Decision |
+| --- | --- |
+| O24 | "I'd like for pinned stops to only appear at the top of the list when in the city where thy can be found. So that I can have pinned stops in NYC and in Vienna, but not see both at the same time." |
+
+These choices fill the gaps. The owner has yet to review them.
+
+| ID | Question | Choice | Review |
+| --- | --- | --- | --- |
+| A43 | What counts as the current city | Use the straight-line distance from the list's area centre to the saved stop. Include stops up to and including 50 km away. This includes suburbs and airports in range and avoids a network lookup or geocoder names that split a city by borough | Not reviewed |
+| A44 | Location off or no usable centre yet | List all saved pins behind "Pinned elsewhere (n)", in keeping with O12 when location is off. A saved area still supplies a centre while the app waits for a fix | Not reviewed |
+| A45 | Which pins get their own row | Only pins among the stops in the 400 m area get rows with times. Other pins in range go in the sheet. O24 could also be read as asking for rows with times for every pin in the city | Not reviewed |
+| A46 | The disclosure row | Keep "Pinned elsewhere (n)" and count only the pins in its sheet. Hide the row when the count is zero | Not reviewed |
+| A47 | Access to another city's pins | Shortcuts and existing `departs://pin` links still open any saved pin. The rider can unpin it from the line screen | Not reviewed |
+| A48 | Data and requests | Use coordinates already saved with each pin. Keep the saved format and compute the filter on the phone without extra requests | Not reviewed |
+| A49 | Changing cities | Recompute the count and sheet as soon as the list's area centre changes. The rider can keep the app open | Not reviewed |
+| A50 | A saved stop with invalid coordinates | Keep the pin saved and reachable, but omit it from the sheet when filtering by centre, since its distance is unknown | Not reviewed |
+
+Rules 27 to 30, A11 and states S9, S12 and S13 describe the resulting pin behavior.
+
 ## The two screens
 
 ### Home
@@ -296,11 +319,11 @@ The freshness rules in [ios-fast-answers.md](../ios-fast-answers.md) stay: a boa
 | S6 | The stops request failed on first load | The error and "Try again". Not "No stops in this area", and not "Checking departures…" |
 | S7 | No stop inside the radius | "No stops within 400 m". No other search is offered (O10, O11) |
 | S8 | Stops, but nothing within 60 minutes | "Nothing leaves here in the next hour". No other search is offered (O10) |
-| S9 | Location off | The explanation and "Open Settings". No departures, no map labels and no ring. Pinned routes stay reachable (O12, A11) |
+| S9 | Location off | The explanation and "Open Settings". No departures, no map labels and no ring. Every saved pin is reachable through "Pinned elsewhere (n)" (O12, A11, A44) |
 | S10 | Location denied, area chosen | Removed with place search (O11) |
 | S11 | The rider moves more than 150 m | The list returns to the top around the new position. The map has followed the rider all along (O13). A fix closer than 150 m reloads nothing (A15) |
-| S12 | No usable fix, nothing saved | "Couldn't find your location. Check that Precise Location is on.", with "Try again" and "Open Settings" (A12) |
-| S13 | No usable fix, an area saved | The saved rows, with their times updating, under one row: "Couldn't find your location · Try again" once the request has failed (A19). The map stands on the saved area. Walks are measured "from this area" |
+| S12 | No usable fix, nothing saved | "Couldn't find your location. Check that Precise Location is on.", with "Try again" and "Open Settings" (A12). With no centre, all saved pins are available through "Pinned elsewhere (n)" (A44) |
+| S13 | No usable fix, an area saved | The saved rows, with their times updating, under one row: "Couldn't find your location · Try again" once the request has failed (A19). The map stands on the saved area. Walks are measured "from this area". The saved centre also scopes "Pinned elsewhere" (A44) |
 
 "Try again", "Retry", "Refresh" and "Open Settings" are drawn as buttons, in the tint color with a symbol.
 
@@ -315,10 +338,10 @@ The freshness rules in [ios-fast-answers.md](../ios-fast-answers.md) stay: a boa
 
 ### Pins
 
-27. The "Pinned" section comes first, in pin order. A pinned row adds the stop name under the destination, because pinned rows come from different stops.
-28. A pinned line with nothing within 60 minutes stays, dimmed, and reads "Nothing soon" (O8).
-29. "Pinned elsewhere (n)" stays as the last row of that section.
-30. Pin with a swipe or a long press on a row, and with the button on the line screen. The first-run hint row goes (A6). Shortcuts and `departs://pin` links do not change.
+27. The "Pinned" section comes first. Pins at stops in the 400 m area have rows in pin order, with the stop name under the destination (A45).
+28. A pinned line in the area with nothing within 60 minutes stays, dimmed, and reads "Nothing soon" (O8).
+29. "Pinned elsewhere (n)" is the section's last row when its sheet has pins. The sheet lists pins outside the 400 m area's stops and within 50 km of the area centre, inclusive. With no centre it lists all pins. The count and sheet follow changes to the centre (O24, A43 to A46, A49, A50).
+30. Pin with a swipe or a long press on a row, and with the button on the line screen. The first-run hint row goes (A6). Shortcuts and `departs://pin` links reach every saved pin, including pins in other cities (A47).
 
 ### Text size
 
