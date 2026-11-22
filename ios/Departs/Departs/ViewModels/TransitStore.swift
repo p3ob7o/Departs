@@ -23,6 +23,8 @@ final class TransitStore {
     nonisolated static let refreshInterval: TimeInterval = 25
     /// Departs looks this far around the rider, in metres, and nowhere else.
     nonisolated static let radius = 400
+    /// Straight-line distance in metres for pins outside the nearby stops.
+    private static let distantPinRadius: Double = 50_000
 
     /// Where the rider was when the list on screen was built: the centre of
     /// its circle. There is no other way to choose a place.
@@ -81,8 +83,12 @@ final class TransitStore {
     var groups: [StopGroup] { home.groups }
     var nearbyPins: [StopLineSelection] { home.pins }
     var distantPins: [StopLineSelection] {
+        guard let center else { return pins }
         let ids = Set(stops.map(\.id))
-        return pins.filter { !ids.contains($0.stop.id) }
+        return pins.filter {
+            !ids.contains($0.stop.id) && $0.stop.location.isValid
+                && center.distance(to: $0.stop.location) <= Self.distantPinRadius
+        }
     }
     var displayedOptions: [StopLineSelection] { home.selections }
     var mapGroups: [StopGroup] {

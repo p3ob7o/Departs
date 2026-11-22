@@ -12,6 +12,7 @@ struct ContentView: View {
     private var demandKey: String { "\(scenePhase)-\(selected?.id ?? "")" }
 
     var body: some View {
+        let distantPins = store.distantPins
         NavigationStack {
             NearbyStopsView(
                 store: store, locationState: session.locationService.state,
@@ -23,7 +24,7 @@ struct ContentView: View {
         }
         .sheet(isPresented: $showsDistantPins) {
             NavigationStack {
-                List(store.distantPins) { selection in
+                List(distantPins) { selection in
                     Button {
                         showsDistantPins = false
                         select(selection)
@@ -36,6 +37,9 @@ struct ContentView: View {
                 .navigationTitle("Pinned elsewhere").navigationBarTitleDisplayMode(.inline)
                 .toolbar { Button("Done", systemImage: "checkmark") { showsDistantPins = false } }
             }
+        }
+        .onChange(of: distantPins.isEmpty) { _, empty in
+            if empty { showsDistantPins = false }
         }
         .onChange(of: session.locationService.state) { _, _ in session.receivedLocation() }
         .onChange(of: demandKey, initial: true) { _, _ in

@@ -570,6 +570,39 @@ final class DepartsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["unpin-route"].exists)
     }
 
+    func testPinnedElsewhereFollowsTheAreaAndKeepsThePinReachableByLink() {
+        launch(); waitForRows()
+        rows.firstMatch.swipeLeft()
+        app.buttons["pin-route"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Pinned"].waitForExistence(timeout: 5))
+        let elsewhere = app.buttons["Pinned elsewhere (1)"]
+        XCTAssertFalse(elsewhere.exists, "The nearby pin has its own row")
+
+        // Leave the fixture's stops behind, first within Vienna, then in New York.
+        server.setEmptyStops(true)
+        XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 48.22, longitude: 16.34941))
+        pullToRefresh(waitForRequest: false)
+        XCTAssertTrue(elsewhere.waitForExistence(timeout: 12))
+        XCTAssertEqual(rows.count, 0)
+        elsewhere.tap()
+        let pinned = app.buttons.matching(NSPredicate(format: "label CONTAINS '13A toward Wien Skodagasse'")).firstMatch
+        XCTAssertTrue(pinned.waitForExistence(timeout: 5))
+        app.buttons["Done"].tap()
+
+        XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 40.7128, longitude: -74.0060))
+        pullToRefresh(waitForRequest: false)
+        waitUntil(timeout: 12) { self.server.centers.last.map { abs($0.0 - 40.7128) < 0.0002 } == true }
+        XCTAssertTrue(elsewhere.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(app.staticTexts["Pinned"].exists)
+
+        let id = ["77704_312", "bus", "13A", "Wien Skodagasse"].map { "\($0.utf8.count):\($0)" }.joined()
+        var link = URLComponents(string: "departs://pin")!
+        link.queryItems = [.init(name: "id", value: id)]
+        app.open(link.url!)
+        XCTAssertTrue(app.buttons["unpin-route"].waitForExistence(timeout: 5))
+        XCTAssertEqual(app.staticTexts["detail-stop-name"].label, "Siebensterngasse")
+    }
+
     func testAccessibilityMapScrollsAwayAndRowsRemainReadable() {
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         launch(); waitForRows()
