@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O17: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). Amended on 18 November by O18: see [Third amendment: the map under the status bar](#third-amendment-the-map-under-the-status-bar). Amended on 19 November by O19: see [Fourth amendment: a tap on a map label](#fourth-amendment-a-tap-on-a-map-label). Amended later on 19 November by O20–O23: see [Fifth amendment: the line screen's controls under its map](#fifth-amendment-the-line-screens-controls-under-its-map). Amended by O24: see [Sixth amendment: pins in the current city](#sixth-amendment-pins-in-the-current-city). |
+| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O17: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). Amended on 18 November by O18: see [Third amendment: the map under the status bar](#third-amendment-the-map-under-the-status-bar). Amended on 19 November by O19: see [Fourth amendment: a tap on a map label](#fourth-amendment-a-tap-on-a-map-label). Amended later on 19 November by O20–O23: see [Fifth amendment: the line screen's controls under its map](#fifth-amendment-the-line-screens-controls-under-its-map). Amended on 22 November 2026 by O24: see [Sixth amendment: pins in the current city](#sixth-amendment-pins-in-the-current-city). |
 | Date | 16 November 2026 |
 | Based on | Departs 1.1 (6), `main` at `6430c94` |
 | Branch | `feat/ios-two-screens` |
@@ -187,7 +187,7 @@ The sketches and the rules on the home map and the line screen below are updated
 
 ## Sixth amendment: pins in the current city
 
-The owner asked to see the pins for the city he is in.
+On 22 November 2026, the owner asked to see the pins for the city he is in.
 
 | ID | Decision |
 | --- | --- |
@@ -205,6 +205,7 @@ These choices fill the gaps. The owner has yet to review them.
 | A48 | Data and requests | Use coordinates already saved with each pin. Keep the saved format and compute the filter on the phone without extra requests | Not reviewed |
 | A49 | Changing cities | Recompute the count and sheet as soon as the list's area centre changes. The rider can keep the app open | Not reviewed |
 | A50 | A saved stop with invalid coordinates | Keep the pin saved and reachable, but omit it from the sheet when filtering by centre, since its distance is unknown | Not reviewed |
+| A51 | The sheet becomes empty while it is open | Close it automatically | Not reviewed |
 
 Rules 27 to 30, A11 and states S9, S12 and S13 describe the resulting pin behavior.
 
@@ -340,7 +341,7 @@ The freshness rules in [ios-fast-answers.md](../ios-fast-answers.md) stay: a boa
 
 27. The "Pinned" section comes first. Pins at stops in the 400 m area have rows in pin order, with the stop name under the destination (A45).
 28. A pinned line in the area with nothing within 60 minutes stays, dimmed, and reads "Nothing soon" (O8).
-29. "Pinned elsewhere (n)" is the section's last row when its sheet has pins. The sheet lists pins outside the 400 m area's stops and within 50 km of the area centre, inclusive. With no centre it lists all pins. The count and sheet follow changes to the centre (O24, A43 to A46, A49, A50).
+29. "Pinned elsewhere (n)" is the section's last row when its sheet has pins. The sheet lists pins outside the 400 m area's stops and within 50 km of the area centre, inclusive. With no centre it lists all pins. The count and sheet follow changes to the centre. An open sheet closes if it runs out of pins (O24, A43 to A46, A49 to A51).
 30. Pin with a swipe or a long press on a row, and with the button on the line screen. The first-run hint row goes (A6). Shortcuts and `departs://pin` links reach every saved pin, including pins in other cities (A47).
 
 ### Text size
