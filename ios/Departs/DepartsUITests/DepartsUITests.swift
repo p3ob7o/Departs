@@ -945,31 +945,75 @@ final class DepartsUITests: XCTestCase {
         launch(); waitForRows(); rows.firstMatch.tap()
         XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
         // Maps plans a walk only with its own location permission. On a new
-        // simulator grant it first: xcrun simctl privacy <id> grant location com.apple.Maps.
+        // simulator run xcrun simctl bootstatus <id> -b, then grant it:
+        // xcrun simctl privacy <id> grant location com.apple.Maps.
         // Granting it through the prompt makes iOS ask about Maps widgets later,
         // on top of whichever test is running.
-        app.buttons["walking-directions"].tap()
         let maps = XCUIApplication(bundleIdentifier: "com.apple.Maps")
-        XCTAssertTrue(maps.wait(for: .runningForeground, timeout: 10))
-        // A new simulator shows Maps' own first-run sheets, in an order that varies.
-        for _ in 0..<4 {
-            let prompts = ["Continue", "Not Now"].map { maps.buttons[$0].firstMatch }
-            guard let prompt = prompts.first(where: { $0.waitForExistence(timeout: 1) }) else { break }
-            prompt.tap()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        // iOS 27.2 exposes two nested Contacts denial buttons. Resolve the first
+        // explicitly, including when the prompt interrupts a Maps button tap.
+        let contactsDenialID = "kTCCServiceAddressBook-deny-button"
+        let permissionMonitor = addUIInterruptionMonitor(withDescription: "Maps Contacts permission") { alert in
+            let deny = alert.buttons.matching(identifier: contactsDenialID).firstMatch
+            guard alert.label.contains("Maps"), deny.exists else { return false }
+            deny.tap()
+            return true
         }
-        // Maps 26 exposes a waypoint cell and a labeled segmented button;
-        // Maps 27 exposes the destination and mode as identified buttons.
-        let destination = maps.descendants(matching: .any).matching(NSPredicate(format:
+        defer { removeUIInterruptionMonitor(permissionMonitor) }
+        app.buttons["walking-directions"].tap()
+        XCTAssertTrue(maps.wait(for: .runningForeground, timeout: 10))
+
+        // The waypoint editor and compact route overview expose different names.
+        // Require the stop as a route destination, not merely a map/search label.
+        let waypoint = maps.descendants(matching: .any).matching(NSPredicate(format:
             "(identifier == 'IconImage-WaypointNameText' OR identifier == 'RoutePlanningWaypointCell') AND label == 'Siebensterngasse'")).firstMatch
-        XCTAssertTrue(destination.waitForExistence(timeout: 10), maps.debugDescription)
+        let overviewDestination = maps.otherElements["RoutePlanningContainerHeaderView"]
+            .staticTexts.matching(NSPredicate(format: "identifier == 'TitleLabel' AND label == 'To Siebensterngasse'")).firstMatch
         let walk = maps.buttons.matching(NSPredicate(format: "identifier == 'WalkButton' OR label == 'Walk'")).firstMatch
+
+        // First-run sheets can arrive after Maps reaches the foreground. Keep
+        // handling them while waiting for the route instead of giving up after
+        // a one-second gap. Each dismissed sheet starts the next transition's
+        // ten-second wait. A fresh iOS 27.0 simulator took 16 seconds to show
+        // its first sheet, so allow 30 seconds for that initial transition.
+        // Never reopen Maps or tap Departs' walk button again.
+        var transitionDeadline = Date().addingTimeInterval(30)
+        var dismissed = 0
+        while Date() < transitionDeadline {
+            let contacts = springboard.alerts.firstMatch
+            let deny = contacts.buttons.matching(identifier: contactsDenialID).firstMatch
+            let safety = maps.alerts["Getting There Safely"].buttons["OK"]
+            let prompt = ["Continue", "Not Now"].map { maps.buttons[$0].firstMatch }
+                .first { $0.exists && $0.isHittable }
+            let action: XCUIElement?
+            if contacts.exists && contacts.label.contains("Maps") && deny.exists { action = deny }
+            else if safety.exists { action = safety }
+            else { action = prompt }
+            if let action {
+                guard dismissed < 6 else { break }
+                action.tap()
+                dismissed += 1
+                transitionDeadline = Date().addingTimeInterval(10)
+            } else if waypoint.exists || overviewDestination.exists {
+                break
+            } else {
+                Thread.sleep(forTimeInterval: 0.2)
+            }
+        }
+        capture("Apple Maps walking destination")
+        let hierarchy = XCTAttachment(string: maps.debugDescription)
+        hierarchy.name = "Apple Maps route hierarchy"
+        hierarchy.lifetime = .keepAlways
+        add(hierarchy)
+        XCTAssertTrue(waypoint.exists || overviewDestination.exists, "Apple Maps must show Siebensterngasse as the route destination")
         XCTAssertTrue(walk.waitForExistence(timeout: 5))
         waitUntil { walk.frame.width > 0 }
         XCTAssertTrue(walk.isSelected, "Apple Maps must open in walking mode")
         let safety = maps.alerts["Getting There Safely"]
         if safety.waitForExistence(timeout: 2) { safety.buttons["OK"].tap() }
-        capture("Apple Maps walking destination")
-        print("APPLE_MAPS walkingSelected=\(walk.isSelected) destination=\(destination.label)")
+        capture("Apple Maps walking route after prompts")
+        print("APPLE_MAPS walkingSelected=\(walk.isSelected) destination=Siebensterngasse")
     }
 
     func testWalkButtonOffersMapAppsThenRemembersAndALongPressAsksAgain() {
