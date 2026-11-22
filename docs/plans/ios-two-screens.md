@@ -193,15 +193,15 @@ On 22 November 2026, the owner asked to see the pins for the city he is in.
 | --- | --- |
 | O24 | "I'd like for pinned stops to only appear at the top of the list when in the city where thy can be found. So that I can have pinned stops in NYC and in Vienna, but not see both at the same time." |
 
-These choices fill the gaps. The owner has yet to review them.
+These choices fill the gaps. On 22 November the owner was shown A43, A44, A45 and A47 as built and answered "ship", so they went out in 1.2 (13). He has not reviewed the others.
 
 | ID | Question | Choice | Review |
 | --- | --- | --- | --- |
-| A43 | What counts as the current city | Use the straight-line distance from the list's area centre to the saved stop. Include stops up to and including 50 km away. This includes suburbs and airports in range and avoids a network lookup or geocoder names that split a city by borough | Not reviewed |
-| A44 | Location off or no usable centre yet | List all saved pins behind "Pinned elsewhere (n)", in keeping with O12 when location is off. A saved area still supplies a centre while the app waits for a fix | Not reviewed |
-| A45 | Which pins get their own row | Only pins among the stops in the 400 m area get rows with times. Other pins in range go in the sheet. O24 could also be read as asking for rows with times for every pin in the city | Not reviewed |
+| A43 | What counts as the current city | Use the straight-line distance from the list's area centre to the saved stop. Include stops up to and including 50 km away. This includes suburbs and airports in range and avoids a network lookup or geocoder names that split a city by borough | Shown to the owner on 22 November, who answered "ship" |
+| A44 | Location off or no usable centre yet | List all saved pins behind "Pinned elsewhere (n)", in keeping with O12 when location is off. A saved area still supplies a centre while the app waits for a fix | Shown to the owner on 22 November, who answered "ship" |
+| A45 | Which pins get their own row | Only pins among the stops in the 400 m area get rows with times. Other pins in range go in the sheet. O24 could also be read as asking for rows with times for every pin in the city | Shown to the owner on 22 November, who answered "ship" |
 | A46 | The disclosure row | Keep "Pinned elsewhere (n)" and count only the pins in its sheet. Hide the row when the count is zero | Not reviewed |
-| A47 | Access to another city's pins | Shortcuts and existing `departs://pin` links still open any saved pin. The rider can unpin it from the line screen | Not reviewed |
+| A47 | Access to another city's pins | Shortcuts and existing `departs://pin` links still open any saved pin. The rider can unpin it from the line screen | Shown to the owner on 22 November, who answered "ship" |
 | A48 | Data and requests | Use coordinates already saved with each pin. Keep the saved format and compute the filter on the phone without extra requests | Not reviewed |
 | A49 | Changing cities | Recompute the count and sheet as soon as the list's area centre changes. The rider can keep the app open | Not reviewed |
 | A50 | A saved stop with invalid coordinates | Keep the pin saved and reachable, but omit it from the sheet when filtering by centre, since its distance is unknown | Not reviewed |
