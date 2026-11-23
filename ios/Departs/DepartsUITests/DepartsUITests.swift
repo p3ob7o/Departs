@@ -25,7 +25,12 @@ final class DepartsUITests: XCTestCase {
     override func tearDownWithError() throws {
         app.terminate()
         let maps = XCUIApplication(bundleIdentifier: "com.apple.Maps")
-        if maps.state != .notRunning { maps.terminate() }
+        if maps.state != .notRunning {
+            maps.terminate()
+            // A delayed system Contacts alert can outlive Maps, including after
+            // a failed assertion. Clear it before the next test launches.
+            dismissMapsContactsPrompt(timeout: 2)
+        }
         server.stop()
         XCUIDevice.shared.location = nil
     }
@@ -945,31 +950,86 @@ final class DepartsUITests: XCTestCase {
         launch(); waitForRows(); rows.firstMatch.tap()
         XCTAssertTrue(app.buttons["walking-directions"].waitForExistence(timeout: 5))
         // Maps plans a walk only with its own location permission. On a new
-        // simulator grant it first: xcrun simctl privacy <id> grant location com.apple.Maps.
+        // simulator run xcrun simctl bootstatus <id> -b, then grant it:
+        // xcrun simctl privacy <id> grant location com.apple.Maps.
         // Granting it through the prompt makes iOS ask about Maps widgets later,
         // on top of whichever test is running.
-        app.buttons["walking-directions"].tap()
         let maps = XCUIApplication(bundleIdentifier: "com.apple.Maps")
+        app.buttons["walking-directions"].tap()
         XCTAssertTrue(maps.wait(for: .runningForeground, timeout: 10))
-        // A new simulator shows Maps' own first-run sheets, in an order that varies.
-        for _ in 0..<4 {
-            let prompts = ["Continue", "Not Now"].map { maps.buttons[$0].firstMatch }
-            guard let prompt = prompts.first(where: { $0.waitForExistence(timeout: 1) }) else { break }
-            prompt.tap()
+
+        // Observed layouts: Maps 26 uses waypoint cells on both phones; Maps 27
+        // uses waypoint buttons on the larger phone. Rows are origin, destination.
+        // Maps 27 reuses the button identifier for its separate Add Stop action.
+        // On the small phone, Maps 27 uses a compact "To <stop>" title inside
+        // IOSRoutePlanningOverview; its narrower header is absent on Maps 27.2.
+        let route = maps.otherElements["IOSRoutePlanningOverview"].firstMatch
+        let waypointCells = route.cells.matching(identifier: "RoutePlanningWaypointCell")
+        let waypointButtons = route.buttons.matching(NSPredicate(format:
+            "identifier == 'IconImage-WaypointNameText' AND label != 'Add Stop'"))
+        let overviewDestination = route.staticTexts.matching(NSPredicate(format:
+            "identifier == 'TitleLabel' AND label == 'To Siebensterngasse'")).firstMatch
+        func matchedDestination() -> (label: String, layout: String)? {
+            if waypointCells.count == 2 {
+                let destination = waypointCells.element(boundBy: 1)
+                let label = destination.label
+                if label == "Siebensterngasse" { return (label, "waypoint-cell") }
+            }
+            if waypointButtons.count == 2 {
+                let destination = waypointButtons.element(boundBy: 1)
+                let label = destination.label
+                if label == "Siebensterngasse" { return (label, "waypoint-button") }
+            }
+            if overviewDestination.exists { return (overviewDestination.label, "compact-overview") }
+            return nil
         }
-        // Maps 26 exposes a waypoint cell and a labeled segmented button;
-        // Maps 27 exposes the destination and mode as identified buttons.
-        let destination = maps.descendants(matching: .any).matching(NSPredicate(format:
-            "(identifier == 'IconImage-WaypointNameText' OR identifier == 'RoutePlanningWaypointCell') AND label == 'Siebensterngasse'")).firstMatch
-        XCTAssertTrue(destination.waitForExistence(timeout: 10), maps.debugDescription)
         let walk = maps.buttons.matching(NSPredicate(format: "identifier == 'WalkButton' OR label == 'Walk'")).firstMatch
+
+        // First-run sheets can arrive after Maps reaches the foreground. Keep
+        // handling them while waiting for the route instead of giving up after
+        // a one-second gap. Each dismissed sheet starts the next transition's
+        // ten-second wait without shortening the existing deadline. A fresh
+        // iOS 27.2 simulator took 89 seconds to show its first sheet, so allow
+        // 120 seconds for that initial transition.
+        // Never reopen Maps or tap Departs' walk button again.
+        var transitionDeadline = Date().addingTimeInterval(120)
+        var dismissed = 0
+        while Date() < transitionDeadline {
+            if dismissMapsContactsPrompt() {
+                dismissed += 1
+                transitionDeadline = max(transitionDeadline, Date().addingTimeInterval(10))
+            } else if let prompt = ["Continue", "Not Now"].map({ maps.buttons[$0].firstMatch })
+                .first(where: { $0.exists && $0.isHittable }) {
+                prompt.tap()
+                dismissed += 1
+                transitionDeadline = max(transitionDeadline, Date().addingTimeInterval(10))
+            } else if matchedDestination() != nil {
+                break
+            } else {
+                Thread.sleep(forTimeInterval: 0.2)
+            }
+            if dismissed >= 6 { break }
+        }
+        // Check again after route readiness: a system prompt may arrive after
+        // the loop exits. tearDown also clears it if an assertion fails.
+        dismissMapsContactsPrompt(timeout: 2)
+        capture("Apple Maps walking destination")
+        let hierarchy = XCTAttachment(string: maps.debugDescription)
+        hierarchy.name = "Apple Maps route hierarchy"
+        hierarchy.lifetime = .keepAlways
+        add(hierarchy)
+        let destination = matchedDestination()
+        XCTAssertNotNil(destination, "Apple Maps must show Siebensterngasse as the route destination\n\(maps.debugDescription)")
         XCTAssertTrue(walk.waitForExistence(timeout: 5))
         waitUntil { walk.frame.width > 0 }
         XCTAssertTrue(walk.isSelected, "Apple Maps must open in walking mode")
         let safety = maps.alerts["Getting There Safely"]
         if safety.waitForExistence(timeout: 2) { safety.buttons["OK"].tap() }
-        capture("Apple Maps walking destination")
-        print("APPLE_MAPS walkingSelected=\(walk.isSelected) destination=\(destination.label)")
+        dismissMapsContactsPrompt(timeout: 2)
+        capture("Apple Maps walking route after prompts")
+        if let destination {
+            print("APPLE_MAPS walkingSelected=\(walk.isSelected) destination=\(destination.label) layout=\(destination.layout)")
+        }
     }
 
     func testWalkButtonOffersMapAppsThenRemembersAndALongPressAsksAgain() {
@@ -1240,6 +1300,16 @@ final class DepartsUITests: XCTestCase {
                    withVelocity: .slow, thenHoldForDuration: 0.5)
         if waitForRequest { waitUntil { self.server.batchCount > count } }
     }
+    @discardableResult
+    private func dismissMapsContactsPrompt(timeout: TimeInterval = 0) -> Bool {
+        let alert = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts
+            .matching(NSPredicate(format: "label CONTAINS 'Maps'")).firstMatch
+        // iOS 27.2 exposes two nested denial buttons with this identifier.
+        let deny = alert.buttons.matching(identifier: "kTCCServiceAddressBook-deny-button").firstMatch
+        guard timeout > 0 ? deny.waitForExistence(timeout: timeout) : deny.exists else { return false }
+        deny.tap()
+        return true
+    }
     private func launch(allowLocation: Bool = true) {
         app.launch()
         let alert = XCUIApplication(bundleIdentifier: "com.apple.springboard").alerts.firstMatch
@@ -1247,7 +1317,7 @@ final class DepartsUITests: XCTestCase {
         // location granted through simctl. Answer it and keep looking.
         for _ in 0..<2 where alert.waitForExistence(timeout: 5) {
             if alert.label.contains("widgets") || !alert.buttons["Allow While Using App"].exists {
-                alert.buttons["Don’t Allow"].tap()
+                alert.buttons["Don’t Allow"].firstMatch.tap()
                 continue
             }
             if allowLocation { alert.buttons["Allow While Using App"].tap() }
