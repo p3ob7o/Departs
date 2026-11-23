@@ -23,7 +23,7 @@ final class DepartsUITests: XCTestCase {
         app.resetAuthorizationStatus(for: .location)
     }
     override func tearDownWithError() throws {
-        app.terminate()
+        app?.terminate()
         let maps = XCUIApplication(bundleIdentifier: "com.apple.Maps")
         if maps.state != .notRunning {
             maps.terminate()
@@ -31,7 +31,15 @@ final class DepartsUITests: XCTestCase {
             // a failed assertion. Clear it before the next test launches.
             dismissMapsContactsPrompt(timeout: 2)
         }
-        server.stop()
+        if let server, let testRun, testRun.totalFailureCount > 0 {
+            let log = server.eventLog
+            print(log)
+            let attachment = XCTAttachment(string: log)
+            attachment.name = "Fixture server events — \(name)"
+            attachment.lifetime = .keepAlways
+            add(attachment)
+        }
+        server?.stop()
         XCUIDevice.shared.location = nil
     }
 
@@ -1357,6 +1365,20 @@ private final class TransitFixtureServer {
     private var firstBoardAt: Date?
     private var lineMinutes: [Double]?
     private var longDestination = false
+    private var events: [String] = []
+    private var nextConnectionID = 0
+
+    // All event bookkeeping runs on the same queue as the listener and connections.
+    var eventLog: String { queue.sync { events.joined(separator: "\n") } }
+    private func record(_ event: String) {
+        let timestamp = Date().ISO8601Format(.init(includingFractionalSeconds: true))
+        events.append("FIXTURE_SERVER_LOG \(timestamp) \(event.replacingOccurrences(of: "\n", with: "\\n"))")
+        if events.count > 200 { events.removeFirst(events.count - 200) }
+    }
+    private func cancel(_ connection: NWConnection, id: Int, reason: String) {
+        record("connection=\(id) cancel reason=\(reason)")
+        connection.cancel()
+    }
 
     var baseURL: String { "http://127.0.0.1:\(listener.port!.rawValue)" }
     var batchCount: Int { queue.sync { batches } }
@@ -1381,25 +1403,41 @@ private final class TransitFixtureServer {
     } }
     init() throws { listener = try NWListener(using: .tcp, on: .any) }
     func start(ready: @escaping () -> Void) {
-        listener.stateUpdateHandler = { state in if case .ready = state { ready() } }
+        listener.stateUpdateHandler = { [weak self] state in
+            self?.record("listener \(state)")
+            if case .ready = state { ready() }
+        }
         listener.newConnectionHandler = { [weak self] connection in
             guard let self else { return }
+            self.nextConnectionID += 1
+            let id = self.nextConnectionID
+            self.record("connection=\(id) accepted")
             connection.start(queue: self.queue)
-            self.receive(connection, buffer: Data())
+            self.receive(connection, id: id, buffer: Data())
         }
         listener.start(queue: queue)
     }
     func stop() { listener.cancel() }
-    private func receive(_ connection: NWConnection, buffer: Data) {
+    private func receive(_ connection: NWConnection, id: Int, buffer: Data) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 65_536) { [weak self] data, _, complete, error in
-            guard let self, error == nil else { connection.cancel(); return }
+            guard let self else { connection.cancel(); return }
+            if let error {
+                self.record("connection=\(id) ended before complete request bytes=\(buffer.count + (data?.count ?? 0)) error=\(error)")
+                self.cancel(connection, id: id, reason: "receive error")
+                return
+            }
             var bytes = buffer; bytes.append(data ?? Data())
             guard let request = String(data: bytes, encoding: .utf8), request.contains("\r\n\r\n") else {
-                if complete { connection.cancel() } else { self.receive(connection, buffer: bytes) }
+                if complete {
+                    self.record("connection=\(id) ended before complete request bytes=\(bytes.count) error=none (EOF)")
+                    self.cancel(connection, id: id, reason: "incomplete request")
+                } else { self.receive(connection, id: id, buffer: bytes) }
                 return
             }
             let path = request.components(separatedBy: " ").dropFirst().first ?? "/"
             let url = URLComponents(string: "http://localhost\(path)")!
+            let method = request.components(separatedBy: " ").first ?? "?"
+            self.record("connection=\(id) request method=\(method) path=\(url.percentEncodedPath) query=\(url.percentEncodedQuery ?? "")")
             let payload = self.response(to: url)
             let body = try! JSONSerialization.data(withJSONObject: payload)
             let failed = self.offline || self.stopsFailed && url.path == "/api/stops/nearby"
@@ -1407,7 +1445,14 @@ private final class TransitFixtureServer {
             let status = failed ? "503 Service Unavailable" : "200 OK"
             var response = Data("HTTP/1.1 \(status)\r\nContent-Type: application/json\r\nCache-Control: no-store\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n".utf8)
             response.append(body)
-            let send = { connection.send(content: response, completion: .contentProcessed { _ in connection.cancel() }) }
+            let send = { [weak self] in
+                self?.record("connection=\(id) response status=\(status) bytes=\(response.count) bodyBytes=\(body.count)")
+                connection.send(content: response, completion: .contentProcessed { [weak self] error in
+                    guard let self else { connection.cancel(); return }
+                    self.record("connection=\(id) send completed error=\(error.map { String(describing: $0) } ?? "none")")
+                    self.cancel(connection, id: id, reason: "send completed")
+                })
+            }
             if self.holding, url.queryItems?.contains(where: { $0.name == "stopIds" }) == true { self.heldResponses.append(send) }
             else { send() }
         }
