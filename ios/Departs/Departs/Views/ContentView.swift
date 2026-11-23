@@ -72,6 +72,38 @@ struct ContentView: View {
     }
 }
 
+/// The window, including its safe areas, decides which way the two panes run.
+/// Use available content height separately so that stacked lists always have room.
+struct TransitLayout {
+    let isPad: Bool
+    let sideBySide: Bool
+    let mapWidth: CGFloat
+    let stackedMapHeight: CGFloat
+
+    init(window: CGSize, available: CGSize, isPad: Bool) {
+        self.isPad = isPad
+        sideBySide = isPad && window.width > window.height && window.width >= 768
+        mapWidth = sideBySide ? available.width / 2 : available.width
+        stackedMapHeight = isPad ? min(available.width, available.height / 2) : available.width
+    }
+
+    var panes: AnyLayout {
+        sideBySide ? AnyLayout(HStackLayout(spacing: 0)) : AnyLayout(VStackLayout(spacing: 0))
+    }
+
+    func stripHeight(topInset: CGFloat, accessibility: Bool) -> CGFloat {
+        isPad ? 0 : MapStrip.height(statusBar: topInset, accessibilitySize: accessibility)
+    }
+}
+
+extension GeometryProxy {
+    var transitLayout: TransitLayout {
+        let window = CGSize(width: size.width + safeAreaInsets.leading + safeAreaInsets.trailing,
+                            height: size.height + safeAreaInsets.top + safeAreaInsets.bottom)
+        return TransitLayout(window: window, available: size, isPad: UIDevice.current.userInterfaceIdiom == .pad)
+    }
+}
+
 /// Cap text, not bars or the scroll container, so system controls and indicators
 /// remain attached to the pane edges as its width changes.
 struct ReadableList: ViewModifier {

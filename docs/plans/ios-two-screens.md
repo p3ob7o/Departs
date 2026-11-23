@@ -1,18 +1,18 @@
-# Two screens: map over list
+# Two screens: map and list
 
 | | |
 | --- | --- |
-| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O17: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). Amended on 18 November by O18: see [Third amendment: the map under the status bar](#third-amendment-the-map-under-the-status-bar). Amended on 19 November by O19: see [Fourth amendment: a tap on a map label](#fourth-amendment-a-tap-on-a-map-label). Amended later on 19 November by O20–O23: see [Fifth amendment: the line screen's controls under its map](#fifth-amendment-the-line-screens-controls-under-its-map). Amended on 22 November 2026 by O24: see [Sixth amendment: pins in the current city](#sixth-amendment-pins-in-the-current-city). |
+| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O17: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). Amended on 18 November by O18: see [Third amendment: the map under the status bar](#third-amendment-the-map-under-the-status-bar). Amended on 19 November by O19: see [Fourth amendment: a tap on a map label](#fourth-amendment-a-tap-on-a-map-label). Amended later on 19 November by O20–O23: see [Fifth amendment: the line screen's controls under its map](#fifth-amendment-the-line-screens-controls-under-its-map). Amended on 22 November 2026 by O24: see [Sixth amendment: pins in the current city](#sixth-amendment-pins-in-the-current-city). O25 and O26 extend both screens to iPad in the [seventh amendment](#seventh-amendment-ipad-windows). |
 | Date | 16 November 2026 |
 | Based on | Departs 1.1 (6), `main` at `6430c94` |
 | Branch | `feat/ios-two-screens` |
 | Replaces | The list, detail and map design in [ios-design-improvements.md](ios-design-improvements.md): its sections 1 to 5 and 7, and the split view and landscape work of its Phase 5 |
 | Keeps | That plan's accessibility repairs, string catalog, icon variants, mode colors, pins, and the 60-second freshness rule. Search with recent places was kept at first and removed by O11 |
-| Affects | The iPhone Duo and iPad plans (PRs #18 and #19). Both must be rewritten on top of this plan |
+| Affects | The iPhone Duo and iPad plans (PRs #18 and #19). The seventh amendment supersedes the older iPad proposal. The Duo remains deferred. |
 
 ## Summary
 
-The owner redefined the product on 16 November 2026. Departs shows which transport is available around you. It is not a complete timetable. The app becomes two screens with the same shape: a square map on top and a short list underneath.
+The owner redefined the product on 16 November 2026. Departs shows which transport is available around you. It is not a complete timetable. Both screens share a frame. iPhone has a square map above a short list. iPad stacks the map and list in tall or narrow windows and places them side by side in wide landscape windows.
 
 Departs 1.1 (6) was tested against the previous plan on the same day. It met that plan while every request succeeded and broke down when one failed. This plan fixes those findings or removes the screens they belonged to.
 
@@ -36,11 +36,11 @@ Paolo made these on 16 November 2026. They are settled.
 | O2 | A line appears once per direction, at the nearest stop where it leaves soon. It is not repeated at farther stops. |
 | O3 | Rows say less: badge, destination and "In N min". "Scheduled" and the calendar symbol go everywhere. Stop headers stay. |
 | O4 | Leave advice goes everywhere: "Leave in", "Leave now", "Too tight" and crossed-out times. People can count. |
-| O5 | Home is a square map on top with the list underneath. The layout is always vertical. |
+| O5 | Home is a square map on top with the list underneath. The layout is always vertical on iPhone. O25 and O26 extend this decision for iPad. |
 | O6 | Tapping a row opens the line screen: the walking route on a square map, and the next four departures of that line underneath. |
 | O7 | The home map has one label per stop, showing its line numbers. Tapping it opens the line when the stop has one row. Otherwise it scrolls the list to that stop. This is a trial. The trial ended on 19 November: O19 replaces the second half. |
 | O8 | Pins stay for now. A pinned line with nothing soon is still shown, dimmed. The owner is undecided about pins as a whole. |
-| O9 | iPhone Duo and iPad will put map and list side by side, later. |
+| O9 | iPhone Duo and iPad will put map and list side by side, later. O26 now defines this layout for iPad. The Duo remains deferred. |
 
 Where this plan fills a gap the owner did not decide, it says so and lists the choice under [Accepted choices](#accepted-choices) as A1 to A9.
 
@@ -209,7 +209,40 @@ These choices fill the gaps. On 22 November the owner was shown A43, A44, A45 an
 
 Rules 27 to 30, A11 and states S9, S12 and S13 describe the resulting pin behavior.
 
+## Seventh amendment: iPad windows
+
+On 23 November 2026 Paolo asked to adapt both screens to iPad.
+
+| ID | Decision |
+| --- | --- |
+| O25 | In portrait orientation, it should be like iPhone, but use the whole screen optimally. |
+| O26 | In landscape orientation, the map should take the entire left half, and the lists the entire right half. |
+
+| ID | Question | Choice | Review |
+| --- | --- | --- | --- |
+| A52 | Stacked map height | Use the whole width and half the available height, capped at the width. This leaves at least half the content area for controls and departures. | Not reviewed |
+| A53 | Which iPad windows split | Split a window that is wider than tall and at least 768 pt wide. Both halves are equal, giving the controls at least 384 pt. Square, tall and narrower windows stack. Upside-down portrait follows the same rule as portrait. | Not reviewed |
+| A54 | What the maps show | On home MapKit fits the same 960 m square around the rider and shows more along the longer dimension. The route map fits the walking route and its endpoints on resize and remains pannable. | Not reviewed |
+| A55 | System bars | Stacked iPad maps start below the status bar. The split map fills the left edge from top to bottom, behind system chrome. The list and controls respect their safe area. | Not reviewed |
+| A56 | Line controls in the split | Put the existing back, line title, stop, walk and pin at the top of the right pane, immediately above the departures. | Not reviewed |
+| A57 | Opening a line | Keep the system navigation push and interactive back gesture. Both destination screens use the same map frame. Rotation keeps the open line. | Not reviewed |
+| A58 | Accessibility text | In a stack the map scrolls away with the rows and the line screen keeps its system bar. In a split the map stays in the left pane. On the right the actions stay at the top with symbols capped at the largest standard size inside their 44 pt targets. The enlarged title, stop and departures scroll together. | Not reviewed |
+| A59 | Pointer and keyboard | Use the existing native buttons, menus, list scrolling and system keyboard accessibility. Keep the visible Back action. No additional shortcuts. | Not reviewed |
+
 ## The two screens
+
+The following sketches show the stacked layout. On iPad its map uses A52 and starts below the status bar. Both iPad landscape screens divide at the window midpoint:
+
+```
+Home                              Line
+┌──────────────┬──────────────┐   ┌──────────────┬──────────────┐
+│              │ Stop · walk  │   │              │ ‹ Line  🚶 ⚑ │
+│ Stops around │ Line  2 min  │   │ Walking map  │   Stop · walk│
+│ the rider    │ Line  3 min  │   │ and platform │  2 min 12:58 │
+│              │ Next stop    │   │              │  6 min 13:02 │
+└──────────────┴──────────────┘   └──────────────┴──────────────┘
+```
+
 
 ### Home
 
@@ -299,7 +332,7 @@ The sample, with these rules applied:
 
 ### Home map
 
-16. The map is a square as wide as the screen. Home has no bar, so the square's top edge is the bottom of the status bar (O13). Where the status bar is at least 44 pt tall the map continues above the square to the top of the screen: iOS blurs it there, nothing there takes a touch, and the square shows what it showed without it (O18, A26, A27). It shows the user's location and one label per stop that has at least one row, pinned rows included. The map is always centred on the rider and spans 960 m, so the 400 m radius reaches to the width ÷ 2.4 from the centre. Between the app's fixes it follows MapKit's live location (A20). It cannot be panned or zoomed (A17). No ring marks the radius (O23, A42); until 19 November one was drawn around the map's centre (A18).
+16. On iPad the map occupies the frame in A52–A55. On iPhone the map is a square as wide as the screen. Home has no bar, so the square's top edge is the bottom of the status bar (O13). Where the status bar is at least 44 pt tall the map continues above the square to the top of the screen: iOS blurs it there, nothing there takes a touch, and the square shows what it showed without it (O18, A26, A27). It shows the user's location and one label per stop that has at least one row, pinned rows included. The map is always centred on the rider. Its shorter usable dimension spans 960 m, leaving room around the 400 m search radius. Between the app's fixes it follows MapKit's live location (A20). It cannot be panned or zoomed (A17). No ring marks the radius (O23, A42); until 19 November one was drawn around the map's centre (A18).
 17. A label holds the line numbers of that stop's rows, in list order, each drawn as the list badge. It shows up to three, then "+N".
 18. Tapping a label follows O19. Each badge is its line: with one direction from this stop it opens that line, and with several it offers them at the badge, without times. "+N" offers the lines that have no badge (A28). Every tap counts, also on a label that is already selected. The ring marks the stop whose choice is open or whose line was opened last (A30).
 19. The list never waits for the map. Rows appear even when map tiles fail to load.
@@ -330,8 +363,8 @@ The freshness rules in [ios-fast-answers.md](../ios-fast-answers.md) stay: a boa
 
 ### Line screen
 
-21. At standard text sizes the line screen has no bar (O22). Under the map, fixed above the list: the back button, spoken "Back", the line and its full destination, then the walk and pin buttons (A38). The swipe from the left edge goes back, over the map as over the list (A41). The walk button opens Apple Maps; with Google Maps installed its first tap offers both, a tap then opens the one used last, and a long press offers the choice again (O21, A35 to A37). At accessibility sizes the bar keeps back, walk and pin, as before (A39).
-22. At standard text sizes the map has home's frame: a square under the status bar, and above it the strip under a status bar at least 44 pt tall, blurred by iOS (O22, A27). The strip takes no touch (A40); the square pans and zooms (A17). The map shows the walking route from the walking origin to the platform, the stop label and the user's location, inside the square. Without a route it shows both points. At accessibility sizes it is a square that scrolls away with the list.
+21. In an iPad split the controls lead the right pane (A56, A58). At standard text sizes the line screen has no bar (O22). In a stack, under the map and fixed above the list: the back button, spoken "Back", the line and its full destination, then the walk and pin buttons (A38). The swipe from the left edge goes back, over the map as over the list (A41). The walk button opens Apple Maps; with Google Maps installed its first tap offers both, a tap then opens the one used last, and a long press offers the choice again (O21, A35 to A37). At accessibility sizes the stacked layout keeps back, walk and pin in the bar (A39). The split keeps them in the right pane (A58).
+22. Both screens use the same iPad frame (A52–A55). On iPhone at standard text sizes the map has home's frame: a square under the status bar, and above it the strip under a status bar at least 44 pt tall, blurred by iOS (O22, A27). The strip takes no touch (A40); the square pans and zooms (A17). The map shows the walking route from the walking origin to the platform, the stop label and the user's location, inside the square. Without a route it shows both points. At accessibility sizes a stacked map scrolls away with the list. A split map stays beside it.
 23. The stop is named once, with walking time and distance, directly under the line and its direction. It runs from the title's leading edge to the list's margin, under walk and pin, and wraps only after a "·" (A38). Without a usable location it says "from this area", as today.
 24. Up to four departures follow. Each shows "N min" and the clock time (A22). The countdowns sit right-aligned in one column, as wide as the widest of them (O20, A34). Each divider starts at the row's leading edge. Beyond 60 minutes it shows the clock time only. A live departure carries the live symbol, and "N min late" from one minute of delay. A scheduled departure carries nothing (A8).
 25. Nothing is crossed out or greyed. There is no advice card and no "Other lines at this stop".
@@ -347,7 +380,7 @@ The freshness rules in [ios-fast-answers.md](../ios-fast-answers.md) stay: a boa
 ### Text size
 
 31. Up to the largest standard size, the map is fixed and the list scrolls under it.
-32. At accessibility sizes the map is the square alone (A25). It stays on top and scrolls away with the list (A2). With the list at the top it starts under the status bar. Text scrolled under the status bar is faded by the system's scroll edge effect, so the status bar stays readable. On a 667-pt display the list area is 272 pt since O13, and at the largest size a stop header alone measured 137 pt.
+32. In an iPad split the map stays beside the scrolling list (A58). On a stacked iPad its height follows A52. On iPhone at accessibility sizes the map is the square alone (A25). It stays on top and scrolls away with the list (A2). With the list at the top it starts under the status bar. Text scrolled under the status bar is faded by the system's scroll edge effect, so the status bar stays readable. On a 667-pt display the list area is 272 pt since O13, and at the largest size a stop header alone measured 137 pt.
 
 ### Accessibility
 
@@ -508,7 +541,7 @@ These filled gaps in the owner's initial decisions. Paolo reviewed A1–A9 on 16
 
 | ID | Question | This plan's choice |
 | --- | --- | --- |
-| A1 | Landscape on iPhone | Portrait only. A square map as wide as a landscape screen leaves no room for the list |
+| A1 | Landscape on iPhone | Portrait only on iPhone. iPad supports all four orientations (O25, O26). A square map as wide as a landscape screen leaves no room for the list |
 | A2 | The square map at accessibility text sizes | It stays square and on top, and scrolls away with the list. Fixed, it would leave less than one row on a 667-pt display |
 | A3 | The line "Within 400 m · Updated just now" | Removed while data is fresh. The map draws the radius. A banner appears only for saved or failed data |
 | A4 | What "once per direction" means when a line has more than two destinations nearby | Rule 5: all destinations at the nearest stop, one more from the next stop if the nearest has only one, never more than two stops |
@@ -533,7 +566,7 @@ These filled gaps in the owner's initial decisions. Paolo reviewed A1–A9 on 16
 
 ## Out of scope
 
-Widgets, Live Activities, notifications, accounts, journey planning, German, the iPhone Duo and iPad layouts, searching by moving the map, and any backend change beyond Phase 0.
+Widgets, Live Activities, notifications, accounts, journey planning, German, the iPhone Duo layout, searching by moving the map, and any backend change beyond Phase 0.
 
 ## How this will be verified
 

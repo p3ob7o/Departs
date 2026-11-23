@@ -66,17 +66,18 @@ struct NearbyStopsView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let strip = MapStrip.height(statusBar: geometry.safeAreaInsets.top, accessibilitySize: textSize.isAccessibilitySize)
+            let layout = geometry.transitLayout
+            let strip = layout.stripHeight(topInset: geometry.safeAreaInsets.top, accessibility: textSize.isAccessibilitySize)
             ScrollViewReader { proxy in
                 TimelineView(.periodic(from: countdownStart, by: 15)) { timeline in
                     let date = max(timeline.date, Date.now)
-                    VStack(spacing: 0) {
-                        // Home has no bar. The square sits under the status bar,
-                        // and on a tall status bar the map continues above it.
-                        if !textSize.isAccessibilitySize {
-                            map(width: geometry.size.width, strip: strip, at: date)
+                    let scrollMap = textSize.isAccessibilitySize && !layout.sideBySide
+                    layout.panes {
+                        if !scrollMap {
+                            map(width: layout.mapWidth, height: layout.sideBySide ? nil : layout.stackedMapHeight + strip, at: date)
+                                .ignoresSafeArea(.container, edges: layout.sideBySide ? .vertical : [])
                         }
-                        list(width: geometry.size.width, at: date)
+                        list(layout: layout, scrollMap: scrollMap, at: date)
                     }
                     .ignoresSafeArea(.container, edges: strip > 0 ? .top : [])
                 }
@@ -96,10 +97,10 @@ struct NearbyStopsView: View {
         .toolbarVisibility(.hidden, for: .navigationBar)
     }
 
-    private func list(width: CGFloat, at date: Date) -> some View {
+    private func list(layout: TransitLayout, scrollMap: Bool, at date: Date) -> some View {
         List {
-            if textSize.isAccessibilitySize {
-                map(width: width, at: date)
+            if scrollMap {
+                map(width: layout.mapWidth, height: layout.stackedMapHeight, at: date)
                     .listRowInsets(EdgeInsets()).listRowSeparator(.hidden).id("home-top")
             } else {
                 Color.clear.frame(height: 1).listRowInsets(EdgeInsets())
@@ -194,16 +195,14 @@ struct NearbyStopsView: View {
         .id(group.id)
     }
 
-    /// The square, plus `strip` points above it when the map reaches the top of
-    /// the screen. MapKit keeps its centre and span inside the safe area, so the
-    /// square shows what it showed without the strip.
-    private func map(width: CGFloat, strip: CGFloat = 0, at date: Date) -> some View {
+    /// A nil height fills the left pane. MapKit fits the search area in the usable frame.
+    private func map(width: CGFloat, height: CGFloat?, at date: Date) -> some View {
         let usable = store.location.flatMap { $0.isUsable(at: date) ? $0.coordinate : nil }
         return StopsMapView(fallbackCenter: (usable ?? store.center)?.clLocationCoordinate2D,
                             followsLiveLocation: usable != nil, groups: store.mapGroups,
                             selectedStopID: selectedMapStop, onSelect: { selectedMapStop = $0 },
                             onTap: { stop, part, frame in tappedLabel(stop, part, at: frame) })
-        .frame(width: width, height: width + strip)
+        .frame(width: width, height: height)
         .popover(item: $mapChoice, attachmentAnchor: .rect(.rect(mapChoiceAnchor)), arrowEdge: .top) { choice in
             MapDirections(rows: choice.rows, direction: { displayDirection($0) }) { selection in
                 pickedDirection = true

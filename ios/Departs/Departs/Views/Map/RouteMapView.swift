@@ -85,6 +85,7 @@ struct RouteMapView: UIViewRepresentable {
         let regionKey = "\(origin)|\(stop.location.lat),\(stop.location.lon)|\(routeKey)"
         if context.coordinator.regionKey != regionKey {
             context.coordinator.regionKey = regionKey
+            container.fittedRegion = region
             container.targetRegion = region
             if map.bounds.size.width > 0 {
                 container.targetRegion = nil
@@ -104,6 +105,7 @@ struct RouteMapView: UIViewRepresentable {
     /// (unlike delegate callbacks during NavigationStack transitions).
     final class MapContainerView: UIView {
         let mapView: MKMapView
+        var fittedRegion: MKCoordinateRegion?
         var targetRegion: MKCoordinateRegion?
 
         init(mapView: MKMapView) {
@@ -122,6 +124,9 @@ struct RouteMapView: UIViewRepresentable {
 
         override func layoutSubviews() {
             super.layoutSubviews()
+            if traitCollection.userInterfaceIdiom == .pad, mapView.bounds.size != bounds.size {
+                targetRegion = fittedRegion
+            }
             mapView.frame = bounds
             if let region = targetRegion, bounds.width > 0, bounds.height > 0 {
                 targetRegion = nil
