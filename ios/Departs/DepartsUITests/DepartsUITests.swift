@@ -958,11 +958,11 @@ final class DepartsUITests: XCTestCase {
         app.buttons["walking-directions"].tap()
         XCTAssertTrue(maps.wait(for: .runningForeground, timeout: 10))
 
-        // Maps 26 uses waypoint cells; Maps 27 uses waypoint buttons. This
-        // hand-off has two ordered waypoint rows: origin, then destination.
+        // Observed layouts: Maps 26 uses waypoint cells on both phones; Maps 27
+        // uses waypoint buttons on the larger phone. Rows are origin, destination.
         // Maps 27 reuses the button identifier for its separate Add Stop action.
-        // The compact layout uses a title inside IOSRoutePlanningOverview on
-        // all three runtimes; its narrower header is absent on Maps 27.2.
+        // On the small phone, Maps 27 uses a compact "To <stop>" title inside
+        // IOSRoutePlanningOverview; its narrower header is absent on Maps 27.2.
         let route = maps.otherElements["IOSRoutePlanningOverview"].firstMatch
         let waypointCells = route.cells.matching(identifier: "RoutePlanningWaypointCell")
         let waypointButtons = route.buttons.matching(NSPredicate(format:
