@@ -68,6 +68,8 @@ The UI suite uses a local HTTP fixture server, simulated location and isolated p
 
 On a new simulator, grant Apple Maps its own location permission before the UI suite: `xcrun simctl privacy <SIMULATOR_UUID> grant location com.apple.Maps`. The walking-directions test needs Maps to plan a route. With Xcode 27.3, iOS still asked about Maps widgets on the first launch of the app, so the suite's launcher answers that prompt.
 
+Wait for a new simulator's first boot before testing: `xcrun simctl bootstatus <SIMULATOR_UUID> -b`. The walking-directions test can wait up to 120 seconds for Maps' first-run sheet there. Release checks run on iPhone 17 Pro with iOS 27.0 and 27.2 and on iPhone SE (3rd generation) with iOS 27.0. Since 23 November 2026 the owner no longer requires a run on iOS 26, which remains the minimum OS.
+
 Use iOS 26.2 for dark-mode checks. With Xcode 27.3 neither `XCUIDevice.shared.appearance` nor `simctl ui` turned the app dark under XCTest; the 18 November checks used a scratch copy with `preferredColorScheme(.dark)`. Pseudolocalization copies the project outside Git and adds an expanded German test catalog there only. No German ships. See the [Phase 3 validation](plans/ios-two-screens-phase-3-validation.md) for commands, measured results and T1–T17 coverage, plus the [Phase 0 provider checks](plans/ios-two-screens-phase-0-validation.md).
 
 Backend PRs #26 and #27 reached `main` and production before the new native client. Remaining phase PRs must each reach `main` in order; retarget the next to `main` after its base merges. Version 1.2 preparation and TestFlight distribution require a separate owner request. Simulator fixtures do not establish realtime coverage, mobile-data startup time, VoiceOver speech, haptics or GPS behavior.
