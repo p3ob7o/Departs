@@ -12,7 +12,7 @@
 
 ## Summary
 
-The owner redefined the product on 16 November 2026. Departs shows which transport is available around you. It is not a complete timetable. Both screens share a frame. iPhone has a square map above a short list. iPad stacks the map and list in tall or narrow windows and places them side by side in wide landscape windows.
+The owner redefined the product on 16 November 2026. Departs shows which transport is available around you. It is not a complete timetable. Both screens share a layout. iPhone has a square map above a short list. iPad stacks the map and list in tall or narrow windows and places them side by side in wide landscape windows.
 
 Departs 1.1 (6) was tested against the previous plan on the same day. It met that plan while every request succeeded and broke down when one failed. This plan fixes those findings or removes the screens they belonged to.
 
@@ -220,14 +220,19 @@ On 23 November 2026 Paolo asked to adapt both screens to iPad.
 
 | ID | Question | Choice | Review |
 | --- | --- | --- | --- |
-| A52 | Stacked map height | Use the whole width and half the available height, capped at the width. This leaves at least half the content area for controls and departures. | Not reviewed |
+| A52 | Stacked map height | Use the whole width and half the available height, capped at the width. This leaves at least half the content area for controls and departures. A60 reserves room for two departures in a short window. | Not reviewed |
 | A53 | Which iPad windows split | Split a window that is wider than tall and at least 768 pt wide. Both halves are equal, giving the controls at least 384 pt. Square, tall and narrower windows stack. Upside-down portrait follows the same rule as portrait. | Not reviewed |
 | A54 | What the maps show | On home MapKit fits the same 960 m square around the rider and shows more along the longer dimension. The route map fits the walking route and its endpoints on resize and remains pannable. | Not reviewed |
 | A55 | System bars | Stacked iPad maps start below the status bar. The split map fills the left edge from top to bottom, behind system chrome. The list and controls respect their safe area. | Not reviewed |
 | A56 | Line controls in the split | Put the existing back, line title, stop, walk and pin at the top of the right pane, immediately above the departures. | Not reviewed |
-| A57 | Opening a line | Keep the system navigation push and interactive back gesture. Both destination screens use the same map frame. Rotation keeps the open line. | Not reviewed |
+| A57 | Opening a line | Keep the system navigation push and interactive back gesture. Both screens normally use the same map frame. A60 makes room for departures in a short window. Rotation keeps the open line. | Not reviewed |
 | A58 | Accessibility text | In a stack the map scrolls away with the rows and the line screen keeps its system bar. In a split the map stays in the left pane. On the right the actions stay at the top with symbols capped at the largest standard size inside their 44 pt targets. The enlarged title, stop and departures scroll together. | Not reviewed |
 | A59 | Pointer and keyboard | Use the existing native buttons, menus, list scrolling and system keyboard accessibility. Keep the visible Back action. No additional shortcuts. | Not reviewed |
+| A60 | Long titles in short stacked iPad windows | Reduce the line map below its usual height when the measured controls would leave fewer than two 44 pt departure rows. Keep the full title and actions visible. | Not reviewed |
+
+Paolo can compare the recommended [half-height map](../screenshots/ipad-layout/pro-portrait-home.jpg) with the [two-thirds-height alternative](../screenshots/ipad-layout/alternate-portrait-home.jpg), and the [line header](../screenshots/ipad-layout/pro-landscape-line.jpg) with the [footer alternative](../screenshots/ipad-layout/alternate-landscape-line.jpg).
+
+The [iPad overview](../screenshots/ipad-layout/both-ipads.jpg) shows both screens and orientations on the Pro and mini. Additional captures show [dark appearance](../screenshots/ipad-layout/pro-dark.jpg), [accessibility text](../screenshots/ipad-layout/pro-accessible.jpg) and the [iPhone before and after](../screenshots/ipad-layout/iphone-comparison.jpg). The [13-inch Pro](../screenshots/ipad-layout/pro-review.jpg) and [mini](../screenshots/ipad-layout/mini-review.jpg) review captures show the scrolled home list, line margins, direction choice after rotation and after tapping the badge again, and the short window, in reading order.
 
 ## The two screens
 
@@ -364,7 +369,7 @@ The freshness rules in [ios-fast-answers.md](../ios-fast-answers.md) stay: a boa
 ### Line screen
 
 21. In an iPad split the controls lead the right pane (A56, A58). At standard text sizes the line screen has no bar (O22). In a stack, under the map and fixed above the list: the back button, spoken "Back", the line and its full destination, then the walk and pin buttons (A38). The swipe from the left edge goes back, over the map as over the list (A41). The walk button opens Apple Maps; with Google Maps installed its first tap offers both, a tap then opens the one used last, and a long press offers the choice again (O21, A35 to A37). At accessibility sizes the stacked layout keeps back, walk and pin in the bar (A39). The split keeps them in the right pane (A58).
-22. Both screens use the same iPad frame (A52–A55). On iPhone at standard text sizes the map has home's frame: a square under the status bar, and above it the strip under a status bar at least 44 pt tall, blurred by iOS (O22, A27). The strip takes no touch (A40); the square pans and zooms (A17). The map shows the walking route from the walking origin to the platform, the stop label and the user's location, inside the square. Without a route it shows both points. At accessibility sizes a stacked map scrolls away with the list. A split map stays beside it.
+22. Both screens use the iPad frames in A52–A55. In a short stack the line map shrinks if necessary to leave two departure rows visible (A60). On iPhone at standard text sizes the map has home's frame: a square under the status bar, and above it the strip under a status bar at least 44 pt tall, blurred by iOS (O22, A27). The strip takes no touch (A40); the square pans and zooms (A17). The map shows the walking route from the walking origin to the platform, the stop label and the user's location, inside the square. Without a route it shows both points. At accessibility sizes a stacked map scrolls away with the list. A split map stays beside it.
 23. The stop is named once, with walking time and distance, directly under the line and its direction. It runs from the title's leading edge to the list's margin, under walk and pin, and wraps only after a "·" (A38). Without a usable location it says "from this area", as today.
 24. Up to four departures follow. Each shows "N min" and the clock time (A22). The countdowns sit right-aligned in one column, as wide as the widest of them (O20, A34). Each divider starts at the row's leading edge. Beyond 60 minutes it shows the clock time only. A live departure carries the live symbol, and "N min late" from one minute of delay. A scheduled departure carries nothing (A8).
 25. Nothing is crossed out or greyed. There is no advice card and no "Other lines at this stop".

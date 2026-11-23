@@ -29,8 +29,8 @@ struct StopsMapView: UIViewRepresentable {
     /// hidden on 19 November 2026 (O23). The framing below never depends on
     /// it, so it can return by setting this line back to true.
     static let showsRing = false
-    /// The square always spans this many metres, centred on the rider: the
-    /// 400 m ring and its margin. The ring's radius is the width ÷ 2.4.
+    /// MapKit fits this many metres on the shorter usable dimension, centred
+    /// on the rider, so the whole 400 m search radius fits in any pane.
     static let span = Double(TransitStore.radius) * 2.4
     /// MapKit's location moves the map only when it is at least this accurate.
     static let liveAccuracy: CLLocationAccuracy = 100
@@ -382,7 +382,7 @@ final class MapLineBadge: UIView {
     required init?(coder: NSCoder) { fatalError("init(coder:) is unavailable") }
 }
 
-/// How far a screen's map reaches above its square, under the status bar.
+/// How far an iPhone map reaches above its square, under the status bar.
 /// Home (O18) and the line screen (O22) follow the same rule.
 enum MapStrip {
     /// A status bar at least this tall has a Dynamic Island or a notch. Only
@@ -397,7 +397,7 @@ enum MapStrip {
     }
 }
 
-/// Reports size changes, so the fixed span is applied once the square has its size.
+/// Reports size changes so the search area stays in view as the map resizes.
 final class HomeMapView: MKMapView {
     var onResize: (() -> Void)?
     private var lastSize = CGSize.zero

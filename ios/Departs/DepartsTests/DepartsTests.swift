@@ -7,6 +7,14 @@ final class DepartsTests: XCTestCase {
             let size = CGSize(width: width, height: height)
             return TransitLayout(window: size, available: size, isPad: pad)
         }
+        let tall = TransitLayout(window: CGSize(width: 800, height: 820),
+                                 available: CGSize(width: 800, height: 768), isPad: true)
+        XCTAssertFalse(tall.sideBySide)
+        XCTAssertEqual(tall.stackedMapHeight, 384)
+        let narrow = TransitLayout(window: CGSize(width: 375, height: 1376),
+                                   available: CGSize(width: 375, height: 1324), isPad: true)
+        XCTAssertFalse(narrow.sideBySide)
+        XCTAssertEqual(narrow.stackedMapHeight, 375)
         XCTAssertFalse(layout(1024, 1366).sideBySide)
         XCTAssertEqual(layout(1024, 1366).stackedMapHeight, 683)
         XCTAssertFalse(layout(820, 820).sideBySide)

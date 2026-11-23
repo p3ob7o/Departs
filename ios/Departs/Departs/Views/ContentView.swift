@@ -22,6 +22,19 @@ struct ContentView: View {
                     DepartureDetailView(selection: selection, store: store)
                 }
         }
+        #if DEBUG
+        .overlay {
+            if ProcessInfo.processInfo.environment["DEPARTS_DEFAULTS_SUITE"] != nil {
+                GeometryReader { geometry in
+                    Color.clear.frame(width: 1, height: 1)
+                        .accessibilityElement(children: .ignore)
+                        .accessibilityIdentifier("window-bottom-inset")
+                        .accessibilityValue(Text(verbatim: String(Double(geometry.safeAreaInsets.bottom))))
+                }
+                .allowsHitTesting(false)
+            }
+        }
+        #endif
         .sheet(isPresented: $showsDistantPins) {
             NavigationStack {
                 List(distantPins) { selection in

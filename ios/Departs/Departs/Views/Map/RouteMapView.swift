@@ -117,7 +117,7 @@ struct RouteMapView: UIViewRepresentable {
         required init?(coder: NSCoder) { fatalError() }
 
         /// Under the status bar the map is shown and takes no touch, as on home
-        /// (A26). The square below pans and zooms as before (A17).
+        /// (A26). The map below pans and zooms (A17).
         override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
             point.y < safeAreaInsets.top ? nil : super.hitTest(point, with: event)
         }
@@ -128,9 +128,10 @@ struct RouteMapView: UIViewRepresentable {
                 targetRegion = fittedRegion
             }
             mapView.frame = bounds
-            if let region = targetRegion, bounds.width > 0, bounds.height > 0 {
+            if targetRegion != nil, bounds.width > 0, bounds.height > 0 {
                 targetRegion = nil
                 DispatchQueue.main.async {
+                    guard let region = self.fittedRegion else { return }
                     self.mapView.setRegion(region, animated: false)
                 }
             }

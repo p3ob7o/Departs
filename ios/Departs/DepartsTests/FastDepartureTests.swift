@@ -973,6 +973,34 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertNotNil(map.hitTest(CGPoint(x: 160, y: strip + 1), with: nil), "The square below takes touches as before")
     }
 
+    @MainActor func testResizedIPadRouteMapFitsTheLatestRegion() async throws {
+        let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
+        let window = UIWindow(windowScene: scene)
+        let controller = UIViewController()
+        controller.traitOverrides.userInterfaceIdiom = .pad
+        window.rootViewController = controller
+        window.isHidden = false
+        defer { window.isHidden = true }
+        let map = MKMapView()
+        let container = RouteMapView.MapContainerView(mapView: map)
+        controller.view.addSubview(container)
+        container.frame = CGRect(x: 0, y: 0, width: 300, height: 300)
+        container.layoutIfNeeded()
+        var route = MKCoordinateRegion(center: .init(latitude: 48.2, longitude: 16.3),
+                                       latitudinalMeters: 800, longitudinalMeters: 800)
+        container.fittedRegion = route
+        container.frame.size = CGSize(width: 500, height: 320)
+        container.layoutIfNeeded()
+        // An update arrives after layout has queued its refit.
+        route.center.longitude += 1
+        container.fittedRegion = route
+        await withCheckedContinuation { continuation in
+            DispatchQueue.main.async { continuation.resume() }
+        }
+        XCTAssertEqual(map.centerCoordinate.latitude, route.center.latitude, accuracy: 0.0001)
+        XCTAssertEqual(map.centerCoordinate.longitude, route.center.longitude, accuracy: 0.0001)
+    }
+
     @MainActor func testLineMapTakesNoTouchUnderTheStatusBar() throws {
         let scene = try XCTUnwrap(UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first)
         let window = UIWindow(windowScene: scene)

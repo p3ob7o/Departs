@@ -1,12 +1,12 @@
 # Departs implementation guide
 
-Departs shows available transport nearby in a native iPhone app requiring iOS 26. iOS 27-only APIs require availability checks. The browser client is retired; the Vercel API remains required by installed builds.
+Departs shows available transport nearby in a native iPhone and iPad app requiring iOS 26. iOS 27-only APIs require availability checks. The browser client is retired; the Vercel API remains required by installed builds.
 
 ## Native app
 
 `ios/Departs/Departs/` contains SwiftUI views, observable state, Codable models, an `APIService` actor and CoreLocation. Maps use `UIViewRepresentable` MapKit wrappers and system appearance. There are no third-party iOS dependencies.
 
-`DepartsApp` owns one `TransitSession`, shared store, location service and refresh clock. Each `ContentView` owns a navigation stack and sheets. Home and line screens share the same shape: a square map above a list. At accessibility sizes the map scrolls with the content. The app target stays iPhone-only and portrait-only. Duo/iPad layouts require new plans; Mac, Vision Pro, scene configuration and required capabilities are unchanged.
+`DepartsApp` owns one `TransitSession`, shared store, location service and refresh clock. Each `ContentView` owns a navigation stack and sheets. iPhone uses a portrait stack. iPad supports all orientations, stacking the map above the list in tall or narrow windows and dividing wide landscape windows equally. At accessibility sizes a stacked map scrolls with the list and a split map stays beside it. The Duo layout remains deferred. Mac and Vision Pro availability, scene configuration and required capabilities still need the owner’s decision.
 
 Home restores a published snapshot, fetches nearby platforms and sends their IDs in one departure batch. Selection uses returned departures within 60 minutes, physical-stop distance and stable service identities. Membership and boards publish together, after interaction ends. Ticks and failures never reorder rows. Partial results retain existing membership. One walking route per listed physical stop runs independently of departures, at most three requests at once.
 
