@@ -120,6 +120,10 @@ actor APIService {
         components.host = apiHost
         components.path = path
         components.queryItems = queryItems
+        // URLComponents leaves "+" as is, and servers read a raw "+" in a query as a space.
+        // Separators are "&" and "=", so every "+" left here belongs to a name or value.
+        components.percentEncodedQuery = components.percentEncodedQuery?
+            .replacingOccurrences(of: "+", with: "%2B")
 
         guard let url = components.url else {
             throw APIError.invalidURL

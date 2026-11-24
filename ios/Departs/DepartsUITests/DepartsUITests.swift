@@ -1305,6 +1305,16 @@ final class DepartsUITests: XCTestCase {
         capture("Line long destination")
     }
 
+    func testLineWithAPlusInItsDestinationShowsDepartures() {
+        server.usePlusDestination()
+        launch(); waitForRows(); rows.firstMatch.tap()
+        let title = app.staticTexts["detail-direction"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertTrue(title.label.hasSuffix(" S+U Pankow"), title.label)
+        waitUntil { self.server.individualCount == 1 && self.lineRows.count == 4 }
+        XCTAssertFalse(app.staticTexts["line-empty"].exists)
+    }
+
     func testUSMeasurementPreferenceUsesFeetInWalkingSummary() {
         app.launchArguments += ["-AppleMeasurementUnits", "Inches", "-AppleMetricUnits", "NO"]
         launch(); waitForRows(); rows.firstMatch.tap()
@@ -1619,6 +1629,7 @@ private final class TransitFixtureServer {
     private var firstBoardAt: Date?
     private var lineMinutes: [Double]?
     private var longDestination = false
+    private var plusDestination = false
     private var events: [String] = []
     private var nextConnectionID = 0
 
@@ -1649,6 +1660,7 @@ private final class TransitFixtureServer {
     func setChangedServices() { queue.sync { changedServices = true } }
     func setLineMinutes(_ values: [Double]) { queue.sync { lineMinutes = values } }
     func useLongDestination() { queue.sync { longDestination = true } }
+    func usePlusDestination() { queue.sync { plusDestination = true } }
     private var extraStops = 0
     func useExtraStops(_ count: Int) { queue.sync { extraStops = count } }
     private var extraPlatforms: [(String, String, Double, Double)] {
@@ -1748,11 +1760,12 @@ private final class TransitFixtureServer {
             if value("stopIds") != nil {
                 batches += 1
                 var batch = TransitSample.batch(at: firstBoardAt!, missing: missing, empty: noDepartures, changed: changedServices)
-                if longDestination {
+                if longDestination || plusDestination {
                     var boards = batch["boards"] as! [[String: Any]]
                     var groups = boards[0]["groups"] as! [[String: Any]]
                     var line = groups[0]["line"] as! [String: Any]
-                    line["direction"] = "Wien Kaiserebersdorf, Zinnergasse über Hauptbahnhof und Simmering"
+                    line["direction"] = plusDestination ? "S+U Pankow"
+                        : "Wien Kaiserebersdorf, Zinnergasse über Hauptbahnhof und Simmering"
                     groups[0]["line"] = line
                     boards[0]["groups"] = groups
                     batch["boards"] = boards
@@ -1771,6 +1784,13 @@ private final class TransitFixtureServer {
                 return batch
             }
             individuals += 1
+            if plusDestination {
+                // Read the query as a server does, where a raw "+" is a space, and
+                // match exactly: a plus the app leaves raw selects nothing.
+                let direction = url.percentEncodedQueryItems?.first { $0.name == "direction" }?.value?
+                    .replacingOccurrences(of: "+", with: " ").removingPercentEncoding
+                if direction != "S+U Pankow" { return [] as [Any] }
+            }
             let id = value("stopId")?.replacingOccurrences(of: "77704_", with: "") ?? "312"
             var service = TransitSample.services[id]?.first { $0.name == value("lineName") && $0.line["direction"] as? String == value("direction") }
                 ?? TransitSample.services["312"]![0]

@@ -2,7 +2,7 @@
 
 | | |
 | --- | --- |
-| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O17: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). Amended on 18 November by O18: see [Third amendment: the map under the status bar](#third-amendment-the-map-under-the-status-bar). Amended on 19 November by O19: see [Fourth amendment: a tap on a map label](#fourth-amendment-a-tap-on-a-map-label). Amended later on 19 November by O20–O23: see [Fifth amendment: the line screen's controls under its map](#fifth-amendment-the-line-screens-controls-under-its-map). Amended on 22 November 2026 by O24: see [Sixth amendment: pins in the current city](#sixth-amendment-pins-in-the-current-city). O25 and O26 extend both screens to iPad in the [seventh amendment](#seventh-amendment-ipad-windows). |
+| Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O17: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). Amended on 18 November by O18: see [Third amendment: the map under the status bar](#third-amendment-the-map-under-the-status-bar). Amended on 19 November by O19: see [Fourth amendment: a tap on a map label](#fourth-amendment-a-tap-on-a-map-label). Amended later on 19 November by O20–O23: see [Fifth amendment: the line screen's controls under its map](#fifth-amendment-the-line-screens-controls-under-its-map). Amended on 22 November 2026 by O24: see [Sixth amendment: pins in the current city](#sixth-amendment-pins-in-the-current-city). O25 and O26 extend both screens to iPad in the [seventh amendment](#seventh-amendment-ipad-windows), and O27 keeps iPad to one window for now, decided on 24 November 2026. |
 | Date | 16 November 2026 |
 | Based on | Departs 1.1 (6), `main` at `6430c94` |
 | Branch | `feat/ios-two-screens` |
@@ -217,7 +217,7 @@ On 23 November 2026 Paolo asked to adapt both screens to iPad.
 | --- | --- |
 | O25 | In portrait orientation, it should be like iPhone, but use the whole screen optimally. |
 | O26 | In landscape orientation, the map should take the entire left half, and the lists the entire right half. |
-| O27 | One window on iPad for now. |
+| O27 | One window on iPad for now. Paolo chose this on 24 November 2026. |
 
 | ID | Question | Choice | Review |
 | --- | --- | --- | --- |

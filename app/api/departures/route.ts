@@ -141,12 +141,16 @@ export async function GET(request: Request): Promise<Response> {
         headers: { "Cache-Control": "public, max-age=30" },
       });
     }
+    // Installed iOS builds send a raw "+" (direction=S+U%20Pankow), which
+    // searchParams reads as a space. Match "+" and " " as the same character.
+    const matchable = (value: string) => value.replace(/\+/g, " ");
     const departures = allDepartures
       .filter((departure) => {
         if (!lineName || !direction) return true;
         return (
-          departure.line?.name === lineName &&
-          departure.line.direction === direction
+          departure.line !== undefined &&
+          matchable(departure.line.name) === matchable(lineName) &&
+          matchable(departure.line.direction) === matchable(direction)
         );
       })
       .sort((a, b) => Date.parse(a.time) - Date.parse(b.time))
