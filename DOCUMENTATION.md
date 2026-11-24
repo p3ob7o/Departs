@@ -21,7 +21,7 @@ Next.js route handlers proxy HERE and Mapbox using server credentials. Keep `htt
 | Endpoint | Query | Response |
 | --- | --- | --- |
 | `/api/stops/nearby` | `lat`, `lon`, optional `radius` 100–2000 m, default 400 | Up to 50 stops with `id`, `name`, `type`, `lines`, `location`, optional `distance` |
-| `/api/departures` | `stopId`, optional paired `lineName`, `direction` | Up to four departure records |
+| `/api/departures` | `stopId`, optional paired `lineName`, `direction` | Up to four departure records. Both filters match exactly, except that a `+` and a space count as the same character: installed builds send a raw `+`, which the query parser reads as a space. A departure without a line, or with a provider name or direction that is not a string, never matches |
 | `/api/departures` | `stopId`, `groupBy=line` | Compatible grouped response with `groups` and `complete` |
 | `/api/departures` | `stopIds=a,b,c`, 1–50 IDs | `{fetchedAt, boards: [{stopId, groups}], missing}`; two departures per transport, 50 per platform |
 | `/api/directions` | `from=lat,lon`, `to=lat,lon` | First walking route `{geometry, duration, distance}`, in seconds/metres |
