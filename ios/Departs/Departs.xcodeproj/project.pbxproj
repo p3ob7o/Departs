@@ -514,9 +514,9 @@
 				INFOPLIST_FILE = Departs/Info.plist;
 				INFOPLIST_PREPROCESS = YES;
 				INFOPLIST_PREPROCESSOR_DEFINITIONS = "DEPARTS_LOCAL_NETWORKING=1";
-				INFOPLIST_KEY_CFBundleDisplayName = Departs;
+				INFOPLIST_KEY_CFBundleDisplayName = "Departs Now";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Departs needs your location to find nearby transit stops and show walking directions.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Departs Now uses your location to find nearby transit stops and show walking directions.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
@@ -552,9 +552,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Departs/Info.plist;
 				INFOPLIST_PREPROCESS = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Departs;
+				INFOPLIST_KEY_CFBundleDisplayName = "Departs Now";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Departs needs your location to find nearby transit stops and show walking directions.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Departs Now uses your location to find nearby transit stops and show walking directions.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
