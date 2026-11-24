@@ -18,7 +18,7 @@
 		<string>comgooglemaps</string>
 	</array>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Departs uses your location to find nearby stops and show walking directions.</string>
+	<string>Departs Now uses your location to find nearby stops and show walking directions.</string>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
