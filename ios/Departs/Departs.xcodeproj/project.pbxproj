@@ -514,9 +514,9 @@
 				INFOPLIST_FILE = Departs/Info.plist;
 				INFOPLIST_PREPROCESS = YES;
 				INFOPLIST_PREPROCESSOR_DEFINITIONS = "DEPARTS_LOCAL_NETWORKING=1";
-				INFOPLIST_KEY_CFBundleDisplayName = Departs;
+				INFOPLIST_KEY_CFBundleDisplayName = "Departs Now";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Departs needs your location to find nearby transit stops and show walking directions.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Departs Now uses your location to find nearby transit stops and show walking directions.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
@@ -528,7 +528,10 @@
 				);
 				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = app.departs.Departs;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Departs Now";
+				PRODUCT_MODULE_NAME = "$(TARGET_NAME)";
+				EXECUTABLE_NAME = "$(TARGET_NAME)";
+				WRAPPER_NAME = "$(TARGET_NAME).app";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
@@ -552,9 +555,9 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_FILE = Departs/Info.plist;
 				INFOPLIST_PREPROCESS = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = Departs;
+				INFOPLIST_KEY_CFBundleDisplayName = "Departs Now";
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.travel";
-				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Departs needs your location to find nearby transit stops and show walking directions.";
+				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Departs Now uses your location to find nearby transit stops and show walking directions.";
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UIStatusBarStyle = UIStatusBarStyleDefault;
@@ -566,7 +569,10 @@
 				);
 				MARKETING_VERSION = 1.3;
 				PRODUCT_BUNDLE_IDENTIFIER = app.departs.Departs;
-				PRODUCT_NAME = "$(TARGET_NAME)";
+				PRODUCT_NAME = "Departs Now";
+				PRODUCT_MODULE_NAME = "$(TARGET_NAME)";
+				EXECUTABLE_NAME = "$(TARGET_NAME)";
+				WRAPPER_NAME = "$(TARGET_NAME).app";
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SUPPORTS_MACCATALYST = NO;
 				SUPPORTS_MAC_DESIGNED_FOR_IPHONE_IPAD = NO;
