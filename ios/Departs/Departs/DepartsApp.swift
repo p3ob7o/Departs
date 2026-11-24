@@ -45,7 +45,9 @@ final class TransitSession {
         }
         guard refreshTask == nil else {
             if enteredForeground {
-                // The clock is already running. Refresh the newly visible answers now.
+                // Only a second window gets here: with one window (O27) the clock stops when
+                // the window leaves the foreground. If Departs supports several windows, a
+                // window entering the foreground refreshes its answers without a second clock.
                 locationTask?.cancel()
                 locationTask = Task { await refreshVisibleAnswers() }
             }

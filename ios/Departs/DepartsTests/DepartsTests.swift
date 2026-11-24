@@ -202,6 +202,32 @@ final class DepartsTests: XCTestCase {
         XCTAssertEqual(queryItems?.first { $0.name == "direction" }?.value, "Hässelby strand")
     }
 
+    func testDepartureURLEncodesAPlusSoServersDoNotReadASpace() throws {
+        let url = try APIService.departuresURL(
+            stopId: "49031_783",
+            line: LineInfo(name: "U2", direction: "S+U Pankow", type: .subway)
+        )
+
+        XCTAssertEqual(url.absoluteString,
+                       "https://departs.vercel.app/api/departures?stopId=49031_783&lineName=U2&direction=S%2BU%20Pankow")
+        XCTAssertEqual(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "direction" }?.value,
+                       "S+U Pankow")
+    }
+
+    func testEveryRequestURLEncodesPlusSigns() throws {
+        let urls = [
+            try APIService.departuresURL(stopId: "a+b", line: LineInfo(name: "S+1", direction: "S+U X", type: .rail)),
+            try APIService.batchDeparturesURL(stopIDs: ["a+b", "c"]),
+            try APIService.nearbyStopsURL(lat: 52.5219, lon: 13.4132),
+            try APIService.directionsURL(from: Coordinate(lat: 52.5219, lon: 13.4132), to: Coordinate(lat: 52.52, lon: 13.41)),
+        ]
+        for url in urls {
+            XCTAssertFalse(url.absoluteString.contains("+"), url.absoluteString)
+        }
+        XCTAssertEqual(urls[0].query(percentEncoded: true), "stopId=a%2Bb&lineName=S%2B1&direction=S%2BU%20X")
+        XCTAssertEqual(urls[1].query(percentEncoded: true), "stopIds=a%2Bb,c")
+    }
+
     // MARK: - StopPalette
 
     func testDistancesUseTheLocalesMeasurementSystem() {

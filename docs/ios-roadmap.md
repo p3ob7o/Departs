@@ -36,12 +36,15 @@ The uploaded build uses the tested release branch. Backend-first is satisfied. C
 
 **The line screen's controls moved under its map later on 19 November**, recorded as O20 to O23 in the [plan's fifth amendment](plans/ios-two-screens.md#fifth-amendment-the-line-screens-controls-under-its-map). With 1.2 (11) on his phone, the owner asked for right-aligned countdowns, a choice between Google Maps and Apple Maps that is remembered, the line screen's controls under a map framed as on home, and no ring on home. [PR #40](https://github.com/p3ob7o/Departs/pull/40) is merged, and **Departs 1.2 (12) followed the same evening: uploaded, VALID and IN_BETA_TESTING for internal testers.** The [release record](releases/1.2-12.md) lists its checks and the upload.
 
+**Destinations with a plus sign were fixed on 24 November.** A line to a destination such as "S+U Pankow" showed no departures, because the app sent the plus unencoded and the backend read it as a space. The backend now treats a plus and a space as the same character when it filters a line, which repairs installed builds, and the next build encodes a plus as `%2B`.
+
 ## Next decisions and checks
 
 - Review A34 to A42 in the [fifth amendment](plans/ios-two-screens.md#fifth-amendment-the-line-screens-controls-under-its-map): which times share the countdown column, when the map-app choice is offered and how it is remembered, the plain controls under the line map, and the line screen at accessibility sizes. On a phone, check the long press on the walk button, Google Maps' walking directions, and the swipe back from the left edge.
 - Review A28 to A33 in the [fourth amendment](plans/ios-two-screens.md#fourth-amendment-a-tap-on-a-map-label): what "+N" offers, what VoiceOver gets, when a label is ringed, and which of two overlapping labels takes a tap.
 - Review A27 in the [third amendment](plans/ios-two-screens.md#third-amendment-the-map-under-the-status-bar): an iPhone SE keeps the square alone, because its status bar is too short for the blur. On a phone, check that the clock and the status icons stay readable over the map in light and in dark.
 - Rewrite the [iPhone Duo plan, PR #18](https://github.com/p3ob7o/Departs/pull/18) for map and list side by side. The older iPad proposal predates the seventh amendment.
+- Decide the iPad follow-ups to O27: whether Departs should support several windows, and whether the iPhone Duo, which gets the same one-window setting, should keep it.
 - Review A20, A23 and A24 in the [second amendment](plans/ios-two-screens.md#second-amendment-the-map-at-the-top): what the map centres on, how a pinned stop name looks, and which words of a line's name are kept.
 - Decide the seven open findings in the [1.2 (8) record](releases/1.2-8.md#open-findings-not-changed-in-this-build). The first is a defect: a stop with no departures is shown as a failed load, seen at Berlin Alexanderplatz.
 - With build 8 on a phone: leave the app open in one place for ten minutes, walk a few hundred metres, and try Location off and Precise Location off. With the next build, check that the map follows a walk smoothly and stays put with Precise Location off.

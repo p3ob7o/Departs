@@ -183,3 +183,51 @@ it("checks the cap per platform board, not after flattening", async () => {
   const response = await GET(new Request("http://localhost/api/departures?stopId=stop-1&groupBy=line"));
   expect((await response.json()).complete).toBe(true);
 });
+
+describe("plus signs in the line filter", () => {
+  // Installed iOS builds leave "+" raw in the query; searchParams reads it as a space.
+  async function filtered(query: string) {
+    const { server } = await import("@/app/__tests__/setup");
+    const { http, HttpResponse } = await import("msw");
+    const departure = (minute: number, name: string, headsign: string) => ({
+      time: `2026-11-24T10:${String(minute).padStart(2, "0")}:00Z`,
+      transport: { mode: "subway", name, headsign },
+    });
+    server.use(http.get("https://transit.hereapi.com/v8/departures", () => HttpResponse.json({ boards: [{ departures: [
+      departure(1, "U2", "S+U Pankow"),
+      departure(2, "U2", "Ruhleben"),
+      departure(3, "U8", "S+U Hermannstr."),
+      departure(4, "U2", "S+U Pankow"),
+      departure(5, "S+1", "Farsta strand"),
+      departure(6, "U2", "Pankow"),
+    ] }] })));
+    const response = await GET(new Request(`http://localhost/api/departures?stopId=49031_783&${query}`));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("public, max-age=30");
+    return (await response.json()) as { time: string; line: { name: string; direction: string } }[];
+  }
+
+  it("matches a raw plus sent by installed builds", async () => {
+    const body = await filtered("lineName=U2&direction=S+U%20Pankow");
+    expect(body.map((departure) => departure.time)).toEqual(["2026-11-24T10:01:00Z", "2026-11-24T10:04:00Z"]);
+    expect(body.every((departure) => departure.line.direction === "S+U Pankow")).toBe(true);
+  });
+
+  it("matches a plus encoded as %2B", async () => {
+    const body = await filtered("lineName=U2&direction=S%2BU%20Pankow");
+    expect(body.map((departure) => departure.time)).toEqual(["2026-11-24T10:01:00Z", "2026-11-24T10:04:00Z"]);
+    expect(body.every((departure) => departure.line.direction === "S+U Pankow")).toBe(true);
+  });
+
+  it("matches a real space in either encoding, and a plus in lineName", async () => {
+    for (const query of ["lineName=S%2B1&direction=Farsta%20strand", "lineName=S+1&direction=Farsta+strand"]) {
+      const body = await filtered(query);
+      expect(body.map((departure) => departure.line)).toEqual([{ name: "S+1", direction: "Farsta strand", type: "subway" }]);
+    }
+  });
+
+  it("does not match a different destination", async () => {
+    const body = await filtered("lineName=U8&direction=S+U%20Pankow");
+    expect(body).toEqual([]);
+  });
+});
