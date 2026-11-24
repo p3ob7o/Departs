@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/:path*", "destination": "https://departs-api-trial.space.fast/api/:path*" },
+    { "source": "/", "destination": "https://departs-api-trial.space.fast/" }
+  ]
+}
