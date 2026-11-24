@@ -1,13 +1,13 @@
-# Departs API on Spacefast: private compatibility trial
+# Departs API on Spacefast
 
-**The private trial serves the API, but failed exact contract parity.** A rejected batch departure request returned HTTP 500 on both hosted versions. The base commit and the packed worker executed locally both returned the required 502. Keep production on Vercel. The follow-up below verifies successful fixture decoding with the app’s networking code. Live transit data and public caching still require a separate trial.
+**The app decoded real stops, departures and walks from the public Space in Vienna, Berlin and New York.** The initial paired requests matched Vercel apart from the batch timestamp. A move still has to account for uncached responses, HTTP 429 on valid requests, and HTTP 500 where the shared handler returns 502. The final section covers installed builds and the release path.
 
 ## Deployment
 
 The [Spacefast Next.js recipe](https://spacefast.com/docs/recipes/next/) lists 16.4.x for static export only. The four [Functions](https://spacefast.com/docs/functions/) entries share the existing root, validations, HERE/Mapbox requests, normalization and response construction with the Next.js routes. Only the adapters supply runtime credentials. The production host compiled into the app stays on Vercel.
 
-- Team Departs, private Space `departs-api-trial`. V1 and V2 contain the trial API. V2 is live.
-- Only your team can view this Space after signing in. Change the audience in this Space's Access settings.
+- Team Departs, Space `departs-api-trial`. V1 and V2 contained the trial API. V2 served the live hostname during the private rounds.
+- The private publish receipt described its audience as “Only your team can view this Space after signing in. Change the audience in this Space's Access settings.”
 
 With Node 26.13.1 and Spacefast CLI 0.10.0, `npm run build:spacefast` bundles the four entry modules under `.spacefast/worker/functions/`. The CLI independently classified this directory as a Functions file router. Each publish used a clean staging directory. The enumerated dry-run manifest for V1 contained only the internal Functions bundle (8,760 bytes). V2 added only `trial-version.txt` (30 bytes, one static verification line). Neither artifact included repository history, deployment state, dependencies, credentials, iOS files or documentation.
 
@@ -21,7 +21,7 @@ With Node 26.13.1 and Spacefast CLI 0.10.0, `npm run build:spacefast` bundles th
 | d. Validation | Passed | Six cases returned identical 400 statuses and JSON on the trial and production. Requests omitted required parameters on each route, exceeded the latitude range, combined batch and single-stop filters, or supplied malformed walking coordinates. Each exits before fetch. Seven production GETs total, including the root. |
 | e. Provider rejection | **Failed** | Local `origin/main` at `90bc6e0` ran with the same two dummy credentials. Stops, single departures and walks returned matching 500 statuses and error bodies. Batch departures returned matching JSON but **502 locally and 500 on Spacefast**. Reproduced on V2 with a second batch and a fresh query. HERE and Mapbox independently returned 401 to direct requests with dummy credentials. Hosted departure logs recorded upstream HTTP 401. Walks and stops suppress the upstream status in their handlers. |
 | f. Secrets | Passed for inspected artifacts, responses and available logs | Both Space-scoped variables listed `secret: true` with an empty value. Their values were supplied through stdin. |
-| g. Headers | Passed for private responses | See header table. The private host changes the root's public policy. Live provider success responses remain unverified. |
+| g. Headers | Passed for private responses | See header table. The private host changed the root's public policy. The public V6 results appear below. |
 | h. Rollback | Passed in the owner-approved rehearsal | After action-specific approval, the reviewer rolled back from V2 to V1 in 3 seconds at 08:46 UTC and promoted V2 again without another approval. The live pointer and runtime agreed. |
 
 | Path | Success policy in shared code | Observed on private trial |
@@ -38,7 +38,7 @@ The transit error paths set no Cache-Control header in the shared code. Local MS
 - The packed bundle's SHA-256 matched the upload manifest in both dry runs. The published static verification file downloaded through the artifact API matched its input byte for byte. The file index excludes runtime-internal files, and the download API refused that bundle with `validation_error` (HTTP 422). The bundle scan used the matching local packed bytes. A server-side readback of the internal worker was unavailable.
 - Published versions list no build job or build log because compilation happened locally. Checked local build output, the visible runtime log pages, and response headers and bodies for both supplied marker values. A clean scan covers these observations only. Access to infrastructure-internal logs was outside the trial.
 - The first receipt reported `hostname_attach_pending`; its version was already ready and live. It supplied no Access URL. A bounded version session provided access without a sharing Link. The default Python HTTP client received edge 403/1010; curl redeemed the same preview session and served the root. Reused the original seven production responses for the successful curl comparison. The CLI rejected global help combined with the API endpoint flag (`validation_error`, no request ID returned); command-specific help accepted it.
-- Local checks passed: `npm ci`, `npm run build:spacefast`, `npm run test:run` (98 tests), `npm run test:coverage` (90.72% branches), `npm run lint` and `npm run build`. The Next build still listed all four dynamic paths. Existing tests were preserved. The iOS app, production backend, DNS and public access settings were outside the change.
+- Local checks passed: `npm ci`, `npm run build:spacefast`, `npm run test:run` (98 tests), `npm run test:coverage` (90.72% branches), `npm run lint` and `npm run build`. The Next build still listed all four dynamic paths. Existing tests were preserved. The first round changed the trial backend only.
 
 ## Timing and usage
 
@@ -60,7 +60,7 @@ The transit error paths set no Cache-Control header in the shared code. Local MS
 
 **The hosted path changed every tested 502 to 500.** A synthetic response reproduced the change without any transit code. Both response constructors, an empty body, a rejected HERE call, and a walking route with no result gave the same outcome. The synthetic body and the worker’s status header survived. V2’s tagged live batch appeared as 500 in both origin and edge logs. Together these findings locate the live discrepancy at or before the logged origin response. They do not identify the internal component or establish how every possible HTTP status is handled.
 
-Spacefast CLI 0.10.0 published two preview-only versions. The full inventory is **V1** (original API), **V2** (API plus static verification file, live), **V3** (API plus probes, preview) and **V4** (API with fixture provider responses, preview). All four were ready. The V3 and V4 hostnames ran their own functions and returned their respective version headers. Live stayed on V2. All requests in this round used the private Space or the local reference; production received none. The reviewer independently matched the V2 runtime’s bundle digest to the local bytes and confirmed its compatibility date of 2026-07-01.
+Spacefast CLI 0.10.0 published two preview-only versions. At the end of that round the inventory was **V1** (original API), **V2** (API plus static verification file, live), **V3** (API plus probes, preview) and **V4** (API with fixture provider responses, preview). All four were ready. The V3 and V4 hostnames ran their own functions and returned their respective version headers. Live stayed on V2. All requests in this round used the private Space or the local reference; production received none. The reviewer independently matched the V2 runtime’s bundle digest to the local bytes and confirmed its compatibility date of 2026-07-01.
 
 ### Status observations
 
@@ -104,7 +104,7 @@ All successful transit responses above used `application/json`, omitted Content-
 
 | Request | Packed worker | Hosted result |
 |---|---:|---|
-| HEAD / POST / OPTIONS on departures without a stop | 400 / 405 / 405 | 400 with empty body / 405 / 405. Both 405s advertised GET and HEAD. |
+| HEAD / POST / OPTIONS on departures without a stop | 400 / 405 / 405 | 400 with empty body / 405 / 405. Both 405s advertised GET and HEAD. The Next.js reference returned 204 for OPTIONS with `Allow: GET, HEAD, OPTIONS`, and 405 for POST with an empty body and no Allow header. |
 | Unknown path; trailing slash on departures | 404; 400 | Same statuses. The trailing slash still reached validation. |
 | Doubled slash inside API or echo path | 400 on departures; 200 on echo | Both returned 404 |
 | 2 KiB query on echo / departures | 200 / 400 | 200 / 400. Echo received the full parameter value. |
@@ -122,10 +122,106 @@ Curl, a request without User-Agent and a request carrying the harness’s four c
 |---|---|
 | Fixture provider scheduled to reply after 11 / 13 s | The handler aborted each attempt after 10 s and retried. Hosted curl received 500 with the expected error JSON at 20.26 / 20.40 s. The app’s 12 s timeout surfaced as URL error −1001 at about 13 s in both runs. |
 | Worker sleep of 29 / 31 s | 200 JSON at 29.43 s / 500 plain text at 30.35 s. These bound the observed cutoff for this trial. |
-| Unhandled throw | 500 problem JSON at 0.54 s |
+| Unhandled throw | Spacefast generated a problem document with JSON `status: 502` and delivered HTTP 500 in 0.54 s. The mismatch also affects this platform-generated response. |
 | 2 / 5 simultaneous one-second sleeps | All succeeded, in 1.41–1.65 s / 1.29–1.68 s |
 | 10 simultaneous one-second sleeps | Six 200s and four 429s, 0.26–1.76 s overall. No Retry-After header. Testing stopped at this burst. |
 
-The team meter rose from 132 to 295 worker requests and from two to four deployments. Both readings showed zero metered cost and an OK budget status. Per-Space settled usage remained unavailable. The final usage reading was measured through 10:20:45 UTC. Effective capacity under other workloads remains unmeasured.
+The team meter rose from 132 to 295 worker requests and from two to four deployments. The reviewers found no worker-meter increment for the two rejected 50-ID requests. This points to refusal before the function, leaving little support for response size as the cause. The three sleep bursts sent 18 requests within 3.4 seconds. Six successes in the last burst fit either concurrent capacity or short-window rate limiting. Both meter readings showed zero cost and an OK budget status. Per-Space settled usage remained unavailable. The final reading covered activity through 10:20:45 UTC.
 
-**Friction and remaining evidence.** An initial dry run treated the default-export echo module as a static asset. Named method exports corrected the manifest before upload. The first log query rejected the supplied timestamp format. UTC timestamps ending in Z worked. The private version hostnames had no attributable access or edge rows in the live-host log streams. Scoped real HERE and Mapbox credentials are still needed to measure genuine provider success, data quality, and latency. A public endpoint is needed to prove anonymous access, cache hits, query isolation, TTL expiry and board freshness. Cellular performance needs an iPhone. The variable lifecycle and the precise component that changes 502 remain open; neither question requires real provider credentials.
+**Private-round interpretation.** Curl sent the four captured app headers to echo. CFNetwork itself exercised the real API paths using the fixture version. The first dry run classified the default-export echo module as static. Named method exports corrected its manifest. UTC timestamps ending in Z worked for the log API. Filtering access or edge logs by a version hostname returned 422. The live hostname supports those queries. Raw access and edge logs can include long-lived signed bundle links and client addresses. Keep them owner-readable and outside the repository.
+
+## Public trial with real providers, 24 November 2026
+
+### 1. Public access
+
+At 13:03:44 UTC the team had six deployments, 298 metered worker requests and zero metered cost. The owner had written the two provider secrets separately, creating V5 and V6. The inventory showed V1 through V6 ready. V6 served the live host. The following command granted anonymous read access to every live path, with a 45-minute expiry. A fresh curl process received the plain-text root with HTTP 200. No sharing link or session exchange was involved. [Spacefast Share CLI](https://spacefast.com/docs/cli/share/)
+
+```sh
+npx -y spacefast@0.10.0 share grant --space spc_d4d85f4115a84205879c2529834957e2 --to public --role viewer --path '/**' --target live --expires 45m --json --api-url https://api.spacefast.com
+```
+
+### 2. Real data against production
+
+Each pair consisted of independent anonymous GETs started within one millisecond of each other on the Mac. The nearby radius was 400 m. The batch contained every returned stop ID, including those for which HERE supplied no board.
+
+| Place | Stops | Batch boards / missing | Filtered departures | Walk |
+|---|---:|---:|---:|---|
+| Vienna | 17 | 17 / 0 | 4 | Identical geometry, duration and distance |
+| Berlin Alexanderplatz | 28 | 24 / 4 | 2 | Identical geometry, duration and distance |
+| New York City Hall | 49 | 39 / 10 | 4 | Identical geometry, duration and distance |
+
+All 12 pairs returned 200 and gzip-compressed JSON. Stops, filtered departures and walks matched byte-for-byte after decoding. Only the top-level `fetchedAt` differed in the batches. Vercel returned the public TTL for each endpoint and `Age: 0` on the initial misses. Spacefast delivered `private, no-store` and `Vary: Cookie`.
+
+### 3. Caching and board freshness
+
+| Vienna batch, independent curl processes | First | Immediate repeat | At 10 s | At 35 s |
+|---|---|---|---|---|
+| Spacefast status / CDN | 200 / MISS | 429 | 200 / MISS | 200 / MISS |
+| Seconds from Spacefast `fetchedAt` to receipt | 0.30 | — | 0.23 | 0.19 |
+| Vercel status / CDN | 200 / HIT | 200 / HIT | 200 / HIT | 200 / MISS |
+| Vercel `Age`, seconds | 9 | 10 | 19 | 0 |
+| Seconds from Vercel `fetchedAt` to receipt | 9.31 | 9.81 | 19.31 | 0.12 |
+
+Vercel served three separate clients the same batch bytes and timestamp before refreshing. Spacefast returned a fresh timestamp with each 200, including across the curl and Swift runs. The successful samples fit the app’s window of five seconds ahead to 60 seconds behind. No stored Spacefast batch was available to age-test. Distinct city queries returned their own boards, and the two spellings of the Berlin direction returned different rows. These samples showed no cross-query reuse. The documented shared-cache key includes host, path and query. [Caching](https://spacefast.com/docs/caching/)
+
+The root, stops, per-line and walking paths also ran in four repeat rounds, starting at 0, immediately after the first round, 10 and 35 seconds. All 16 Spacefast responses were 200 with `X-ac` reporting MISS, gzip, `Vary: Cookie`, `private, no-store` and no Age or ETag. Successful API responses on Vercel carried `public, max-age=86400` for stops, 30 for departures and 3600 for walks, with gzip and no Vary or ETag. Vercel’s later four-route repeat rounds all met its HTTP 403 Security Checkpoint. Those responses cannot measure the origin’s cache policy. The tested Spacefast configuration was an expiring public grant on the live host. Other hostnames and access configurations were outside the experiment.
+
+### 4. The app’s HTTP client
+
+The macOS harness compiled the app’s APIService, URL construction and Codable models, with a fresh URLSession and the public base address. It decoded all three stop lists, all three real batches, per-line arrays of 0, 4 and 0 from the first stop’s line metadata, and walks with 2, 11 and 7 geometry points. The simultaneous comparisons above selected an active line from each batch, so their per-line counts differ. Against Berlin U2 to S+U Pankow, the app’s raw plus returned zero and the same URLSession with an escaped plus decoded four. Separate curl comparisons gave 0 and 4 on each host. This is the existing app encoding behavior.
+
+### 5. A real 502 branch
+
+Mapbox supplied no walking route between Oahu and Maui. The public worker returned `{"error":"No walking route found"}` with HTTP 500. That exact body identifies the handler branch whose literal status is 502. An earlier open-ocean test hit a different upstream failure branch and returned its usual 500. The contemporaneous Vercel island request met its 403 checkpoint.
+
+### 6. Refusals under normal city requests and isolated bursts
+
+Every five seconds, each client requested the largest real batch for its city ten times. Curl received 7/10, 9/10 and 9/10 successes in Vienna, Berlin and New York. The app’s URLSession decoded 10/10 in each. Those sequences overlapped other trial traffic. The live-host edge records for the five rejected curl requests included `rateLimited: true` and `rateLimitReason: hostratelimit`. Some Vienna requests shared a query and second with the speed run. Every candidate 429 row carried the same reason.
+
+Each burst used different real single-stop queries within the group. The three groups at each size were separated by a minimum of 60 seconds without trial traffic. The table counts admitted HTTP 200s. Log counts use host, query and time after log ingestion.
+
+| Simultaneous requests | First | Second | Third | Edge evidence across all three |
+|---:|---:|---:|---:|---|
+| 2 | 2/2 | 2/2 | 2/2 | 6 × 200 (rateLimited=false) |
+| 5 | 5/5 | 5/5 | 5/5 | 15 × 200 (rateLimited=false) |
+| 10 | 6/10 | 6/10 | 6/10 | 18 × 200 (rateLimited=false), 12 × 429 (rateLimited=true, reason empty) |
+| 15 | 7/15 | 6/15 | 6/15 | 19 × 200 (rateLimited=false), 5 × 429 (rateLimited=true, crawler-ua), 21 × 429 (rateLimited=true, reason empty) |
+
+The paced batch refusals named a host-level edge rule. All 38 burst refusals had a true rate-limit flag. The reason was empty for 33 and crawler-ua for five. Both classes also appeared as 429 in matching origin access records. An origin log entry does not establish that the application ran. The 429 responses had no Retry-After header. These requests used one hostname, Space and network. The logs do not expose a fixed threshold or establish an independent per-address or per-URL counter. A 429 under this workload does not measure paid-plan capacity. Live-host logs were read after each group and then reread after ingestion because the initial reads could be empty. The origin log query rejected the edge-only hostname option with CLI validation_error. Reading the Space’s access stream and selecting its live hostname locally worked. [Rate limiting](https://spacefast.com/docs/infrastructure/rate-limiting/) · [Edge request logs](https://spacefast.com/docs/infrastructure/edge-request-logs/)
+
+### 7. Speed from the test Mac
+
+Each row used 20 sequential curl GETs per host. The two hosts ran side by side, and other city tests overlapped part of the warm run. Values are median / nearest-rank 90th percentile / maximum of **all** attempts in milliseconds. The last column gives Spacefast then Vercel status and elapsed time after 603 seconds of trial silence. Root was first, followed by each previously idle API path. These timings include network setup. They do not isolate worker startup.
+
+| Vienna request | Spacefast ms | 200s | Vercel ms | 200s | After idle, HTTP / ms (Spacefast · Vercel) |
+|---|---:|---:|---:|---:|---|
+| Root | 362 / 475 / 1126 | 20/20 | 89 / 183 / 190 | 0/20 | 200 / 550 · 200 / 901 |
+| Stops | 539 / 620 / 721 | 20/20 | 161 / 253 / 297 | 20/20 | 200 / 659 · 200 / 85 |
+| Full batch | 513 / 732 / 848 | 11/20 | 196 / 289 / 294 | 20/20 | 200 / 700 · 200 / 310 |
+| Per line | 543 / 762 / 1068 | 20/20 | 195 / 256 / 373 | 20/20 | 200 / 916 · 200 / 235 |
+| Walk | 441 / 567 / 603 | 20/20 | 184 / 233 / 503 | 18/20 | 200 / 300 · 200 / 95 |
+
+The nine unsuccessful Spacefast batch requests received 429. Their fast responses lower the all-attempt median. Successful Spacefast batches took 618 / 787 / 848 ms. Vercel’s 20 warm roots and two warm walks received its 403 HTML security checkpoint. The 18 successful Vercel walks took 175 / 261 / 503 ms. After the quiet interval both roots returned identical plain-text bytes. Vercel’s root delivered its public 3,600-second TTL and Spacefast’s root delivered private, no-store. The four post-idle API payloads also matched after allowing the batch timestamp.
+
+### 8. Client identity
+
+For the same public Vienna batch, default curl and curl with the four captured app headers received 200. Curl with no User-Agent and the actual Python default client received 429. Both edge rows named hostratelimit. The real app URLSession succeeded independently. The observed client outcomes do not isolate a particular request header as the cause.
+
+### 9. Forwarding for installed builds
+
+Branch `trial/vercel-forward` at `a06e0c9`, based on `origin/main` at `c0cdbf9`, contains only the two external rewrites for `/` and `/api/:path*`. Vercel reported a successful preview deployment. The first anonymous nearby-stops GET returned 302 to Vercel sign-in. Two Berlin requests also included the preview because the local comparison client retained it in its host list. They received the same 302. No session exchange or follow-up through authentication occurred. Forwarded response status, body, headers, query preservation and latency remain unverified. The forwarding branch has no PR.
+
+### 10. Access restored, usage and cost
+
+The explicit revocation returned CLI `confirmation_required`. The response supplied no approval ID. The operation stopped there. The grant expired at 13:48:45.891 UTC. At 13:48:48 UTC a new anonymous root request returned **403**. All three API paths also returned 403 to anonymous GETs with no provider parameters. V6 remained live. The team worker-request meter moved from 298 to 563 (+265), measured through 13:31:29 UTC. Deployments remained at 6. The team meter showed $0 and budget status ok. The closing read occurred after access expired. Its measurement cutoff covered the last successful public GET. The two Spaces on this team share the meter.
+
+The trial sent 142 ordinary GETs directly to production. Even charging every Spacefast transit GET to its provider and counting both possible attempts for every departure request, this client workload could have issued at most 524 provider calls through Spacefast. A batch is one HERE call per attempt regardless of stop count. Actual provider-billed calls were unavailable.
+
+The Personal plan costs $0/month and includes $1 of shared monthly usage. At the listed $0.30 per million worker requests, the meter increase alone corresponds to roughly $0.000079, before allowances and other meters. Personal lists 10 GB uncached traffic, then $0.04/GB. It lists two dynamic compute workers per Space. The observed edge refusals cannot be converted into a concurrency entitlement or a promise that a paid plan fixes them. Provider charges, domain registration and Vercel forwarding traffic remain separate. [Pricing & Limits](https://spacefast.com/docs/pricing/)
+
+### 11. What a move needs
+
+1. **Deploy the verified artifact.** Keep the shared handlers and bundle the four Functions entries with `npm run build:spacefast`. Check the staged manifest, run the API tests, then publish the prebuilt artifact. For automatic releases, an owner with repository access must authorize Spacefast’s GitHub App and select Departs. Configure the build command and output directory explicitly, set `main` as the production branch, and enable branch previews. Verify a preview on a push before switching live. Each secret write created a new version here, so coordinate rotations with releases. Rollback was exercised in the private trial. [Publish from Git](https://spacefast.com/docs/git/) · [Functions](https://spacefast.com/docs/functions/) · [Environment variables](https://spacefast.com/docs/environment-variables/)
+2. **Put an owned API hostname in the next app release.** Assign a subdomain the owner controls, publish the exact records required at its DNS provider, complete any ownership challenge, and wait for active managed HTTPS. Recheck the direct API and raw/encoded query cases on that hostname. Domain registration and renewal are separate costs. The Personal plan lists 20 custom domains. [Custom domains](https://spacefast.com/docs/domains/) · [Pricing & Limits](https://spacefast.com/docs/pricing/)
+3. **Keep a working route for installed builds.** The existing binary always starts at `departs.vercel.app`, which stays with Vercel. The lowest-risk cutover is to keep today’s Vercel backend for old builds and release the owned hostname for new builds. That temporarily operates two backends. A verified Vercel external rewrite could later reduce this to one backend while keeping the old hostname. Vercel still handles requests and may meter delivery. A temporary 307 is another option because the app’s default URLSession follows HTTPS redirects for these GETs. That adds a phone round trip and requires preservation of the complete encoded query. Closing Vercel would end refresh on remaining old builds. The protected preview left the rewrite’s on-wire behavior, added latency and Vercel usage unmeasured. [Vercel rewrites](https://vercel.com/docs/rewrites) · [Apple URLSession](https://developer.apple.com/documentation/foundation/urlsession)
+4. **Set release criteria around a rider’s first refresh.** Establish acceptable success and latency for a board refresh plus up to three walks on an iPhone over cellular. Confirm provider quotas, permitted cache durations and any attribution requirements under the owner’s HERE and Mapbox agreements. Decide how to deliver the three TTLs and preserve the original batch timestamp. Verify freshness, query separation, error statuses, methods and the legacy forwarder before moving old builds. The largest live batch here was 49 IDs. The 50-ID success was a private fixture. One Mac, one network and one limited public-access window cannot establish fleet reliability or a global cold-start or capacity guarantee.
