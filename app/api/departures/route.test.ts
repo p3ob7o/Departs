@@ -186,13 +186,14 @@ it("checks the cap per platform board, not after flattening", async () => {
 
 describe("plus signs in the line filter", () => {
   // Installed iOS builds leave "+" raw in the query; searchParams reads it as a space.
-  async function filtered(query: string) {
+  const at = (minute: number) => `2026-11-24T10:${String(minute).padStart(2, "0")}:00Z`;
+  const departure = (minute: number, name: string, headsign: string) => ({
+    time: at(minute),
+    transport: { mode: "subway", name, headsign },
+  });
+  async function filtered(query: string, extra: unknown[] = []) {
     const { server } = await import("@/app/__tests__/setup");
     const { http, HttpResponse } = await import("msw");
-    const departure = (minute: number, name: string, headsign: string) => ({
-      time: `2026-11-24T10:${String(minute).padStart(2, "0")}:00Z`,
-      transport: { mode: "subway", name, headsign },
-    });
     server.use(http.get("https://transit.hereapi.com/v8/departures", () => HttpResponse.json({ boards: [{ departures: [
       departure(1, "U2", "S+U Pankow"),
       departure(2, "U2", "Ruhleben"),
@@ -200,6 +201,7 @@ describe("plus signs in the line filter", () => {
       departure(4, "U2", "S+U Pankow"),
       departure(5, "S+1", "Farsta strand"),
       departure(6, "U2", "Pankow"),
+      ...extra,
     ] }] })));
     const response = await GET(new Request(`http://localhost/api/departures?stopId=49031_783&${query}`));
     expect(response.status).toBe(200);
@@ -229,5 +231,39 @@ describe("plus signs in the line filter", () => {
   it("does not match a different destination", async () => {
     const body = await filtered("lineName=U8&direction=S+U%20Pankow");
     expect(body).toEqual([]);
+  });
+
+  it("matches a destination with two plus signs sent raw", async () => {
+    const body = await filtered("lineName=U2&direction=S+U%20Pankow+Bus", [departure(7, "U2", "S+U Pankow+Bus")]);
+    expect(body.map((departure) => [departure.time, departure.line.direction])).toEqual([[at(7), "S+U Pankow+Bus"]]);
+  });
+
+  it("does not match a destination that differs only by spacing", async () => {
+    const body = await filtered("lineName=U2&direction=S+U%20Pankow", [
+      departure(7, "U2", "SU Pankow"),
+      departure(8, "U2", "S+U  Pankow"),
+      departure(9, "U2", "S+UPankow"),
+    ]);
+    expect(body.map((departure) => departure.time)).toEqual([at(1), at(4)]);
+  });
+
+  it("leaves out a departure without a line while the filter is on", async () => {
+    const body = await filtered("lineName=U2&direction=S+U%20Pankow", [
+      { time: at(0) },
+      { time: at(7), transport: null },
+      { time: at(8), transport: { mode: "subway", name: "U2" } },
+    ]);
+    expect(body.map((departure) => departure.time)).toEqual([at(1), at(4)]);
+  });
+
+  it("treats a provider name or direction that is not a string as not matching", async () => {
+    const malformed = [
+      { time: at(0), transport: { mode: "subway", name: 2, headsign: "S+U Pankow" } },
+      { time: at(7), transport: { mode: "subway", name: "U2", headsign: ["S+U Pankow"] } },
+      { time: at(8), transport: { mode: "subway", name: "U2", headsign: { text: "S+U Pankow" } } },
+    ];
+    const body = await filtered("lineName=U2&direction=S+U%20Pankow", malformed);
+    expect(body.map((departure) => departure.time)).toEqual([at(1), at(4)]);
+    expect(await filtered("lineName=2&direction=S+U%20Pankow", malformed)).toEqual([]);
   });
 });

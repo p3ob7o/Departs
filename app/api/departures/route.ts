@@ -143,14 +143,15 @@ export async function GET(request: Request): Promise<Response> {
     }
     // Installed iOS builds send a raw "+" (direction=S+U%20Pankow), which
     // searchParams reads as a space. Match "+" and " " as the same character.
-    const matchable = (value: string) => value.replace(/\+/g, " ");
+    // A missing line, or a name or direction that is not a string, never matches.
+    const matchable = (value: unknown) =>
+      typeof value === "string" ? value.replace(/\+/g, " ") : undefined;
     const departures = allDepartures
       .filter((departure) => {
         if (!lineName || !direction) return true;
         return (
-          departure.line !== undefined &&
-          matchable(departure.line.name) === matchable(lineName) &&
-          matchable(departure.line.direction) === matchable(direction)
+          matchable(departure.line?.name) === matchable(lineName) &&
+          matchable(departure.line?.direction) === matchable(direction)
         );
       })
       .sort((a, b) => Date.parse(a.time) - Date.parse(b.time))
