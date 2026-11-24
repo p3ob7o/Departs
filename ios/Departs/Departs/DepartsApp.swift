@@ -11,8 +11,8 @@ struct DepartsApp: App {
     }
 }
 
-/// Data, location requests and the refresh clock belong to the app. Each window
-/// keeps its own navigation and contributes only the answers it is displaying.
+/// Data, location requests and the refresh clock belong to the app. The window
+/// owns navigation and reports which answers are visible.
 @MainActor
 @Observable
 final class TransitSession {
@@ -45,8 +45,7 @@ final class TransitSession {
         }
         guard refreshTask == nil else {
             if enteredForeground {
-                // Another window already owns the clock. Refresh this newly
-                // active viewport now without starting a second clock.
+                // The clock is already running. Refresh the newly visible answers now.
                 locationTask?.cancel()
                 locationTask = Task { await refreshVisibleAnswers() }
             }

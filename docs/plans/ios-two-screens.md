@@ -217,20 +217,21 @@ On 23 November 2026 Paolo asked to adapt both screens to iPad.
 | --- | --- |
 | O25 | In portrait orientation, it should be like iPhone, but use the whole screen optimally. |
 | O26 | In landscape orientation, the map should take the entire left half, and the lists the entire right half. |
+| O27 | One window on iPad for now. |
 
 | ID | Question | Choice | Review |
 | --- | --- | --- | --- |
-| A52 | Stacked map height | Use the whole width and half the available height, capped at the width. This leaves at least half the content area for controls and departures. A60 reserves room for two departures in a short window. | Not reviewed |
+| A52 | Stacked map height | Use the whole width and half the available height, capped at the width. This leaves at least half the content area for controls and departures. A60 reserves room for two departures in a short window. | Paolo chose half height over two thirds on 24 November 2026. |
 | A53 | Which iPad windows split | Split a window that is wider than tall and at least 768 pt wide. Both halves are equal, giving the controls at least 384 pt. Square, tall and narrower windows stack. Upside-down portrait follows the same rule as portrait. | Not reviewed |
 | A54 | What the maps show | On home MapKit fits the same 960 m square around the rider and shows more along the longer dimension. The route map fits the walking route and its endpoints on resize and remains pannable. | Not reviewed |
 | A55 | System bars | Stacked iPad maps start below the status bar. The split map fills the left edge from top to bottom, behind system chrome. The list and controls respect their safe area. | Not reviewed |
-| A56 | Line controls in the split | Put the existing back, line title, stop, walk and pin at the top of the right pane, immediately above the departures. | Not reviewed |
+| A56 | Line controls in the split | Put the existing back, line title, stop, walk and pin at the top of the right pane, immediately above the departures. | Paolo chose the header over the footer on 24 November 2026. |
 | A57 | Opening a line | Keep the system navigation push and interactive back gesture. Both screens normally use the same map frame. A60 makes room for departures in a short window. Rotation keeps the open line. | Not reviewed |
 | A58 | Accessibility text | In a stack the map scrolls away with the rows and the line screen keeps its system bar. In a split the map stays in the left pane. On the right the actions stay at the top with symbols capped at the largest standard size inside their 44 pt targets. The enlarged title, stop and departures scroll together. | Not reviewed |
 | A59 | Pointer and keyboard | Use the existing native buttons, menus, list scrolling and system keyboard accessibility. Keep the visible Back action. No additional shortcuts. | Not reviewed |
 | A60 | Long titles in short stacked iPad windows | Reduce the line map below its usual height when the measured controls would leave fewer than two 44 pt departure rows. Keep the full title and actions visible. | Not reviewed |
 
-Paolo can compare the recommended [half-height map](../screenshots/ipad-layout/pro-portrait-home.jpg) with the [two-thirds-height alternative](../screenshots/ipad-layout/alternate-portrait-home.jpg), and the [line header](../screenshots/ipad-layout/pro-landscape-line.jpg) with the [footer alternative](../screenshots/ipad-layout/alternate-landscape-line.jpg).
+On 24 November 2026 Paolo chose the [half-height map](../screenshots/ipad-layout/pro-portrait-home.jpg) over the [two-thirds-height alternative](../screenshots/ipad-layout/alternate-portrait-home.jpg), and the [line header](../screenshots/ipad-layout/pro-landscape-line.jpg) over the [footer alternative](../screenshots/ipad-layout/alternate-landscape-line.jpg).
 
 The [iPad overview](../screenshots/ipad-layout/both-ipads.jpg) shows both screens and orientations on the Pro and mini. Additional captures show [dark appearance](../screenshots/ipad-layout/pro-dark.jpg), [accessibility text](../screenshots/ipad-layout/pro-accessible.jpg) and the [iPhone before and after](../screenshots/ipad-layout/iphone-comparison.jpg). The [13-inch Pro](../screenshots/ipad-layout/pro-review.jpg) and [mini](../screenshots/ipad-layout/mini-review.jpg) review captures show the scrolled home list, line margins, direction choice after rotation and after tapping the badge again, and the short window, in reading order.
 

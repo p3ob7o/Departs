@@ -1,7 +1,12 @@
+import UIKit
 import XCTest
 @testable import Departs
 
 final class DepartsTests: XCTestCase {
+    @MainActor func testAppSupportsOneWindow() {
+        XCTAssertFalse(UIApplication.shared.supportsMultipleScenes)
+    }
+
     func testMapPanesFollowWindowSize() {
         func layout(_ width: CGFloat, _ height: CGFloat, pad: Bool = true) -> TransitLayout {
             let size = CGSize(width: width, height: height)

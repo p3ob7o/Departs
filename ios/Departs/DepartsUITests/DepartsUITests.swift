@@ -144,7 +144,7 @@ final class DepartsUITests: XCTestCase {
                 .press(forDuration: 0.6, thenDragTo: origin.withOffset(CGVector(dx: target.x, dy: target.y)),
                        withVelocity: .slow, thenHoldForDuration: 0.5)
         }
-        defer { resize(to: CGPoint(x: full.maxX - 1, y: full.maxY - 1)) }
+        addTeardownBlock { resize(to: CGPoint(x: full.maxX - 1, y: full.maxY - 1)) }
         resize(to: CGPoint(x: full.minX + 430, y: full.minY + 470))
         waitUntil { self.app.windows.firstMatch.frame.height <= 510 }
         rows.firstMatch.tap()
