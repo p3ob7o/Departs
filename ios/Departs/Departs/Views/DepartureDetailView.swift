@@ -6,6 +6,7 @@ struct DepartureDetailView: View {
     @Environment(\.dismiss) private var dismiss
     let selection: StopLineSelection
     @Bindable var store: TransitStore
+    @State private var controlsHeight: CGFloat = 0
     @State private var countdownStart = Date.now
     /// The widest countdown among the departures shown, so each sits
     /// right-aligned in one column: the 4 of "4 min" above the 0 of "10 min".
@@ -15,65 +16,93 @@ struct DepartureDetailView: View {
 
     var body: some View {
         GeometryReader { geometry in
+            let layout = geometry.transitLayout
             let accessibility = textSize.isAccessibilitySize
-            // At standard sizes the bar is hidden and the map has home's frame:
-            // the square, plus the strip under a tall status bar (O22, A27).
-            let strip = MapStrip.height(statusBar: geometry.safeAreaInsets.top, accessibilitySize: accessibility)
+            // Phones with a tall status bar extend the standard-size map above its square (A27).
+            let strip = layout.stripHeight(topInset: geometry.safeAreaInsets.top, accessibility: accessibility)
             TimelineView(.periodic(from: countdownStart, by: 15)) { timeline in
                 let date = max(timeline.date, Date.now)
                 let board = store.boards[selection.id]
                 let fresh = store.isBoardFresh(for: selection, at: date)
                 let walk = store.walk(for: selection.stop, at: date)
                 let shown = board.map { Array($0.upcoming(at: $0.checkedAt).prefix(4)) } ?? []
-                VStack(spacing: 0) {
-                    if !accessibility {
-                        map(width: geometry.size.width, strip: strip, walk: walk, at: date)
-                        controls(walk: walk, at: date)
+                // Leave space for two departures in a short iPad window even when the title wraps.
+                let stackHeight = layout.isPad && !accessibility
+                    ? min(layout.stackedMapHeight, max(0, geometry.size.height - controlsHeight - 88))
+                    : layout.stackedMapHeight
+                layout.panes {
+                    if !accessibility || layout.sideBySide {
+                        map(width: layout.mapWidth, height: layout.sideBySide ? nil : stackHeight + strip, walk: walk, at: date)
+                            .ignoresSafeArea(.container, edges: layout.sideBySide ? .vertical : [])
                     }
-                    List {
-                        if accessibility {
-                            // As before: the map scrolls away and the bar keeps
-                            // back, walk and pin within reach (A39).
-                            map(width: geometry.size.width, walk: walk, at: date)
-                                .listRowInsets(EdgeInsets()).listRowSeparator(.hidden)
-                            heading(walk: walk, at: date)
-                                .listRowSeparator(.hidden)
-                                .listRowInsets(.vertical, 8)
-                        }
-                        if let board {
-                            if !fresh { refreshButton(savedAt: board.checkedAt) }
-                            if !board.hasDepartureWithinHorizon {
-                                Text("Nothing in the next hour").accessibilityIdentifier("line-empty")
-                            }
-                            ForEach(shown) { departure in
-                                departureRow(departure, fresh: fresh, at: date)
-                                    .listRowInsets(.vertical, 0)
-                            }
-                        } else if store.boardErrors.contains(selection.id) {
-                            refreshButton(savedAt: nil)
-                        } else {
-                            Label("Checking departures…", systemImage: "clock")
-                                .accessibilityIdentifier("board-status")
-                        }
-                    }
-                    .listStyle(.plain)
-                    .environment(\.defaultMinListRowHeight, 0)
-                    .contentMargins(.top, 0, for: .scrollContent)
-                    .background(alignment: .topLeading) {
+                    VStack(spacing: 0) {
                         if !accessibility {
-                            CountdownColumn.Reader(texts: CountdownColumn.texts(shown, fresh: fresh, now: date)) { countdownColumn = $0 }
+                            controls(walk: walk, at: date)
+                                .onGeometryChange(for: CGFloat.self) {
+                                    layout.isPad && !layout.sideBySide ? $0.size.height : 0
+                                } action: { controlsHeight = $0 }
+                        } else if layout.sideBySide {
+                            HStack(spacing: 0) {
+                                backButton
+                                Spacer()
+                                actionButtons
+                            }
+                            // Keep symbols within their 44 pt targets. The title and rows
+                            // below use the rider's full accessibility text size.
+                            .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, Self.edge)
                         }
+                        List {
+                            if accessibility {
+                                // The stacked map scrolls with the list. Split maps stay beside it.
+                                if !layout.sideBySide {
+                                    map(width: layout.mapWidth, height: layout.stackedMapHeight, walk: walk, at: date)
+                                        .listRowInsets(EdgeInsets()).listRowSeparator(.hidden)
+                                }
+                                heading(walk: walk, at: date)
+                                    .listRowSeparator(.hidden)
+                                    .listRowInsets(.vertical, 8)
+                                    .listRowInsets(.horizontal, 16)
+                            }
+                            Group {
+                                if let board {
+                                    if !fresh { refreshButton(savedAt: board.checkedAt) }
+                                    if !board.hasDepartureWithinHorizon {
+                                        Text("Nothing in the next hour").accessibilityIdentifier("line-empty")
+                                    }
+                                    ForEach(shown) { departure in
+                                        departureRow(departure, fresh: fresh, at: date)
+                                            .listRowInsets(.vertical, 0)
+                                    }
+                                } else if store.boardErrors.contains(selection.id) {
+                                    refreshButton(savedAt: nil)
+                                } else {
+                                    Label("Checking departures…", systemImage: "clock")
+                                        .accessibilityIdentifier("board-status")
+                                }
+                            }
+                            .listRowInsets(.horizontal, 16)
+                        }
+                        .listStyle(.plain)
+                        .environment(\.defaultMinListRowHeight, 0)
+                        .contentMargins(.top, 0, for: .scrollContent)
+                        .background(alignment: .topLeading) {
+                            if !accessibility {
+                                CountdownColumn.Reader(texts: CountdownColumn.texts(shown, fresh: fresh, now: date)) { countdownColumn = $0 }
+                            }
+                        }
+                        .accessibilityIdentifier("departure-detail")
+                        .refreshable { await store.refreshSelection(selection, force: true) }
                     }
-                    .accessibilityIdentifier("departure-detail")
-                    .refreshable { await store.refreshSelection(selection, force: true) }
                 }
                 .ignoresSafeArea(.container, edges: strip > 0 ? .top : [])
             }
+            .toolbarVisibility(accessibility && !layout.sideBySide ? .visible : .hidden, for: .navigationBar)
         }
         // Kept for VoiceOver and the back stack, also while the bar is hidden.
         .navigationTitle(title)
         .navigationBarTitleDisplayMode(.inline)
-        .toolbarVisibility(textSize.isAccessibilitySize ? .visible : .hidden, for: .navigationBar)
         .toolbar {
             ToolbarItemGroup(placement: .topBarTrailing) {
                 if textSize.isAccessibilitySize {
@@ -98,14 +127,13 @@ struct DepartureDetailView: View {
     private var pinSymbol: String { store.isPinned(selection) ? "pin.fill" : "pin" }
     private var pinID: String { store.isPinned(selection) ? "unpin-route" : "pin-route" }
 
-    /// `strip` points of the map lie under the status bar, above its square.
-    /// MapKit keeps the route inside the safe area, so inside the square.
-    private func map(width: CGFloat, strip: CGFloat = 0, walk: CachedWalk?, at date: Date) -> some View {
+    /// A nil height fills the left pane. MapKit fits the route in the usable frame.
+    private func map(width: CGFloat, height: CGFloat?, walk: CachedWalk?, at date: Date) -> some View {
         RouteMapView(userCoordinate: store.walkingOrigin?.clLocationCoordinate2D,
                      stop: selection.stop, stopColor: StopPalette.modeColor(selection.line.type),
                      walkingRoute: walk?.route, line: selection.line,
                      originIsCurrentLocation: store.location?.isUsable(at: date) == true)
-            .frame(width: width, height: width + strip)
+            .frame(width: width, height: height)
             .accessibilityIdentifier("line-map")
     }
 
@@ -125,15 +153,9 @@ struct DepartureDetailView: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .foregroundStyle(Color.primary)
             HStack(alignment: .firstTextBaseline, spacing: 0) {
-                Button { dismiss() } label: { ControlSymbol(name: "chevron.backward") }
-                    .accessibilityLabel(Text("Back"))
-                    .accessibilityIdentifier("line-back")
-                    .accessibilitySortPriority(3)
+                backButton
                 Spacer(minLength: 0)
-                WalkingDirectionsButton(selection: selection) { ControlSymbol(name: "figure.walk") }
-                Button { store.togglePin(selection) } label: { ControlSymbol(name: pinSymbol) }
-                    .accessibilityLabel(Text(pinLabel))
-                    .accessibilityIdentifier(pinID)
+                actionButtons
             }
         }
         // VoiceOver reads back, the line, the stop, then walk and pin.
@@ -143,6 +165,20 @@ struct DepartureDetailView: View {
         .padding(.horizontal, Self.edge)
         .padding(.top, 4)
         .padding(.bottom, 8)
+    }
+
+    private var backButton: some View {
+        Button { dismiss() } label: { ControlSymbol(name: "chevron.backward") }
+            .accessibilityLabel(Text("Back"))
+            .accessibilityIdentifier("line-back")
+            .accessibilitySortPriority(3)
+    }
+
+    @ViewBuilder private var actionButtons: some View {
+        WalkingDirectionsButton(selection: selection) { ControlSymbol(name: "figure.walk") }
+        Button { store.togglePin(selection) } label: { ControlSymbol(name: pinSymbol) }
+            .accessibilityLabel(Text(pinLabel))
+            .accessibilityIdentifier(pinID)
     }
 
     /// The controls sit this close to the screen's edges; each takes this width.

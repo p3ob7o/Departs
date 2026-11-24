@@ -1,11 +1,47 @@
+import UIKit
 import XCTest
 @testable import Departs
 
 final class DepartsTests: XCTestCase {
-    func testAppConfigurationStaysIPhoneOnlyPortraitAndLocalNetworkingIsDebugOnly() {
-        let info = Bundle.main.infoDictionary!
-        XCTAssertEqual(info["UIDeviceFamily"] as? [Int], [1])
+    @MainActor func testAppSupportsOneWindow() {
+        XCTAssertFalse(UIApplication.shared.supportsMultipleScenes)
+    }
+
+    func testMapPanesFollowWindowSize() {
+        func layout(_ width: CGFloat, _ height: CGFloat, pad: Bool = true) -> TransitLayout {
+            let size = CGSize(width: width, height: height)
+            return TransitLayout(window: size, available: size, isPad: pad)
+        }
+        let tall = TransitLayout(window: CGSize(width: 800, height: 820),
+                                 available: CGSize(width: 800, height: 768), isPad: true)
+        XCTAssertFalse(tall.sideBySide)
+        XCTAssertEqual(tall.stackedMapHeight, 384)
+        let narrow = TransitLayout(window: CGSize(width: 375, height: 1376),
+                                   available: CGSize(width: 375, height: 1324), isPad: true)
+        XCTAssertFalse(narrow.sideBySide)
+        XCTAssertEqual(narrow.stackedMapHeight, 375)
+        XCTAssertFalse(layout(1024, 1366).sideBySide)
+        XCTAssertEqual(layout(1024, 1366).stackedMapHeight, 683)
+        XCTAssertFalse(layout(820, 820).sideBySide)
+        XCTAssertFalse(layout(767, 440).sideBySide)
+        XCTAssertEqual(layout(650, 400).stackedMapHeight, 200)
+        XCTAssertTrue(layout(768, 500).sideBySide)
+        XCTAssertEqual(layout(768, 500).mapWidth, 384)
+        XCTAssertFalse(layout(852, 393, pad: false).sideBySide)
+        XCTAssertEqual(layout(402, 874, pad: false).stackedMapHeight, 402)
+    }
+
+    func testDeviceFamiliesOrientationsAndLocalNetworking() throws {
+        // Bundle.infoDictionary resolves device-specific keys for the running host.
+        // Read the packaged plist so each simulator verifies both device families.
+        let url = try XCTUnwrap(Bundle.main.url(forResource: "Info", withExtension: "plist"))
+        let plist = try PropertyListSerialization.propertyList(from: Data(contentsOf: url), format: nil)
+        let info = try XCTUnwrap(plist as? [String: Any])
+        XCTAssertEqual(info["UIDeviceFamily"] as? [Int], [1, 2])
         XCTAssertEqual(info["UISupportedInterfaceOrientations"] as? [String], ["UIInterfaceOrientationPortrait"])
+        XCTAssertEqual(Set(try XCTUnwrap(info["UISupportedInterfaceOrientations~ipad"] as? [String])),
+                       ["UIInterfaceOrientationPortrait", "UIInterfaceOrientationPortraitUpsideDown",
+                        "UIInterfaceOrientationLandscapeLeft", "UIInterfaceOrientationLandscapeRight"])
         XCTAssertEqual(info["MinimumOSVersion"] as? String, "26.0")
         let transport = info["NSAppTransportSecurity"] as? [String: Any]
         #if DEBUG

@@ -10,6 +10,7 @@ struct NearbyStopsView: View {
     let onRefresh: () async -> Void
     var onDistantPins: () -> Void = {}
     var interactionID = "nearby"
+    @Environment(\.displayScale) private var displayScale
     @Environment(\.dynamicTypeSize) private var textSize
     @Environment(\.openURL) private var openURL
     @State private var selectedMapStop: String?
@@ -24,6 +25,8 @@ struct NearbyStopsView: View {
     @State private var countdownStart = Date.now
     /// The widest badge among every listed line, so destinations share one x.
     @State private var badgeColumn: CGFloat?
+    @State private var viewportTop: CGFloat = 0
+    @State private var headerHeights: [String: CGFloat] = [:]
 
     /// A choice of directions, offered at the badge that was tapped.
     struct MapChoice: Identifiable, Equatable {
@@ -66,23 +69,36 @@ struct NearbyStopsView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let strip = MapStrip.height(statusBar: geometry.safeAreaInsets.top, accessibilitySize: textSize.isAccessibilitySize)
+            let layout = geometry.transitLayout
+            let strip = layout.stripHeight(topInset: geometry.safeAreaInsets.top, accessibility: textSize.isAccessibilitySize)
             ScrollViewReader { proxy in
                 TimelineView(.periodic(from: countdownStart, by: 15)) { timeline in
                     let date = max(timeline.date, Date.now)
-                    VStack(spacing: 0) {
-                        // Home has no bar. The square sits under the status bar,
-                        // and on a tall status bar the map continues above it.
-                        if !textSize.isAccessibilitySize {
-                            map(width: geometry.size.width, strip: strip, at: date)
+                    let scrollMap = textSize.isAccessibilitySize && !layout.sideBySide
+                    layout.panes {
+                        if !scrollMap {
+                            map(width: layout.mapWidth, height: layout.sideBySide ? nil : layout.stackedMapHeight + strip, at: date)
+                                .ignoresSafeArea(.container, edges: layout.sideBySide ? .vertical : [])
                         }
-                        list(width: geometry.size.width, at: date)
+                        if layout.sideBySide {
+                            // List normally draws into adjacent safe areas. Clip scrolled
+                            // rows and pushed-off headers below the system status items.
+                            list(layout: layout, scrollMap: false, at: date)
+                                // One physical pixel separates the scroll view from the
+                                // safe-area boundary so UIKit does not extend it under the bar.
+                                .padding(.top, 1 / displayScale)
+                                .frame(height: geometry.size.height)
+                                .clipped()
+                        } else {
+                            list(layout: layout, scrollMap: scrollMap, at: date)
+                        }
                     }
                     .ignoresSafeArea(.container, edges: strip > 0 ? .top : [])
                 }
                 .onChange(of: store.areaRevision) { _, _ in
                     selectedMapStop = nil
                     mapChoice = nil
+                    headerHeights.removeAll()
                     proxy.scrollTo("home-top", anchor: .top)
                 }
                 .onChange(of: mapChoice) { _, choice in
@@ -96,19 +112,20 @@ struct NearbyStopsView: View {
         .toolbarVisibility(.hidden, for: .navigationBar)
     }
 
-    private func list(width: CGFloat, at date: Date) -> some View {
+    private func list(layout: TransitLayout, scrollMap: Bool, at date: Date) -> some View {
         List {
-            if textSize.isAccessibilitySize {
-                map(width: width, at: date)
+            if scrollMap {
+                map(width: layout.mapWidth, height: layout.stackedMapHeight, at: date)
                     .listRowInsets(EdgeInsets()).listRowSeparator(.hidden).id("home-top")
             } else {
                 Color.clear.frame(height: 1).listRowInsets(EdgeInsets())
                     .listRowSeparator(.hidden).accessibilityHidden(true).id("home-top")
             }
-            states(at: date)
+            states(at: date).listRowInsets(.horizontal, 16)
             pinnedSections(at: date)
             ForEach(store.groups) { stopSections($0, at: date) }
         }
+        .onGeometryChange(for: CGFloat.self) { layout.isPad ? $0.frame(in: .global).minY : 0 } action: { viewportTop = $0 }
         .listStyle(.plain)
         .id(store.areaRevision)
         .environment(\.defaultMinListRowHeight, 0)
@@ -137,15 +154,19 @@ struct NearbyStopsView: View {
     @ViewBuilder private func stopSections(_ group: StopGroup, at date: Date) -> some View {
         let leading = group.hasMissingBoard ? group.active : Array(group.active.dropLast())
         Section {
-            ForEach(leading) { row($0, at: date).listRowSeparator(.visible, edges: .bottom) }
-        } header: { header(group, at: date) }
+            ForEach(leading) { selection in
+                row(selection, at: date)
+                    .modifier(PinnedRowMask(viewportTop: viewportTop, headerHeight: headerHeights[group.id]))
+                    .listRowSeparator(.visible, edges: .bottom)
+            }
+        } header: { measuredHeader(header(group, at: date), id: group.id) }
         Section {
             if group.hasMissingBoard {
                 // The recovery row counts as the stop's last line.
                 Button { Task { await onRefresh() } } label: {
                     Label("Couldn't load this stop · Retry", systemImage: "arrow.clockwise")
                         .frame(minHeight: 44)
-                }.foregroundStyle(.tint).accessibilityIdentifier("retry-stop")
+                }.foregroundStyle(.tint).accessibilityIdentifier("retry-stop").listRowInsets(.horizontal, 16)
             } else if let last = group.active.last {
                 row(last, at: date)
             }
@@ -160,18 +181,54 @@ struct NearbyStopsView: View {
         if !pins.isEmpty || elsewhere {
             let leading = elsewhere ? pins : Array(pins.dropLast())
             Section {
-                ForEach(leading) { row($0, at: date, showStop: true).listRowSeparator(.visible, edges: .bottom) }
-            } header: { Text("Pinned").foregroundStyle(Color.primary).textCase(nil).modifier(StopHeader()) }
+                ForEach(leading) { selection in
+                    row(selection, at: date, showStop: true)
+                        .modifier(PinnedRowMask(viewportTop: viewportTop, headerHeight: headerHeights["pinned"]))
+                        .listRowSeparator(.visible, edges: .bottom)
+                }
+            } header: {
+                measuredHeader(Text("Pinned").foregroundStyle(Color.primary).textCase(nil).modifier(StopHeader()), id: "pinned")
+            }
             .id("pinned")
             Section {
                 if elsewhere {
                     Button(action: onDistantPins) {
                         Label("Pinned elsewhere (\(elsewhereCount))", systemImage: "pin")
                             .frame(minHeight: 44)
-                    }.foregroundStyle(.tint)
+                    }.foregroundStyle(.tint).listRowInsets(.horizontal, 16)
                 } else if let last = pins.last {
                     row(last, at: date, showStop: true)
                 }
+            }
+        }
+    }
+
+    @ViewBuilder private func measuredHeader(_ header: some View, id: String) -> some View {
+        if UIDevice.current.userInterfaceIdiom == .pad {
+            header
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { headerHeights[id] = $0 }
+                .listRowInsets(EdgeInsets())
+        } else {
+            header
+        }
+    }
+
+    /// UIKit fades the pinned header as its section ends on iPad. Suppress the
+    /// part of each preceding row behind it. The final row pushes the name off
+    /// and is always drawn in full.
+    private struct PinnedRowMask: ViewModifier {
+        let viewportTop: CGFloat
+        let headerHeight: CGFloat?
+        func body(content: Content) -> some View {
+            if let headerHeight {
+                content.mask {
+                    GeometryReader { row in
+                        let y = row.frame(in: .global).minY - viewportTop
+                        Rectangle().padding(.top, min(row.size.height, max(0, headerHeight - y)))
+                    }
+                }
+            } else {
+                content
             }
         }
     }
@@ -194,16 +251,15 @@ struct NearbyStopsView: View {
         .id(group.id)
     }
 
-    /// The square, plus `strip` points above it when the map reaches the top of
-    /// the screen. MapKit keeps its centre and span inside the safe area, so the
-    /// square shows what it showed without the strip.
-    private func map(width: CGFloat, strip: CGFloat = 0, at date: Date) -> some View {
+    /// A nil height fills the left pane. MapKit fits the search area in the usable frame.
+    private func map(width: CGFloat, height: CGFloat?, at date: Date) -> some View {
         let usable = store.location.flatMap { $0.isUsable(at: date) ? $0.coordinate : nil }
         return StopsMapView(fallbackCenter: (usable ?? store.center)?.clLocationCoordinate2D,
                             followsLiveLocation: usable != nil, groups: store.mapGroups,
                             selectedStopID: selectedMapStop, onSelect: { selectedMapStop = $0 },
                             onTap: { stop, part, frame in tappedLabel(stop, part, at: frame) })
-        .frame(width: width, height: width + strip)
+        .frame(width: width, height: height)
+        .onGeometryChange(for: CGSize.self) { $0.size } action: { _, _ in mapChoice = nil }
         .popover(item: $mapChoice, attachmentAnchor: .rect(.rect(mapChoiceAnchor)), arrowEdge: .top) { choice in
             MapDirections(rows: choice.rows, direction: { displayDirection($0) }) { selection in
                 pickedDirection = true

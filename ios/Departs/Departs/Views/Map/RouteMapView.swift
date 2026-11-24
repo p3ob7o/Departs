@@ -85,6 +85,7 @@ struct RouteMapView: UIViewRepresentable {
         let regionKey = "\(origin)|\(stop.location.lat),\(stop.location.lon)|\(routeKey)"
         if context.coordinator.regionKey != regionKey {
             context.coordinator.regionKey = regionKey
+            container.fittedRegion = region
             container.targetRegion = region
             if map.bounds.size.width > 0 {
                 container.targetRegion = nil
@@ -104,6 +105,7 @@ struct RouteMapView: UIViewRepresentable {
     /// (unlike delegate callbacks during NavigationStack transitions).
     final class MapContainerView: UIView {
         let mapView: MKMapView
+        var fittedRegion: MKCoordinateRegion?
         var targetRegion: MKCoordinateRegion?
 
         init(mapView: MKMapView) {
@@ -115,17 +117,21 @@ struct RouteMapView: UIViewRepresentable {
         required init?(coder: NSCoder) { fatalError() }
 
         /// Under the status bar the map is shown and takes no touch, as on home
-        /// (A26). The square below pans and zooms as before (A17).
+        /// (A26). The map below pans and zooms (A17).
         override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
             point.y < safeAreaInsets.top ? nil : super.hitTest(point, with: event)
         }
 
         override func layoutSubviews() {
             super.layoutSubviews()
+            if traitCollection.userInterfaceIdiom == .pad, mapView.bounds.size != bounds.size {
+                targetRegion = fittedRegion
+            }
             mapView.frame = bounds
-            if let region = targetRegion, bounds.width > 0, bounds.height > 0 {
+            if targetRegion != nil, bounds.width > 0, bounds.height > 0 {
                 targetRegion = nil
                 DispatchQueue.main.async {
+                    guard let region = self.fittedRegion else { return }
                     self.mapView.setRegion(region, animated: false)
                 }
             }

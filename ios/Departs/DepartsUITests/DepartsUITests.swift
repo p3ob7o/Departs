@@ -43,6 +43,135 @@ final class DepartsUITests: XCTestCase {
         XCUIDevice.shared.location = nil
     }
 
+    private var padBottomInset: CGFloat {
+        let marker = app.descendants(matching: .any)["window-bottom-inset"]
+        return CGFloat(Double(marker.value as? String ?? "") ?? .nan)
+    }
+    private var isPad: Bool { UIDevice.current.userInterfaceIdiom == .pad }
+
+    func testIPadRotationKeepsSelectionAndSplitsBothScreens() throws {
+        try XCTSkipUnless(isPad, "Exercises rotatable iPad windows")
+        app.launchEnvironment["DEPARTS_TEST_GOOGLE_MAPS"] = "1"
+        launch()
+        waitForRows()
+        waitUntil { self.server.walkCount == 4 }
+        assertStacked(homeMap, nearbyList)
+        capture("iPad portrait home")
+        XCUIDevice.shared.orientation = .landscapeLeft
+        assertSplit(homeMap, nearbyList)
+        capture("iPad landscape home")
+        rows.matching(NSPredicate(format: "label CONTAINS 'Bus 48A'")).firstMatch.tap()
+        waitUntil { self.lineRows.count == 4 }
+        assertSplit(lineMap, lineList)
+        for control in [app.buttons["line-back"], lineTitle, app.buttons["walking-directions"], app.buttons["pin-route"]] {
+            XCTAssertGreaterThanOrEqual(control.frame.minX, app.frame.midX)
+            XCTAssertLessThanOrEqual(control.frame.maxY, lineList.frame.minY)
+        }
+        capture("iPad landscape line")
+        app.buttons["pin-route"].tap()
+        XCTAssertTrue(app.buttons["unpin-route"].exists)
+        app.buttons["walking-directions"].tap()
+        app.buttons["Apple Maps"].tap()
+        waitUntil { self.app.descendants(matching: .any)["opened-map-app"].label == "Apple Maps 1" }
+        XCUIDevice.shared.orientation = .portraitUpsideDown
+        assertStacked(lineMap, lineList)
+        XCTAssertTrue(app.buttons["unpin-route"].exists)
+        XCUIDevice.shared.orientation = .portrait
+        assertStacked(lineMap, lineList)
+        capture("iPad portrait line")
+        goBack()
+        assertStacked(homeMap, nearbyList)
+    }
+
+    func testIPadLandscapeAccessibilityControlsStayInListPane() throws {
+        try XCTSkipUnless(isPad, "Exercises accessible iPad panes")
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
+        XCUIDevice.shared.orientation = .landscapeRight
+        launch()
+        waitForRows()
+        assertSplit(homeMap, nearbyList)
+        rows.firstMatch.tap()
+        waitUntil { self.lineRows.firstMatch.exists }
+        assertSplit(lineMap, lineList)
+        for id in ["line-back", "walking-directions", "pin-route"] {
+            let button = app.buttons[id]
+            XCTAssertTrue(button.isHittable)
+            XCTAssertGreaterThanOrEqual(button.frame.minX, app.frame.midX)
+        }
+        for orientation in [UIDeviceOrientation.portrait, .landscapeLeft] {
+            XCUIDevice.shared.orientation = orientation
+            let split = orientation.isLandscape
+            waitUntil { self.app.navigationBars.count == (split ? 0 : 1) }
+            for id in ["walking-directions", "pin-route"] {
+                XCTAssertEqual(app.buttons.matching(identifier: id).count, 1)
+            }
+            if split { XCTAssertEqual(lineTitle.frame.minX, lineList.frame.minX + 16, accuracy: 1) }
+        }
+        capture("iPad accessible landscape line")
+    }
+
+    func testDirectionChoiceClosesWhenMapResizes() throws {
+        try XCTSkipUnless(isPad)
+        launch()
+        waitForRows()
+        let badge = mapLabel("Subway U3")
+        badge.tap()
+        let choice = app.buttons.matching(identifier: "map-direction").firstMatch
+        XCTAssertTrue(choice.waitForExistence(timeout: 5))
+        XCUIDevice.shared.orientation = .landscapeLeft
+        assertSplit(homeMap, nearbyList)
+        XCTAssertTrue(choice.waitForNonExistence(timeout: 5))
+        capture("Split after dismissing rotated choice")
+        badge.tap()
+        XCTAssertTrue(choice.waitForExistence(timeout: 5))
+        capture("Reopened split direction choice")
+        choice.tap()
+        XCTAssertTrue(lineTitle.waitForExistence(timeout: 5))
+    }
+
+    func testShortIPadWindowKeepsTwoDeparturesVisible() throws {
+        try XCTSkipUnless(isPad)
+        server.useLongDestination()
+        app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryXXXL"]
+        launch()
+        waitForRows()
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let full = app.windows.firstMatch.frame
+        func resize(to target: CGPoint) {
+            let window = app.windows.firstMatch.frame
+            let origin = springboard.coordinate(withNormalizedOffset: .zero)
+            origin.withOffset(CGVector(dx: window.maxX - 5, dy: window.maxY - 5))
+                .press(forDuration: 0.6, thenDragTo: origin.withOffset(CGVector(dx: target.x, dy: target.y)),
+                       withVelocity: .slow, thenHoldForDuration: 0.5)
+        }
+        addTeardownBlock { resize(to: CGPoint(x: full.maxX - 1, y: full.maxY - 1)) }
+        resize(to: CGPoint(x: full.minX + 430, y: full.minY + 470))
+        waitUntil { self.app.windows.firstMatch.frame.height <= 510 }
+        rows.firstMatch.tap()
+        waitUntil { self.lineRows.count >= 2 }
+        let list = lineList.frame
+        XCTAssertTrue(list.contains(lineRows.element(boundBy: 0).frame))
+        XCTAssertTrue(list.contains(lineRows.element(boundBy: 1).frame))
+        capture("Short window long direction")
+    }
+
+    private func assertSplit(_ map: XCUIElement, _ list: XCUIElement) {
+        waitUntil { self.app.frame.width > self.app.frame.height && abs(map.frame.maxX - self.app.frame.midX) <= 1 }
+        XCTAssertEqual(map.frame.minX, app.frame.minX, accuracy: 1)
+        XCTAssertEqual(map.frame.minY, app.frame.minY, accuracy: 1)
+        XCTAssertEqual(map.frame.maxY, app.frame.maxY, accuracy: 1)
+        XCTAssertEqual(list.frame.minX, map.frame.maxX, accuracy: 1)
+        XCTAssertEqual(list.frame.maxX, app.frame.maxX, accuracy: 1)
+    }
+
+    private func assertStacked(_ map: XCUIElement, _ list: XCUIElement) {
+        waitUntil { self.app.frame.height > self.app.frame.width && abs(map.frame.width - self.app.frame.width) <= 1 }
+        XCTAssertGreaterThan(map.frame.minY, app.frame.minY)
+        XCTAssertEqual(map.frame.height, (app.frame.maxY - padBottomInset - map.frame.minY) / 2, accuracy: 1)
+        XCTAssertEqual(list.frame.width, app.frame.width, accuracy: 1)
+        XCTAssertGreaterThanOrEqual(list.frame.minY, map.frame.maxY)
+    }
+
     func testHomeSampleSquareMapDensityAndOneBatchPerRefresh() {
         launch()
         waitForRows()
@@ -51,9 +180,11 @@ final class DepartsUITests: XCTestCase {
         XCTAssertEqual(app.navigationBars.count, 0, "Home has no bar: no title and no location button")
         XCTAssertFalse(app.buttons["locate"].exists)
         XCTAssertEqual(frame.width, app.frame.width, accuracy: 1)
-        XCTAssertEqual(frame.maxY, topInset + app.frame.width, accuracy: 1, "The square sits under the status bar")
-        XCTAssertEqual(frame.minY, reachesTop ? 0 : topInset, accuracy: 1,
-                       "On a tall status bar the map continues above the square to the top of the screen")
+        if isPad { assertStacked(homeMap, nearbyList) } else {
+            XCTAssertEqual(frame.maxY, topInset + app.frame.width, accuracy: 1, "The square sits under the status bar")
+            XCTAssertEqual(frame.minY, reachesTop ? 0 : topInset, accuracy: 1,
+                           "On a tall status bar the map continues above the square to the top of the screen")
+        }
         XCTAssertEqual(nearbyList.frame.minY, frame.maxY, accuracy: 1)
         // The square shows what it showed before the map reached the top: the
         // rider at its centre and 960 m across, so a stop lands where it did.
@@ -425,7 +556,7 @@ final class DepartsUITests: XCTestCase {
         let before = label.frame, services = rowServices(), stops = server.radii.count
         // About 100 m north of the test coordinate.
         XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 48.20134 + 100 / 111_200, longitude: 16.34941))
-        let expected = 100 * app.frame.width / 960
+        let expected = 100 * (isPad ? homeMap.frame.height : app.frame.width) / 960
         let started = Date()
         waitUntil(timeout: 5) { abs(label.frame.midY - before.midY - expected) < 4 }
         print("FOLLOW shift=\(label.frame.midY - before.midY) expected=\(expected) after=\(Date().timeIntervalSince(started))s")
@@ -435,9 +566,29 @@ final class DepartsUITests: XCTestCase {
         capture("Home after a 100 m move")
     }
 
+    private func launchOverflowingList() {
+        let extraStops = isPad ? 10 : 0
+        server.useExtraStops(extraStops)
+        launch()
+        waitForRows()
+        waitUntil { self.server.walkCount == 4 + extraStops }
+    }
+
     func testStopNameLeavesWithItsLastLine() {
-        launch(); waitForRows()
-        waitUntil { self.server.walkCount == 4 }
+        launchOverflowingList()
+        checkStopNameLeavesWithItsLastLine()
+        if isPad {
+            XCUIDevice.shared.orientation = .landscapeLeft
+            // A fresh list starts at the top in the new orientation.
+            app.terminate()
+            app.launch()
+            waitForRows()
+            assertSplit(homeMap, nearbyList)
+            checkStopNameLeavesWithItsLastLine()
+        }
+    }
+
+    private func checkStopNameLeavesWithItsLastLine() {
         let list = nearbyList.frame
         // Two stops are both called Neubaugasse, so lines are matched by place:
         // a stop's lines are the rows between its name and the next name.
@@ -447,6 +598,7 @@ final class DepartsUITests: XCTestCase {
         let firstName = headers.matching(NSPredicate(format: "label == 'Siebensterngasse'")).firstMatch.frame
         let gap = rows.firstMatch.frame.minY - firstName.maxY
         XCTAssertGreaterThanOrEqual(gap, 0)
+        var capturedLeavingHeader = false
         for step in 0..<45 {
             let names = headers.allElementsBoundByIndex.filter { $0.exists }.map(\.frame)
                 .filter { $0.maxY > list.minY + 0.5 && $0.minY < list.maxY }.sorted { $0.minY < $1.minY }
@@ -457,6 +609,24 @@ final class DepartsUITests: XCTestCase {
                 // leaving, never covers its last line. One of its lines must show
                 // whole below the name's area. A sliver under the name is not a line.
                 guard name.minY <= list.minY + 20 else { continue }
+                if isPad {
+                    // Countdowns pass behind this otherwise blank part of the name.
+                    let trailing = CGRect(x: list.maxX - 72, y: name.minY + 2, width: 54,
+                                          height: max(0, name.height - 4)).intersection(list)
+                    if trailing.height >= 3 {
+                        let ink = darkestPixel(in: trailing)
+                        if !capturedLeavingHeader, list.minX > 0, name.minY < list.minY + 9 {
+                            capture("Split header leaving")
+                            capturedLeavingHeader = true
+                        }
+                        if ink <= 245 {
+                            print("HEADER step=\(step) frame=\(name) sample=\(trailing) list=\(list) grey=\(ink)")
+                            capture("Rows behind header")
+                        }
+                        XCTAssertGreaterThan(ink, 245,
+                                             "A departing row must be completely hidden behind its pinned name")
+                    }
+                }
                 let next = index + 1 < names.count ? names[index + 1].minY : list.maxY
                 let shown = lines.contains {
                     $0.minY >= name.maxY + gap - 1 && $0.minY >= list.minY - 0.5 && $0.maxY <= list.maxY + 0.5 && $0.minY < next
@@ -478,6 +648,7 @@ final class DepartsUITests: XCTestCase {
                     pinnedWhilePassing += 1
                 }
             }
+            if isPad && pinnedWhilePassing > 1 && checkedAtTop > 3 && !first.isHittable { break }
             let marker = rows.allElementsBoundByIndex.last?.frame.minY
             if let marker, let previous, abs(marker - previous) < 0.5, step > 2 { break }
             previous = marker
@@ -491,8 +662,20 @@ final class DepartsUITests: XCTestCase {
     }
 
     func testPinnedStopNameKeepsItsColour() {
-        launch(); waitForRows()
-        waitUntil { self.server.walkCount == 4 }
+        launchOverflowingList()
+        checkPinnedStopNameKeepsItsColour()
+        if isPad {
+            XCUIDevice.shared.orientation = .landscapeLeft
+            // A fresh list starts at the top in the new orientation.
+            app.terminate()
+            app.launch()
+            waitForRows()
+            assertSplit(homeMap, nearbyList)
+            checkPinnedStopNameKeepsItsColour()
+        }
+    }
+
+    private func checkPinnedStopNameKeepsItsColour() {
         let name = app.staticTexts.matching(NSPredicate(format: "label == 'Siebensterngasse'")).firstMatch
         let unpinned = darkestPixel(in: name.frame)
         // Scroll until the first line has passed under the name.
@@ -505,7 +688,14 @@ final class DepartsUITests: XCTestCase {
         let pinned = darkestPixel(in: name.frame)
         print("NAME colour unpinned=\(unpinned) pinned=\(pinned)")
         XCTAssertEqual(pinned, unpinned, "A pinned stop name must keep the colour of an unpinned one")
-        capture("Pinned stop name")
+        if isPad && app.frame.width > app.frame.height {
+            XCTAssertGreaterThan(nearbyList.frame.minY, 0, "Scrolled rows must stay below the status region")
+            let clearBand = CGRect(x: nearbyList.frame.midX - 40, y: 4, width: 80, height: nearbyList.frame.minY - 6)
+            XCTAssertGreaterThan(darkestPixel(in: clearBand), 245)
+            capture("Split scrolled home")
+        } else {
+            capture("Pinned stop name")
+        }
     }
 
     func testCountdownsShowNoInButStillSpeakIt() {
@@ -556,8 +746,9 @@ final class DepartsUITests: XCTestCase {
         nearbyList.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.8))
             .press(forDuration: 0.2, thenDragTo: nearbyList.coordinate(withNormalizedOffset: CGVector(dx: 0.7, dy: 0.2)),
                    withVelocity: .slow, thenHoldForDuration: 1)
-        nearbyList.swipeDown()
         let gained = rows.matching(NSPredicate(format: "label CONTAINS '99A'")).firstMatch
+        // A second downward gesture on an iPad with all rows in view can request another refresh.
+        if !isPad { nearbyList.swipeDown() }
         XCTAssertTrue(gained.waitForExistence(timeout: 8))
         XCTAssertEqual(server.batchCount, 2)
         // Atomic deferral while the touch is held is asserted in the unit test;
@@ -619,8 +810,13 @@ final class DepartsUITests: XCTestCase {
     func testAccessibilityMapScrollsAwayAndRowsRemainReadable() {
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         launch(); waitForRows()
-        XCTAssertEqual(homeMap.frame.height, app.frame.width, accuracy: 1)
-        XCTAssertEqual(homeMap.frame.minY, topInset, accuracy: 1)
+        if isPad {
+            XCTAssertEqual(homeMap.frame.height, (app.frame.maxY - padBottomInset - homeMap.frame.minY) / 2, accuracy: 1)
+            XCTAssertGreaterThan(homeMap.frame.minY, 0)
+        } else {
+            XCTAssertEqual(homeMap.frame.height, app.frame.width, accuracy: 1)
+            XCTAssertEqual(homeMap.frame.minY, topInset, accuracy: 1)
+        }
         XCTAssertEqual(app.navigationBars.count, 0)
         let initial = homeMap.frame.minY
         capture("Home accessibility map")
@@ -644,8 +840,10 @@ final class DepartsUITests: XCTestCase {
         // strip above it on a tall status bar. No bar is drawn (O22).
         XCTAssertEqual(app.navigationBars.count, 0, "At standard sizes the line screen has no bar")
         XCTAssertEqual(lineMap.frame.width, app.frame.width, accuracy: 1)
-        XCTAssertEqual(lineMap.frame.maxY, topInset + app.frame.width, accuracy: 1, "The square sits under the status bar, as on home")
-        XCTAssertEqual(lineMap.frame.minY, reachesTop ? 0 : topInset, accuracy: 1)
+        if isPad { assertStacked(lineMap, lineList) } else {
+            XCTAssertEqual(lineMap.frame.maxY, topInset + app.frame.width, accuracy: 1, "The square sits under the status bar, as on home")
+            XCTAssertEqual(lineMap.frame.minY, reachesTop ? 0 : topInset, accuracy: 1)
+        }
         // Under the map: back, the line and its direction, walk, pin.
         let back = app.buttons["line-back"], walk = app.buttons["walking-directions"], pin = app.buttons["pin-route"]
         let summary = app.staticTexts["detail-stop-name"]
@@ -666,7 +864,7 @@ final class DepartsUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts.matching(identifier: "detail-stop-name").count, 1)
         XCTAssertEqual(lineTitle.label, "13A Wien Skodagasse")
         // MapKit keeps the route inside the square, clear of the status bar.
-        let square = CGRect(x: 0, y: topInset, width: app.frame.width, height: app.frame.width)
+        let square = isPad ? lineMap.frame : CGRect(x: 0, y: topInset, width: app.frame.width, height: app.frame.width)
         let platform = app.descendants(matching: .any)["route-platform"], start = app.descendants(matching: .any)["route-origin"]
         XCTAssertTrue(platform.exists)
         XCTAssertTrue(start.exists)
@@ -691,7 +889,7 @@ final class DepartsUITests: XCTestCase {
         waitUntil { self.lineRows.count == 4 }
         // The countdowns are drawn inside each row's single accessibility
         // element, so they are found on screen: "2 min", "6 min", "10 min", "14 min".
-        let countdowns = recognizedBoxes().filter {
+        let countdowns = recognizedCountdownBoxes().filter {
             $0.text.range(of: #"^\d+ min$"#, options: .regularExpression) != nil && $0.frame.minX < app.frame.width / 2
         }
         print("COUNTDOWNS \(countdowns.map { "\($0.text) \($0.frame)" })")
@@ -848,7 +1046,7 @@ final class DepartsUITests: XCTestCase {
         // "Burggasse/Neubaugasse · 4 min walk · 310 m" needs more room than
         // the title has beside the buttons; it runs on under them.
         XCTAssertEqual(summary.frame.minX, lineTitle.frame.minX, accuracy: 0.5)
-        XCTAssertGreaterThan(summary.frame.maxX, walk.frame.minX, "The stop line passes under walk and pin")
+        if !isPad { XCTAssertGreaterThan(summary.frame.maxX, walk.frame.minX, "The stop line passes under walk and pin") }
         if app.frame.width >= 402 {
             XCTAssertLessThan(summary.frame.height, 26, "One line on a 402 pt phone: \(summary.frame)")
         } else {
@@ -860,7 +1058,7 @@ final class DepartsUITests: XCTestCase {
         XCTAssertLessThanOrEqual(summary.frame.maxX, app.frame.width - 16 + 0.5, "It stops at the list's margin")
         XCTAssertGreaterThanOrEqual(summary.frame.minY, lineTitle.frame.maxY - 0.5)
         // The title wraps here; the buttons stay on its first line.
-        XCTAssertGreaterThan(lineTitle.frame.height, 30, "This title wraps beside the buttons")
+        if !isPad { XCTAssertGreaterThan(lineTitle.frame.height, 30, "This title wraps beside the buttons") }
         XCTAssertEqual(walk.frame.midY, lineTitle.frame.minY + 10.2, accuracy: 3, "The buttons stay on the title's first line")
         XCTAssertEqual(pin.frame.midY, walk.frame.midY, accuracy: 0.5)
         capture("Line stop line under the buttons")
@@ -882,6 +1080,11 @@ final class DepartsUITests: XCTestCase {
             capture("Line dividers, \(situation)")
         }
         starts("2, 6, 10 and 14 min")
+        if isPad {
+            XCUIDevice.shared.orientation = .landscapeLeft
+            assertSplit(lineMap, lineList)
+            starts("split")
+        }
         server.setLineMinutes([0.5, 4, 10, 16])
         refreshLineByPull()
         waitUntil { self.lineRows.firstMatch.label.hasPrefix("Now") }
@@ -937,7 +1140,7 @@ final class DepartsUITests: XCTestCase {
             .press(forDuration: 0.05, thenDragTo: origin.withOffset(CGVector(dx: 180, dy: 100)), withVelocity: .slow, thenHoldForDuration: 0.2)
         rows.matching(NSPredicate(format: "label CONTAINS 'Skodagasse'")).firstMatch.tap()
         XCTAssertTrue(lineMap.waitForExistence(timeout: 5))
-        XCTAssertEqual(lineMap.frame.height, app.frame.width, accuracy: 1)
+        XCTAssertEqual(lineMap.frame.height, isPad ? (app.frame.maxY - padBottomInset - lineMap.frame.minY) / 2 : app.frame.width, accuracy: 1)
         // At accessibility sizes the bar stays, with back, walk and pin (A39).
         XCTAssertEqual(app.navigationBars.count, 1)
         XCTAssertFalse(app.buttons["line-back"].exists)
@@ -1097,7 +1300,7 @@ final class DepartsUITests: XCTestCase {
         let title = app.staticTexts["detail-direction"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         XCTAssertEqual(title.label, "13A Wien Kaiserebersdorf, Zinnergasse über Hauptbahnhof und Simmering")
-        XCTAssertGreaterThan(title.frame.height, 30)
+        if !isPad { XCTAssertGreaterThan(title.frame.height, 30) }
         XCTAssertLessThanOrEqual(title.frame.maxX, app.frame.maxX)
         capture("Line long destination")
     }
@@ -1198,12 +1401,22 @@ final class DepartsUITests: XCTestCase {
             * (latitude < rider.coordinate.latitude ? -1 : 1)
         let east = CLLocation(latitude: rider.coordinate.latitude, longitude: longitude).distance(from: rider)
             * (longitude < rider.coordinate.longitude ? -1 : 1)
-        let scale = app.frame.width / 960
-        return CGPoint(x: app.frame.width / 2 + east * scale, y: topInset + app.frame.width / 2 - north * scale)
+        let scale = (isPad ? homeMap.frame.height : app.frame.width) / 960
+        return CGPoint(x: app.frame.width / 2 + east * scale, y: (isPad ? homeMap.frame.midY : topInset + app.frame.width / 2) - north * scale)
     }
+    private func uprightScreenshot() -> CGImage? {
+        let image = XCUIScreen.main.screenshot().image
+        if image.imageOrientation == .up { return image.cgImage }
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = image.scale
+        return UIGraphicsImageRenderer(size: image.size, format: format).image { _ in
+            image.draw(at: .zero)
+        }.cgImage
+    }
+
     /// The darkest grey level drawn inside a frame: a name's ink in light mode.
     private func darkestPixel(in frame: CGRect) -> Int {
-        guard let image = XCUIScreen.main.screenshot().image.cgImage else { return -1 }
+        guard let image = uprightScreenshot() else { return -1 }
         let scale = CGFloat(image.width) / app.frame.width
         let width = image.width, height = image.height
         var pixels = [UInt8](repeating: 0, count: width * height)
@@ -1230,7 +1443,8 @@ final class DepartsUITests: XCTestCase {
     /// Where a list divider drawn along a row's bottom edge starts, in points:
     /// the leftmost pixel of the longest run that differs from the background.
     private func separatorStart(below frame: CGRect) -> CGFloat? {
-        guard let image = XCUIScreen.main.screenshot().image.cgImage else { return nil }
+        guard let image = uprightScreenshot() else { return nil }
+        let pane = lineList.frame
         let scale = CGFloat(image.width) / app.frame.width
         let width = image.width, height = image.height
         var pixels = [UInt8](repeating: 0, count: width * height)
@@ -1242,11 +1456,12 @@ final class DepartsUITests: XCTestCase {
             return true
         }
         guard drawn else { return nil }
+        let x0 = max(0, Int(pane.minX * scale) + 1), x1 = min(width, Int(pane.maxX * scale) - 1)
         var best: (start: Int, length: Int)?
         for y in Int((frame.maxY - 1.5) * scale)...Int((frame.maxY + 1.5) * scale) where y >= 0 && y < height {
-            let background = Int(pixels[y * width + 2])
+            let background = Int(pixels[y * width + x0])
             var start: Int?, length = 0
-            for x in 0..<width {
+            for x in x0..<x1 {
                 if abs(Int(pixels[y * width + x]) - background) >= 6 {
                     if start == nil { start = x }
                     length += 1
@@ -1257,28 +1472,67 @@ final class DepartsUITests: XCTestCase {
             }
             if let first = start, length > (best?.length ?? 0) { best = (first, length) }
         }
-        guard let best, CGFloat(best.length) > app.frame.width * scale / 2 else { return nil }
+        guard let best, CGFloat(best.length) > pane.width * scale / 2 else { return nil }
         return CGFloat(best.start) / scale
     }
-    /// Text as drawn on screen with where it is, in points.
-    private func recognizedBoxes() -> [(text: String, frame: CGRect)] {
-        guard let image = XCUIScreen.main.screenshot().image.cgImage else { return [] }
+
+    /// Countdown frames in screen points. On iPad, measure glyph ink in the leading 150 pt of the line list.
+    private func recognizedCountdownBoxes() -> [(text: String, frame: CGRect)] {
+        guard var image = uprightScreenshot() else { return [] }
+        var region = app.frame
+        if isPad {
+            // Vision downscales large screenshots. Read the countdown column at native resolution.
+            region = CGRect(x: lineList.frame.minX, y: lineList.frame.minY,
+                            width: 150, height: lineList.frame.height)
+            let scale = CGFloat(image.width) / app.frame.width
+            guard let crop = image.cropping(to: region.applying(CGAffineTransform(scaleX: scale, y: scale))) else { return [] }
+            image = crop
+        }
         let request = VNRecognizeTextRequest()
         request.recognitionLevel = .accurate
         request.usesLanguageCorrection = false
         try? VNImageRequestHandler(cgImage: image).perform([request])
-        let size = app.frame.size
+        let size = region.size
         return (request.results ?? []).compactMap { observation in
             guard let text = observation.topCandidates(1).first?.string else { return nil }
             let box = observation.boundingBox
-            return (text, CGRect(x: box.minX * size.width, y: (1 - box.maxY) * size.height,
-                                 width: box.width * size.width, height: box.height * size.height))
+            var frame = CGRect(x: box.minX * size.width, y: (1 - box.maxY) * size.height,
+                               width: box.width * size.width, height: box.height * size.height)
+            if isPad {
+                // Vision's word boxes can end several points past the final glyph.
+                // Measure the actual ink on each recognized line at the original pixel scale.
+                let scale = CGFloat(image.width) / size.width
+                let line = CGRect(x: 0, y: frame.minY - 2, width: size.width, height: frame.height + 4)
+                guard let band = image.cropping(to: line.applying(CGAffineTransform(scaleX: scale, y: scale))),
+                      let edges = inkColumns(in: band) else { return nil }
+                frame.origin.x = CGFloat(edges.lowerBound) / scale
+                frame.size.width = CGFloat(edges.count) / scale
+            }
+            return (text, frame.offsetBy(dx: region.minX, dy: region.minY))
         }
     }
+    /// Horizontal extent of dark text in a light-mode screenshot of one line.
+    private func inkColumns(in image: CGImage) -> ClosedRange<Int>? {
+        let width = image.width, height = image.height
+        var pixels = [UInt8](repeating: 255, count: width * height)
+        return pixels.withUnsafeMutableBytes { buffer in
+            guard let context = CGContext(data: buffer.baseAddress, width: width, height: height,
+                                          bitsPerComponent: 8, bytesPerRow: width,
+                                          space: CGColorSpaceCreateDeviceGray(),
+                                          bitmapInfo: CGImageAlphaInfo.none.rawValue) else { return nil }
+            context.draw(image, in: CGRect(x: 0, y: 0, width: width, height: height))
+            let columns = (0..<width).filter { x in
+                (0..<height).contains { y in buffer[y * width + x] < 128 }
+            }
+            guard let first = columns.first, let last = columns.last else { return nil }
+            return first...last
+        }
+    }
+
     /// Text as drawn on screen, or in one part of it. A row's spoken label
     /// differs from what it shows.
     private func recognizedText(in frame: CGRect? = nil) -> [String] {
-        guard var image = XCUIScreen.main.screenshot().image.cgImage else { return [] }
+        guard var image = uprightScreenshot() else { return [] }
         if let frame {
             let scale = CGFloat(image.width) / app.frame.width
             let box = CGRect(x: frame.minX * scale, y: frame.minY * scale, width: frame.width * scale, height: frame.height * scale)
@@ -1395,6 +1649,19 @@ private final class TransitFixtureServer {
     func setChangedServices() { queue.sync { changedServices = true } }
     func setLineMinutes(_ values: [Double]) { queue.sync { lineMinutes = values } }
     func useLongDestination() { queue.sync { longDestination = true } }
+    private var extraStops = 0
+    func useExtraStops(_ count: Int) { queue.sync { extraStops = count } }
+    private var extraPlatforms: [(String, String, Double, Double)] {
+        (0..<extraStops).map { i in
+            ("9\(100 + i)", "Fixture stop \(i + 1)", 48.20134 + Double(i % 5 - 2) * 0.0006,
+             16.34941 + (i < 5 ? -0.0016 : 0.0016) + Double(i % 2) * 0.0003)
+        }
+    }
+    private func extraServices(_ i: Int) -> [TransitSample.Service] {
+        [.init(name: "E\(i + 1)", direction: "Fixture east \(i + 1)", mode: "bus", minutes: [4, 12, 20, 28]),
+         .init(name: "F\(i + 1)", direction: "Fixture west \(i + 1)", mode: "tram", minutes: [7, 17, 27, 37])]
+    }
+
     func holdBatch() { queue.sync { holding = true } }
     func releaseBatch() { queue.sync {
         holding = false
@@ -1465,12 +1732,17 @@ private final class TransitFixtureServer {
             let lat = Double(value("lat") ?? "0")!, lon = Double(value("lon") ?? "0")!
             requestedCenters.append((lat, lon))
             if emptyStops { return [] as [Any] }
+            let extras: [[String: Any]] = extraPlatforms.enumerated().map { i, platform in
+                ["id": "77704_\(platform.0)", "name": platform.1, "type": "bus",
+                 "location": ["lat": platform.2 + lat - 48.20134, "lon": platform.3 + lon - 16.34941],
+                 "lines": extraServices(i).map(\.line)]
+            }
             return TransitSample.stops.map { stop in
                 var moved = stop
                 let location = stop["location"] as! [String: Double]
                 moved["location"] = ["lat": location["lat"]! + lat - 48.20134, "lon": location["lon"]! + lon - 16.34941]
                 return moved
-            }
+            } + extras
         case "/api/departures":
             if firstBoardAt == nil { firstBoardAt = Date() }
             if value("stopIds") != nil {
@@ -1483,6 +1755,16 @@ private final class TransitFixtureServer {
                     line["direction"] = "Wien Kaiserebersdorf, Zinnergasse über Hauptbahnhof und Simmering"
                     groups[0]["line"] = line
                     boards[0]["groups"] = groups
+                    batch["boards"] = boards
+                }
+                if extraStops > 0 {
+                    var boards = batch["boards"] as! [[String: Any]]
+                    for (i, platform) in extraPlatforms.enumerated() {
+                        let groups: [[String: Any]] = extraServices(i).map {
+                            ["line": $0.line, "departures": TransitSample.departures($0, at: firstBoardAt!)]
+                        }
+                        boards.append(["stopId": "77704_\(platform.0)", "groups": groups])
+                    }
                     batch["boards"] = boards
                 }
                 batch["fetchedAt"] = Date().ISO8601Format()
