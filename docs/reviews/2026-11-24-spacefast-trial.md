@@ -1,8 +1,8 @@
 # Departs API on Spacefast
 
-**The app decoded real stops, departures and walks from the public Space in Vienna, Berlin and New York.** The initial paired requests matched Vercel apart from the batch timestamp. A move still has to account for uncached responses, HTTP 429 on valid requests, and HTTP 500 where the shared handler returns 502. The final section covers installed builds and the release path.
+**The paid-plan Space served a ten-minute rider session without a refusal.** The app’s 24 network requests all returned 200. Anonymous curl requests could reuse public cached responses, including a 50-ID batch. The app’s refreshes saw different caching behavior. The hosted no-route status still differed from Vercel, and larger bursts produced 429s. See the [paid-plan results](#production-port-and-paid-plan-trial-25-november-2026) and [release procedure](../backend-hosting.md).
 
-The November 24 measurements below describe the free plan and the pre-#52 filter. Main now treats raw and escaped plus signs equivalently. See [backend hosting](../backend-hosting.md) for production operations.
+The November 24 sections below record the earlier free-plan trials and the pre-#52 filter. Main now treats raw and escaped plus signs equivalently.
 
 ## Deployment
 
@@ -227,3 +227,98 @@ The Personal plan costs $0/month and includes $1 of shared monthly usage. At the
 2. **Put an owned API hostname in the next app release.** Assign a subdomain the owner controls, publish the exact records required at its DNS provider, complete any ownership challenge, and wait for active managed HTTPS. Recheck the direct API and raw/encoded query cases on that hostname. Domain registration and renewal are separate costs. The Personal plan lists 20 custom domains. [Custom domains](https://spacefast.com/docs/domains/) · [Pricing & Limits](https://spacefast.com/docs/pricing/)
 3. **Keep a working route for installed builds.** The existing binary always starts at `departs.vercel.app`, which stays with Vercel. The lowest-risk cutover is to keep today’s Vercel backend for old builds and release the owned hostname for new builds. That temporarily operates two backends. A verified Vercel external rewrite could later reduce this to one backend while keeping the old hostname. Vercel still handles requests and may meter delivery. A temporary 307 is another option because the app’s default URLSession follows HTTPS redirects for these GETs. That adds a phone round trip and requires preservation of the complete encoded query. Closing Vercel would end refresh on remaining old builds. The protected preview left the rewrite’s on-wire behavior, added latency and Vercel usage unmeasured. [Vercel rewrites](https://vercel.com/docs/rewrites) · [Apple URLSession](https://developer.apple.com/documentation/foundation/urlsession)
 4. **Set release criteria around a rider’s first refresh.** Establish acceptable success and latency for a board refresh plus up to three walks on an iPhone over cellular. Confirm provider quotas, permitted cache durations and any attribution requirements under the owner’s HERE and Mapbox agreements. Decide how to deliver the three TTLs and preserve the original batch timestamp. Verify freshness, query separation, error statuses, methods and the legacy forwarder before moving old builds. The largest live batch here was 49 IDs. The 50-ID success was a private fixture. One Mac, one network and one limited public-access window cannot establish fleet reliability or a global cold-start or capacity guarantee.
+
+## Production port and paid-plan trial, 25 November 2026
+
+The API reported the team plan as `plus`. At 00:46:53 UTC Spacefast marked V7 ready and promoted it to live. Its source was a configuration update. The file manifest matched V6, with zero files added, removed or changed. The activity feed did not identify the configuration field that triggered the release.
+
+The production port starts at main’s `c7e2cac`. It includes the #52 filter, the null-line provider-array regression, and the same Next.js and Functions adapters exercised in the trial. At a fixed clock, all 13 local main/branch fixture comparisons matched on status, every response header and exact body bytes. They covered the root, nearby stops, single, grouped, filtered and batch departures, walking directions and invalid inputs. The branch passed 107 tests, lint and both production builds. V8 published the four Functions entries from `1b66780`. A permanent public viewer grant covers the live paths. The secret values stayed with the platform.
+
+Spacefast attached `api.departs.now` to the backend at 00:57 UTC and supplied two routing records. At 01:15 UTC two independent public resolvers returned SERVFAIL. The project owner’s coordinator separately verified that the registry delegated the zone to Spacefast nameservers, both refused the zone, and the zone was configured for external DNS. All public Spacefast measurements in this section used the managed hostname. A switch of authoritative DNS requires the owner’s separate decision.
+
+### Rider and provider data
+
+A macOS harness ran the app’s actual APIService, TransitStore, models, walk scheduling and persistence with an empty preference suite. A stationary Vienna rider stayed on Home, opened the first available line for four ticks, and returned to Home. The harness supplied a fresh accurate location on each 30-second tick for ten minutes. There was one listed physical group at this hour. Every one of the 24 network transactions succeeded: two nearby lookups, 20 departure requests and two walks. All were CDN misses with `no-cache, must-revalidate, max-age=0`. URLSession also reported a local-cache transaction for nearby stops. This tests the Mac networking stack and this rider’s demand. A cellular phone and a daytime list of many stops remain separate cases.
+
+Ten anonymous 50-ID batches on each host all returned 200. The IDs came from the three cities’ real station lists. Spacefast returned 44 boards and six missing on its first batch. Its default curl response carried `public, max-age=30`, unlike the November 24 temporary-grant experiment. At expiry, Spacefast served the previous timestamp once at age 30.8 seconds and refreshed it for the following hit. Vercel fetched a new batch at expiry. Both sequences remained within the app’s 60-second past limit. The plan, access grant and platform configuration changed between trials, so these observations cannot isolate the effect of the plan upgrade alone.
+
+### Error and cache behavior
+
+| Request | Spacefast | Vercel or local Next.js reference |
+|---|---|---|
+| Walk from Oahu to Maui | 500 JSON | Production 502, identical JSON |
+| Missing stop parameter | 400 JSON | Production 400, identical JSON |
+| Unknown API route | 404 HTML, 13,571 decoded bytes | Production 404 HTML, 6,999 decoded bytes |
+| OPTIONS on departures | 405, 19-byte body, Allow GET and HEAD | Production 204, empty body, Allow GET, HEAD and OPTIONS |
+| Unhandled exception | On a private paid-plan preview, HTTP 500 and a platform problem document with body status 502 | An isolated production build of main with a synthetic throwing handler returned HTTP 500 and an empty body. No exception route was added to either live backend. |
+
+With a permanent public grant, default curl received live Functions responses with the application TTLs, Vary on Accept-Encoding, and shared-cache hits. Stops hit again at 35 seconds. The 30-second Vienna batch was served stale once during revalidation. V10 tested two path-specific `Cache-Control` overrides including `s-maxage`. Spacefast compiled both and recorded `header_cache_control_platform_managed` for each. The delivered headers retained their original max-age and omitted s-maxage on both paths. Stops still hit, the batch still went stale during refresh, and invalid input returned `no-store`. V11 restored the original four-entry artifact. Documented cache-bypass rules disable caching. The routing compiler reserves CDN-specific control headers. [Caching](https://spacefast.com/docs/caching/) · [Routing](https://spacefast.com/docs/routing/)
+
+In a private fixture preview, two synthetic timestamp entries in `env.DB` used the stops and departures TTLs. On the second request both entries hit. After 32 more seconds the stops entry hit again and departures generated a new timestamp. Every response was still a CDN miss. The temporary table was removed. This establishes cross-request application storage and independent expiry. The experiment stored no rider locations or provider payloads. [Functions](https://spacefast.com/docs/functions/)
+
+### Capacity, freshness and cost
+
+Six requests spaced two seconds apart and six spaced one second apart all succeeded. Bursts of two and five also succeeded. A burst of ten returned six stale successes, three successful misses and one 429. The team worker meter moved from 611 to 617. In a separate burst of ten distinct previously unrequested stop queries, every request missed. Six returned 200, four returned 429, and the worker meter moved from 645 to 651. This supports refusal before worker execution for the four rejected cold requests. It does not establish a fixed cap of six on all workloads. Testing stopped at the first refusal in each series. The measured 429 was a 1,168-byte HTML “429 Too Many Requests” page with an ETag, no Retry-After and no application JSON. The settled mixed-burst edge log flagged the refusal as rate-limited with an empty reason. One client address and one Space cannot distinguish a client limit from a Space limit.
+
+With local URL caching disabled, macOS URLSession requested the same batch four times, alternating default and reload policies. Spacefast returned four misses, four new timestamps and `no-cache, must-revalidate, max-age=0`. Vercel returned a miss and three hits, with its public 30-second TTL. The reload policy alone does not account for the host difference.
+
+The measurement window added 85 team worker requests (566 to 651), with zero metered dollars. There were 51 production requests, including one OPTIONS, and no 403. Curl waited at least 2.1 seconds between production requests; URLSession waited three seconds after each completion. On Spacefast, 114 public GETs could have needed a provider result: 53 successful or no-route misses, 34 hits, 22 stale responses and five refused requests. Vercel had 43 such GETs: ten misses and 33 hits. Counting a possible background refresh on each stale response, pessimistically charging each refusal to the provider, and allowing each departure fetch its one retry gives ceilings of 151 provider calls through Spacefast and 17 through Vercel. The team meter counts workers rather than HERE or Mapbox calls. Exact upstream attempts and provider billing were unavailable. The fixture and database experiments made zero provider calls.
+
+The timing comparison used one network. After restoring the unmodified artifact, the Spacefast cache started empty. Vercel’s first stops request still hit its persistent cache. A warm-hit comparison therefore answers a different question from an app refresh that misses. The following tables retain the cache state alongside the timings.
+
+### Paid-plan observations by request group
+
+Ordered observations use HTTP status/CDN status. Multipliers count consecutive identical results. Each row reads left to right. For latency rows the first observation is after idle, followed by four warm requests. The production reference stopped on its first 403 if encountered.
+
+| Host | Group | Status / cache, in request order |
+|---|---|---|
+| Spacefast | Ten-minute rider, HTTP transactions | 200/MISS ×12, 200/MISS (local URL cache), 200/MISS ×12 |
+| Spacefast | 50 IDs, paced | 200/MISS, 200/HIT ×5, 200/STALE, 200/HIT ×3 |
+| Vercel | 50 IDs, paced | 200/MISS, 200/HIT ×5, 200/MISS, 200/HIT ×3 |
+| Spacefast | One request every 2 s | 200/MISS ×6 |
+| Spacefast | One request per second | 200/STALE ×6 |
+| Spacefast | burst-2 | 200/STALE ×2 |
+| Spacefast | burst-5 | 200/STALE ×5 |
+| Spacefast | burst-10 | 200/STALE ×6, 429/MISS, 200/MISS ×3 |
+| Spacefast | No route / invalid / missing / OPTIONS | 500/MISS, 400/MISS, 404/MISS, 405/BYPASS |
+| Vercel | No route / invalid / missing / OPTIONS | 502/MISS, 400/MISS, 404/MISS, 204/MISS |
+| Spacefast | cache stops | 200/MISS, 200/HIT ×3 |
+| Spacefast | cache batch | 200/MISS, 200/HIT ×2, 200/STALE |
+| Vercel | cache stops | 200/MISS, 200/HIT ×3 |
+| Vercel | cache batch | 200/MISS, 200/HIT ×2, 200/MISS |
+| Private measurement preview | Unauthenticated preview | 403/MISS |
+| Private measurement preview | Throwing fixture | 500/MISS |
+| Private measurement preview | DB create / TTL reads / cleanup | 200/MISS ×8 |
+| Spacefast with header rules | cache stops | 200/MISS, 200/HIT ×3 |
+| Spacefast with header rules | cache batch | 200/MISS, 200/HIT ×2, 200/STALE |
+| Spacefast with header rules | Invalid stops / batch | 400/MISS ×2 |
+| Spacefast | latency-root | 200/MISS, 200/HIT ×4 |
+| Spacefast | latency-stops | 200/MISS, 200/HIT ×4 |
+| Spacefast | latency-batch | 200/MISS, 200/HIT ×4 |
+| Spacefast | latency-line | 200/MISS, 200/HIT ×4 |
+| Spacefast | latency-walk | 200/MISS, 200/HIT ×4 |
+| Vercel | latency-root | 200/MISS, 200/HIT ×4 |
+| Vercel | latency-stops | 200/HIT ×5 |
+| Vercel | latency-batch | 200/MISS, 200/HIT ×4 |
+| Vercel | latency-line | 200/MISS, 200/HIT ×4 |
+| Vercel | latency-walk | 200/MISS, 200/HIT ×4 |
+| Spacefast | fresh 10 simultaneous | 429/MISS, 200/MISS ×4, 429/MISS, 200/MISS, 429/MISS ×2, 200/MISS |
+| Spacefast | URLSession, default / reload / default / reload | 200/MISS ×4 |
+| Vercel | URLSession, default / reload / default / reload | 200/MISS, 200/HIT ×3 |
+
+### Latency from the test Mac
+
+The first GET followed at least ten minutes without trial traffic to that host. Other endpoints followed the root and had also been idle. Four repeats per path followed. Figures include DNS lookup, TLS and transfer. A CDN hit or HTTP refusal cannot establish worker startup time.
+
+| Host | Path | First status / cache / ms | Warm median / p90 / maximum, ms | Warm 200s |
+|---|---|---|---|---:|
+| Spacefast | root | 200 / MISS / 902 | 36 / 53 / 53 | 4 / 4 |
+| Spacefast | stops | 200 / MISS / 885 | 38 / 43 / 43 | 4 / 4 |
+| Spacefast | batch | 200 / MISS / 828 | 34 / 35 / 35 | 4 / 4 |
+| Spacefast | line | 200 / MISS / 812 | 33 / 34 / 34 | 4 / 4 |
+| Spacefast | walk | 200 / MISS / 704 | 32 / 36 / 36 | 4 / 4 |
+| Vercel | root | 200 / MISS / 830 | 85 / 90 / 90 | 4 / 4 |
+| Vercel | stops | 200 / HIT / 77 | 80 / 83 / 83 | 4 / 4 |
+| Vercel | batch | 200 / MISS / 372 | 81 / 84 / 84 | 4 / 4 |
+| Vercel | line | 200 / MISS / 251 | 77 / 84 / 84 | 4 / 4 |
+| Vercel | walk | 200 / MISS / 340 | 73 / 75 / 75 | 4 / 4 |
