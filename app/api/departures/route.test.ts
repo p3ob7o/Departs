@@ -267,3 +267,15 @@ describe("plus signs in the line filter", () => {
     expect(await filtered("lineName=2&direction=S+U%20Pankow", malformed)).toEqual([]);
   });
 });
+
+it("skips a null line in a provider array while filtering departures", async () => {
+  const { server } = await import("@/app/__tests__/setup");
+  const { http, HttpResponse } = await import("msw");
+  const match = { time: "2026-11-24T10:01:00Z", line: { name: "U2", direction: "Pankow" } };
+  server.use(http.get("https://transit.hereapi.com/v8/departures", () =>
+    HttpResponse.json([{ time: "2026-11-24T10:00:00Z", line: null }, match])
+  ));
+  const response = await GET(new Request("https://example.test/api/departures?stopId=s&lineName=U2&direction=Pankow"));
+  expect(response.status).toBe(200);
+  expect(await response.json()).toEqual([match]);
+});
