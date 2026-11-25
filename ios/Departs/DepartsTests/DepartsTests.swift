@@ -280,13 +280,22 @@ final class APITransportTests: XCTestCase {
             { _ = try await $0.fetchDepartures(stopId: "fixture", line: .init(name: "U2", direction: "Pankow", type: .subway)) },
             { _ = try await $0.fetchDirections(from: self.origin, to: self.platform) },
         ]
-        for status in [500, 502] {
-            let stub = APIResponseStub { _, _ in .init(status: status, body: #"{"error":"Provider failed"}"#) }
-            let service = stub.service(waitForRetry: { _ in XCTFail("Unexpected retry for HTTP \(status)") })
+        let json = #"{"error":"Provider failed"}"#
+        let cases: [(status: Int, contentType: String, body: String)] = [
+            (500, "application/json", json),
+            (502, "application/json", json),
+            (500, "text/html", "<html>Internal Server Error</html>"),
+        ]
+        for response in cases {
+            let stub = APIResponseStub { _, _ in
+                .init(status: response.status, headers: ["Content-Type": response.contentType], body: response.body)
+            }
+            let label = "HTTP \(response.status) with \(response.contentType)"
+            let service = stub.service(waitForRetry: { _ in XCTFail("Unexpected retry for \(label)") })
             for call in calls {
                 do {
                     try await call(service)
-                    XCTFail("Expected HTTP \(status) to fail")
+                    XCTFail("Expected \(label) to fail")
                 } catch APIError.requestFailed {
                     // The store receives the same error from both hosts.
                 } catch {
@@ -299,22 +308,25 @@ final class APITransportTests: XCTestCase {
 
     func testRateLimitRetriesOnceWithHeaderOrDefaultDelayAndCanRecover() async throws {
         let date = Date(timeIntervalSince1970: 1_706_017_680)
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone(secondsFromGMT: 0)
-        formatter.dateFormat = "EEE, dd MMM yyyy HH:mm:ss 'GMT'"
         let cases: [(String?, TimeInterval)] = [
-            (nil, 2), ("1", 1), ("60", 5), ("invalid", 2),
-            (formatter.string(from: date.addingTimeInterval(3)), 3),
-            (formatter.string(from: date.addingTimeInterval(-3)), 0),
+            (nil, 2), ("1", 1), ("60", 5), ("-3", 2), ("not a date or number", 2),
+            ("Tue, 23 Jan 2024 13:47:57 GMT", 0),
+            ("Tue, 23 Jan 2024 13:48:03 GMT", 3),
+            ("Tue, 23 Jan 2024 13:49:00 GMT", 5),
         ]
         for (header, expectedDelay) in cases {
             let stub = APIResponseStub { _, index in
                 if index == 1 { return .init(status: 429, headers: header.map { ["Retry-After": $0] } ?? [:], body: "<html>Busy</html>") }
                 return .init(status: 200, body: "[]")
             }
-            let service = stub.service(now: { date }) { delay in XCTAssertEqual(delay, expectedDelay) }
+            let label = "Retry-After: \(header ?? "(missing)")"
+            let waited = expectation(description: label)
+            let service = stub.service(now: { date }) { delay in
+                XCTAssertEqual(delay, expectedDelay, label)
+                waited.fulfill()
+            }
             let stops = try await service.fetchNearbyStops(lat: origin.lat, lon: origin.lon)
+            await fulfillment(of: [waited], timeout: 1)
             XCTAssertTrue(stops.isEmpty)
             XCTAssertEqual(stub.requestCount, 2)
         }
