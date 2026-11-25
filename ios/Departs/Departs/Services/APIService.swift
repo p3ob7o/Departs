@@ -4,60 +4,132 @@ actor APIService {
     static let shared = APIService()
 
     private static let apiScheme = "https"
-    private static let apiHost = "departs.vercel.app"
+    private static let apiHost = "api.departs.now"
+    private static let productionBaseURL = URL(string: "\(apiScheme)://\(apiHost)")!
+    private static let requestLimit = 4
     private let decoder = JSONDecoder()
     private let session: URLSession
     private let baseURL: URL
-    private var requests: [URL: Task<Data, Error>] = [:]
+    private let cache: URLCache?
+    private let now: @Sendable () -> Date
+    private let waitForRetry: @Sendable (TimeInterval) async throws -> Void
+    private var requests: [URL: Task<(Data, HTTPURLResponse), Error>] = [:]
+    private var activeRequests = 0
+    private var waitingRequests: [CheckedContinuation<Void, Never>] = []
 
-    init(session: URLSession = .shared, baseURL: URL? = nil) {
+    init(session: URLSession = .shared, baseURL: URL? = nil,
+         now: @escaping @Sendable () -> Date = { .now },
+         waitForRetry: @escaping @Sendable (TimeInterval) async throws -> Void = {
+             try await Task.sleep(for: .seconds($0))
+         }) {
         self.session = session
+        self.cache = session.configuration.urlCache
+        self.now = now
+        self.waitForRetry = waitForRetry
         #if DEBUG
         let developmentURL = ProcessInfo.processInfo.environment["DEPARTS_API_BASE_URL"].flatMap(URL.init(string:))
-        self.baseURL = baseURL ?? developmentURL ?? URL(string: "https://departs.vercel.app")!
+        self.baseURL = baseURL ?? developmentURL ?? Self.productionBaseURL
         #else
-        self.baseURL = baseURL ?? URL(string: "https://departs.vercel.app")!
+        self.baseURL = baseURL ?? Self.productionBaseURL
         #endif
     }
 
-    private func data(at productionURL: URL, refresh: Bool = false) async throws -> Data {
+    private func request(at productionURL: URL) throws -> URLRequest {
         guard var components = URLComponents(url: productionURL, resolvingAgainstBaseURL: false),
               let base = URLComponents(url: baseURL, resolvingAgainstBaseURL: false) else { throw APIError.invalidURL }
         components.scheme = base.scheme
         components.host = base.host
         components.port = base.port
         guard let url = components.url else { throw APIError.invalidURL }
+        return URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData, timeoutInterval: 12)
+    }
+
+    private func load(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        guard let url = request.url else { throw APIError.invalidURL }
         if let task = requests[url] { return try await task.value }
-        let session = session
-        let task = Task<Data, Error> {
-            var request = URLRequest(url: url)
-            request.timeoutInterval = 12
-            if refresh { request.cachePolicy = .reloadIgnoringLocalCacheData }
-            let (data, response) = try await session.data(for: request)
-            guard let response = response as? HTTPURLResponse, response.statusCode == 200 else {
-                throw APIError.requestFailed
+        let task = Task {
+            var (bytes, response) = try await send(request)
+            if response.statusCode == 429 {
+                try await waitForRetry(Self.retryDelay(response.value(forHTTPHeaderField: "Retry-After"), now: now()))
+                (bytes, response) = try await send(request)
             }
-            return data
+            // Treat a hosted 500 exactly like the original 502. Error bodies,
+            // including HTML from the rate limiter, never reach the JSON decoder.
+            guard response.statusCode == 200 else { throw APIError.requestFailed }
+            return (bytes, response)
         }
         requests[url] = task
         defer { requests[url] = nil }
         return try await task.value
     }
 
+    private func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
+        if activeRequests == Self.requestLimit {
+            await withCheckedContinuation { waitingRequests.append($0) }
+        } else {
+            activeRequests += 1
+        }
+        defer {
+            if waitingRequests.isEmpty { activeRequests -= 1 }
+            else { waitingRequests.removeFirst().resume() }
+        }
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse else { throw APIError.requestFailed }
+        return (data, http)
+    }
+
+    private static func retryDelay(_ header: String?, now: Date) -> TimeInterval {
+        guard let value = header?.trimmingCharacters(in: .whitespaces), !value.isEmpty else { return 2 }
+        if value.utf8.allSatisfy({ (48...57).contains($0) }), let seconds = Double(value) {
+            return min(seconds, 5)
+        }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        for format in ["EEE, dd MMM yyyy HH:mm:ss 'GMT'", "EEEE, dd-MMM-yy HH:mm:ss 'GMT'", "EEE MMM d HH:mm:ss yyyy"] {
+            formatter.dateFormat = format
+            if let date = formatter.date(from: value) {
+                return min(5, max(0, date.timeIntervalSince(now)))
+            }
+        }
+        return 2
+    }
+
+    private func cachedValue<Value>(at url: URL, lifetime: TimeInterval,
+                                    decode: (Data) throws -> Value) async throws -> Value {
+        let request = try request(at: url)
+        let expirationKey = "DepartsExpiration"
+        if let entry = cache?.cachedResponse(for: request),
+           let expiration = entry.userInfo?[expirationKey] as? Date, expiration > now(),
+           let value = try? decode(entry.data) {
+            return value
+        }
+        let (data, response) = try await load(request)
+        let value = try decode(data)
+        // Remember validated stops and walks on the device for their original
+        // lifetimes, even when the hosting layer disables HTTP caching.
+        cache?.storeCachedResponse(CachedURLResponse(
+            response: response, data: data, userInfo: [expirationKey: now().addingTimeInterval(lifetime)],
+            storagePolicy: .allowed
+        ), for: request)
+        return value
+    }
+
     func fetchNearbyStops(lat: Double, lon: Double) async throws -> [NearbyStop] {
         let url = try Self.nearbyStopsURL(lat: lat, lon: lon)
-        let data = try await data(at: url)
-        return try decoder.decode([NearbyStop].self, from: data).filter { $0.location.isValid }
+        return try await cachedValue(at: url, lifetime: 86_400) { data in
+            try decoder.decode([NearbyStop].self, from: data).filter { $0.location.isValid }
+        }
     }
 
     func fetchDepartures(stopId: String, line: LineInfo) async throws -> [Departure] {
         let url = try Self.departuresURL(stopId: stopId, line: line)
-        let data = try await data(at: url, refresh: true)
+        let (data, _) = try await load(request(at: url))
         return try decoder.decode([Departure].self, from: data)
     }
 
     func fetchDepartureBoards(stopIDs: [String]) async throws -> BatchDepartures {
-        let bytes = try await data(at: Self.batchDeparturesURL(stopIDs: stopIDs), refresh: true)
+        let (bytes, _) = try await load(request(at: Self.batchDeparturesURL(stopIDs: stopIDs)))
         let response = try decoder.decode(BatchDepartures.self, from: bytes)
         guard TimeFormatter.parseISO(response.fetchedAt) != nil else { throw APIError.requestFailed }
         return response
@@ -65,12 +137,13 @@ actor APIService {
 
     func fetchDirections(from: Coordinate, to: Coordinate) async throws -> WalkingRoute {
         let url = try Self.directionsURL(from: from, to: to)
-        let data = try await data(at: url)
-        let route = try decoder.decode(WalkingRoute.self, from: data)
-        guard route.duration.isFinite, route.duration >= 0, route.distance.isFinite, route.distance >= 0,
-              route.geometry.type == "LineString", route.geometry.coordinates.count >= 2,
-              route.geometry.clCoordinates.count == route.geometry.coordinates.count else { throw APIError.requestFailed }
-        return route
+        return try await cachedValue(at: url, lifetime: 3_600) { data in
+            let route = try decoder.decode(WalkingRoute.self, from: data)
+            guard route.duration.isFinite, route.duration >= 0, route.distance.isFinite, route.distance >= 0,
+                  route.geometry.type == "LineString", route.geometry.coordinates.count >= 2,
+                  route.geometry.clCoordinates.count == route.geometry.coordinates.count else { throw APIError.requestFailed }
+            return route
+        }
     }
 
     static func nearbyStopsURL(lat: Double, lon: Double) throws -> URL {
