@@ -1,12 +1,12 @@
 # Departs API on Spacefast
 
-**The paid-plan Space served a ten-minute rider session without a refusal.** The app’s 24 network requests all returned 200. Anonymous curl requests could reuse public cached responses, including a 50-ID batch. The app’s refreshes saw different caching behavior. The hosted no-route status still differed from Vercel, and larger bursts produced 429s. See the [paid-plan results](#production-port-and-paid-plan-trial-25-november-2026) and [release procedure](../backend-hosting.md).
+**Spacefast now serves both forms of departures with `Cache-Control: no-store`.** The previous shared-cache policy served batches 138–381 seconds old. Nearby stops and walks keep their public TTLs. See the [departures policy and hosted checks](#departures-cache-policy), [earlier paid-plan measurements](#production-port-and-paid-plan-trial-25-november-2026) and [release procedure](../backend-hosting.md).
 
 The November 24 sections below record the earlier free-plan trials and the pre-#52 filter. Main now treats raw and escaped plus signs equivalently.
 
 ## Deployment
 
-The [Spacefast Next.js recipe](https://spacefast.com/docs/recipes/next/) lists 16.4.x for static export only. The four [Functions](https://spacefast.com/docs/functions/) entries share the existing root, validations, HERE/Mapbox requests, normalization and response construction with the Next.js routes. Only the adapters supply runtime credentials. The production host compiled into the app stays on Vercel.
+The [Spacefast Next.js recipe](https://spacefast.com/docs/recipes/next/) lists 16.4.x for static export only. The four [Functions](https://spacefast.com/docs/functions/) entries share the existing root, validations, HERE/Mapbox requests, normalization and response construction with the Next.js routes. In the November 24 trial, the adapters supplied runtime credentials and installed builds called Vercel.
 
 - Team Departs, Space `departs-api-trial`. V1 and V2 contained the trial API. V2 served the live hostname during the private rounds.
 - The private publish receipt described its audience as “Only your team can view this Space after signing in. Change the audience in this Space's Access settings.”
@@ -351,13 +351,13 @@ After expiry, two default URLSession requests through the proxy received HTTP 20
 
 Local playback fed the 138.2-second batch and its receipt time into the app’s TransitStore. Home published two selections, considered zero fresh and requested a list refresh. The Home view shows its saved-times refresh banner and uses the stale row treatment in this state. HTTP 200 and successful APIService decoding alone do not establish freshness. A release-host check needs the JSON timestamp as well as the HTTP status.
 
-#### Recovering a fresh board
+#### Time-bucket retry tested before the policy change
 
 On the same expired URL, three URLSession GETs returned the same underlying batch at ages 258.88, 260.00 and 261.12 seconds. The middle request explicitly sent `Cache-Control: no-cache`. All three received HTTP 200/STALE. The app already uses `reloadIgnoringLocalCacheData` for departures.
 
-Keeping all 17 IDs and their order fixed, the harness added `freshnessBucket=floor(Unix time / 30)` to the URL. Two requests in one bucket and one in the next returned HTTP 200/MISS with board ages of 0.37, 0.41 and 0.36 seconds. The server ignored the extra parameter when calling HERE. A bounded client recovery can use the ordinary URL first, retry once with the current bucket if the response is outside the app’s five-seconds-ahead to 60-seconds-behind window, and check the retry’s timestamp before marking it current. This keeps the ordinary cache key for fresh reads. Home’s existing saved-times presentation remains available when a fresh answer cannot be obtained. The experiment used the harness only.
+Keeping all 17 IDs and their order fixed, the harness added `freshnessBucket=floor(Unix time / 30)` to the URL. Two requests in one bucket and one in the next returned HTTP 200/MISS with board ages of 0.37, 0.41 and 0.36 seconds. The server ignored the extra parameter when calling HERE. This measured alternative was not adopted. A batch has a timestamp that can trigger a retry, but a per-line answer has no timestamp. The production adapter now sends both forms through the Function on every request. The app keeps its existing URLs.
 
-Spacefast also documents a cache-bypass rule that could match departures carrying `stopIds`. Applying it would give up CDN sharing on those batches and increase Function and provider demand. The trial did not enable it. No operator setting to enforce a maximum age for stale Functions responses was identified. [Spacefast traffic rules](https://spacefast.com/docs/traffic-rules/)
+Spacefast also documents a cache-bypass rule that could match departures carrying `stopIds`. Applying it would give up CDN sharing on those batches and increase Function and provider demand. The production change uses the adapter response header. No traffic rule was required. [Spacefast traffic rules](https://spacefast.com/docs/traffic-rules/)
 
 #### Paced app latency
 
@@ -374,3 +374,45 @@ The macOS harness used APIService's actual URL builders, request policies, decod
 The rightmost column used one ignored query parameter with a different value for each request, giving Vercel a new CDN key for the same handler inputs. The middle column used ordinary app requests. All measured requests returned 200, including the independent warm-up requests. The smallest gap between Vercel requests was 2.15 seconds. These are end-to-end times from the test Mac. Worker process reuse cannot be verified from client timing.
 
 The follow-up sent 115 GETs to Spacefast and 121 to Vercel. Of these, 104 and 99 respectively targeted transit or walking data. Including possible background refreshes and departure retries gives conservative ceilings of 148 and 72 upstream calls. Exact provider counts were unavailable. Team worker usage increased from 656 to 748 with zero metered dollars.
+
+## Departures cache policy
+
+The Spacefast departures adapter sets `Cache-Control: no-store` on every response from the shared handler. It covers both request forms, including validation and upstream errors. This also covers the legacy grouped and unfiltered single-stop forms. The previous 30-second shared-cache behavior and time-bucket experiment above apply to V12. Vercel retains its original response headers and bodies. Thirteen fixed-clock Next.js cases matched main on status, every header and exact body bytes. The backend passed 114 tests, lint and both builds.
+
+V13 introduced the header. V14 temporarily passed an empty runtime environment to the same adapter for one reserved test station, so HERE rejected those requests. Other station IDs used their normal bindings. Both clients repeated both forms twice on the live managed hostname. The Space’s variables stayed in place throughout. V15 restored the byte-identical V13 Functions bundle at application commit `f7b056a`. The probes used anonymous curl and the app's APIService with macOS URLSession. URLSession task metrics confirmed direct HTTP/2 network requests with local URL caching disabled. Curl also connected directly.
+
+| Managed-host error case | Curl | URLSession | Delivered cache policy |
+|---|---|---|---|
+| Batch validation | 400/MISS ×2 | 400/MISS ×2 | no-store |
+| Per-line validation | 400/MISS ×2 | 400/MISS ×2 | no-store |
+| HERE rejected batch | 500/MISS ×2 | 500/MISS ×2 | no-store |
+| HERE rejected per-line | 500/MISS ×2 | 500/MISS ×2 | no-store |
+
+The shared batch handler returned 502 in the fixture test, and the hosted response retained the previously observed platform change to 500. Curl received the ordinary provider-error JSON. URLSession reported the same status and body length. On the restored V15 both clients repeated the batch and per-line validation errors twice, receiving eight more 400/MISS responses with `no-store`. The two synthetic station requests returned 200 again on V15, confirming removal of the temporary fixture. A batch of unknown but well-formed station IDs can legitimately return 200 with missing boards, which is why the error fixture used provider rejection.
+
+### Idle and repeated requests on V15
+
+Each row covers ten sequential requests using an identical URL, with at least 1.6 seconds between repeats. The second group began after 390 seconds without trial traffic, longer than the earlier 381-second stale response. All 80 responses were HTTP 200 with `Cache-Control: no-store`. The sequences below are in request order. Batch ages use the client clock at receipt minus the JSON `fetchedAt`. Per-line answers have no source timestamp.
+
+| Idle | Direct client | Departures form | CDN states | Median / maximum, ms | Batch ages, seconds |
+|---|---|---|---|---:|---|
+| 91 s | curl | batch | MISS ×10 | 793 / 1040 | 0.42, 0.38, 0.36, 0.39, 0.42, 0.36, 0.18, 0.38, 0.39, 0.40 |
+| 91 s | curl | line | MISS ×10 | 593 / 833 | — |
+| 91 s | URLSession | batch | MISS ×10 | 561 / 843 | 0.28, 0.19, 0.37, 0.37, 0.18, 0.24, 0.24, 0.37, 0.22, 0.30 |
+| 91 s | URLSession | line | MISS ×10 | 478 / 631 | — |
+| 390 s | curl | batch | MISS ×10 | 781 / 906 | 0.40, 0.41, 0.38, 0.38, 0.37, 0.44, 0.39, 0.25, 0.40, 0.37 |
+| 390 s | curl | line | MISS ×10 | 634 / 770 | — |
+| 390 s | URLSession | batch | MISS ×10 | 553 / 759 | 0.24, 0.32, 0.37, 0.42, 0.18, 0.24, 0.37, 0.34, 0.38, 0.26 |
+| 390 s | URLSession | line | MISS ×10 | 427 / 738 | — |
+
+Across both windows, direct URLSession's median / maximum was 561 / 843 ms for batches and 449 / 738 ms for filtered lines. The earlier proxy-route miss medians were 719 and 572 ms respectively. Network route and provider response time differ across runs.
+
+All 40 batch timestamps were distinct, with ages of 0.18–0.44 seconds. The first batch after the longer idle period was 0.40 seconds old. The team worker meter advanced from 811 to 851 during the first 40 requests and to 891 during the next 40. For stops and walking directions, each client received MISS, HIT, HIT with its expected public TTL. The access and edge logs recorded zero public API or root requests in the two idle windows, and all 80 departures in the measurement windows. The edge marked all 80 as misses. These controls verified that both direct clients could read the shared cache on V15.
+
+### Requests per rider-minute
+
+In the ten-minute foreground rider trace the app sent 16 Home batches and four filtered line requests. With the new policy that pattern costs **two Function executions and two successful first-attempt HERE departures calls per rider-minute**. A 17-stop batch makes one upstream request. A transient upstream failure can add one retry per departures request. Nearby and walking requests have the same cache policy as before. The example trace also made two nearby and two walking network requests over ten minutes, or 0.4 additional executions and provider calls per minute if all four miss.
+
+With the previous policy, two fresh shared hits could serve the two departures requests with zero Function executions or HERE calls. Two misses cost two of each before retries. A stale hit could trigger background revalidation. All 20 departures requests in the earlier rider trace missed, giving the same two-per-minute first-attempt cost as the new policy in that trace. Savings previously depended on another request warming the same key within its TTL.
+
+The entire verification used 167 public GETs, including errors and the earlier V13 probes. The team worker meter rose from 748 to 905, with zero metered dollars. There were 128 successful departures calls requiring a HERE fetch, eight deliberate upstream rejections, two uncached nearby lookups and two uncached walks. That accounts for 140 first upstream attempts. Any additional departure retries and provider billing were not independently metered.

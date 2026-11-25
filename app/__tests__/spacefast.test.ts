@@ -44,6 +44,8 @@ it("uses the worker bindings and caches only nearby stops and walking routes", a
 });
 
 it.each([
+  ["stopId=a", 200],
+  ["stopId=a&groupBy=line", 200],
   ["stopId=a&lineName=13A&direction=Centre", 200],
   ["stopId=a&lineName=13A", 400],
   ["stopIds=a,", 400],
@@ -53,16 +55,16 @@ it.each([
   expect(response.headers.get("cache-control")).toBe("no-store");
 });
 
-it("keeps the batch 502 and single-stop 500 when HERE rejects the worker key", async () => {
+it.each([
+  ["stopIds=a", 502],
+  ["stopId=a", 500],
+  ["stopId=a&lineName=13A&direction=Centre", 500],
+])("keeps the uncached provider error for %s", async (query, status) => {
   server.use(http.get("https://transit.hereapi.com/v8/departures", () =>
     new HttpResponse(null, { status: 401 })
   ));
-  const batch = await departures(new Request("https://example.test/api/departures?stopIds=a"), { env });
-  const single = await departures(new Request("https://example.test/api/departures?stopId=a&lineName=13A&direction=Centre"), { env });
-  expect(batch.status).toBe(502);
-  expect(single.status).toBe(500);
-  expect(batch.headers.get("cache-control")).toBe("no-store");
-  expect(single.headers.get("cache-control")).toBe("no-store");
-  expect(await batch.json()).toEqual({ error: "Failed to fetch departures" });
-  expect(await single.json()).toEqual({ error: "Failed to fetch departures" });
+  const response = await departures(new Request(`https://example.test/api/departures?${query}`), { env });
+  expect(response.status).toBe(status);
+  expect(response.headers.get("cache-control")).toBe("no-store");
+  expect(await response.json()).toEqual({ error: "Failed to fetch departures" });
 });
