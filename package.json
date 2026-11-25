@@ -9,7 +9,8 @@
     "lint": "eslint",
     "test": "vitest",
     "test:run": "vitest run",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "build:spacefast": "esbuild spacefast/functions/index.ts spacefast/functions/api/departures.ts spacefast/functions/api/directions.ts spacefast/functions/api/stops/nearby.ts --bundle --format=esm --platform=browser --outbase=spacefast --outdir=.spacefast/worker"
   },
   "dependencies": {
     "next": "16.4.6",
@@ -21,6 +22,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "@vitest/coverage-v8": "^4.0.18",
+    "esbuild": "0.28.2",
     "eslint": "^9",
     "eslint-config-next": "16.4.6",
     "msw": "^2.12.10",
