@@ -44,9 +44,17 @@ On Spacefast, list retained ready versions with `npx -y spacefast@0.10.0 version
 
 `HERE_API_KEY` and `MAPBOX_SECRET_TOKEN` live in Vercel's server environment and in Spacefast's runtime secrets. Coordinate Spacefast writes as releases because each can create a new live version. Access and edge logs can contain client addresses, location queries and long-lived signed bundle URLs. Runtime errors can expose upstream credentials if they include provider URLs. Keep raw logs and receipts owner-readable outside Git. Share only aggregate or redacted observations.
 
+The three Spacefast API adapters require the runtime context argument. Calling one without that argument throws before the handler can return JSON.
+
+An empty Spacefast binding sends an empty key to the provider. After a Space change, check the variable listing for both expected names and verify a live transit and walking response.
+
 ## DNS and HTTPS
 
 The backend Space has a serving attachment for `api.departs.now`. The separate lander Space owns the apex attachment. With external DNS, install the API attachment’s required records at the authoritative provider. With Spacefast authoritative DNS, inspect the zone publication and ownership-proof state and the serving-record status for each attached hostname. Spacefast describes an empty manual-record list for names served from its DNS zone. Independently resolve both names, verify the certificate, and compare the API root and a transit request before distributing the app build. The existing managed hostname remains available. [Custom domains](https://spacefast.com/docs/domains/) · [Domain API](https://api.spacefast.com/openapi.json)
+
+## Check what a rider receives
+
+Use the app’s batch request on the release hostname. Record the CDN status and compare the JSON `fetchedAt` timestamp with the client clock, including a request after the 30-second TTL expires. On the test Mac, the system proxy applied to the managed Spacefast hostname, while the proxy configuration selected a direct connection for the release hostname and Vercel. On the managed hostname a proxied request could read a shared batch that a direct request had populated. A fresh batch requested only through the proxy missed repeatedly. After expiry, URLSession received the same board at ages 138 and 139 seconds. Direct curl later received it at 381 seconds. Home marks a board more than 60 seconds old as saved. For a stale batch, a tested recovery is one retry under a UTC 30-second query key, followed by another `fetchedAt` check. The app currently retries the original URL. Record URLSession’s `isProxyConnection` alongside latency when comparing hosts. [URLSession cache measurements](reviews/2026-11-24-spacefast-trial.md#urlsession-cache-follow-up)
 
 ## Retire the legacy host
 

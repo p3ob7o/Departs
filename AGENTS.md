@@ -4,7 +4,7 @@
 
 Departs is an iOS app. The owner chose on 15 November 2026 to retire the browser app and focus development on iOS. Do not restore the browser client or work toward web/iOS feature parity. The active roadmap is `docs/ios-roadmap.md`; `docs/archive/web/` contains historical designs.
 
-Keep the Next.js/Vercel API backend: installed iOS builds call `https://departs.vercel.app/api/*`. Preserve that host and the existing API contract. Server keys must never be embedded in the app.
+Keep both API hosts. Installed builds through 1.3 (14) use `https://departs.vercel.app/api/*`. New builds target `https://api.departs.now/api/*` on Spacefast. Preserve the API contract on both. Server keys must never be embedded in the app.
 
 ## Commands
 
@@ -79,7 +79,7 @@ Boot new simulators fully with `xcrun simctl bootstatus <SIMULATOR_UUID> -b` bef
 
 ## Deployment
 
-Vercel auto-deploys from `main`; the API host stays `https://departs.vercel.app`. Native changes require a separate iOS build and distribution through TestFlight/App Store. The batch endpoint from PR #27 is deployed; verify it before any distribution of the two-screen client. Each stacked phase must reach `main` in order, retargeting after its base merges. Merges, deployments, version preparation and uploads need the owner's approval.
+Vercel auto-deploys from `main` for installed builds. Publish the same shared handlers to Spacefast for new builds using `docs/backend-hosting.md`. Native changes require a separate iOS build and distribution through TestFlight/App Store. The batch endpoint from PR #27 is deployed; verify it before any distribution of the two-screen client. Each stacked phase must reach `main` in order, retargeting after its base merges. Merges, deployments, version preparation and uploads need the owner's approval.
 
 <!-- BEGIN:nextjs-agent-rules -->
 

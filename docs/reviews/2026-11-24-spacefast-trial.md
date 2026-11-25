@@ -322,3 +322,55 @@ The first GET followed at least ten minutes without trial traffic to that host. 
 | Vercel | batch | 200 / MISS / 372 | 81 / 84 / 84 | 4 / 4 |
 | Vercel | line | 200 / MISS / 251 | 77 / 84 / 84 | 4 / 4 |
 | Vercel | walk | 200 / MISS / 340 | 73 / 75 / 75 | 4 / 4 |
+
+### URLSession cache follow-up
+
+The test Mac's system proxy selected the managed Spacefast hostname and sent Vercel directly. URLSession task metrics confirmed a proxied HTTP/2 connection on Spacefast and a direct HTTP/2 connection on Vercel. The same proxy configuration selected a direct route for `api.departs.now`. This last result is a configuration lookup. DNS and HTTPS on the release hostname were still pending.
+
+The test used the app's unmodified APIService and Vienna's 17-stop batch. Curl replayed the same GET, including query order, literal comma separators and encoding. Both clients sent `Accept: */*`. URLSession’s transaction reported `Accept-Encoding: gzip, deflate, br`, `Accept-Language: en-US,en;q=0.9`, the harness's Departs/CFNetwork user agent and `Priority: u=3`. It reported the host and a keep-alive connection field. Neither client sent a cookie or a request Cache-Control header. Curl with compression started with `deflate, gzip`, its own user agent, and no language or priority field. Applying the app's accept, language, user agent or priority one at a time preserved hits. Switching from gzip to Brotli caused one miss for the new representation. Repeating with all the app headers hit on Brotli. HTTP/1.1 also returned a cacheable response. The live edge log matched all 12 route-comparison requests to one HTTP/2 target from two network exits.
+
+For the route comparison, the app's 17 IDs were rotated to give a previously unprimed URL. Every row below sent the same URL and HTTP/2 request fields with Brotli enabled. Local URL caching was disabled. Each row returned 200 with `Vary: Accept-Encoding`. None carried `Age`. The CDN state comes from `X-ac` and `Server-Timing`.
+
+| Client and network path, in order | CDN result | Response Cache-Control | Batch timestamp |
+|---|---|---|---|
+| Curl through the system-selected proxy, three requests | MISS ×3 | `no-cache, must-revalidate, max-age=0` | Three distinct timestamps |
+| Direct curl, two requests | MISS, HIT | `public, max-age=30` | Both 02:07:36.679 UTC |
+| Curl through the same proxy, two requests | HIT ×2 | `public, max-age=30` | Both 02:07:36.679 UTC |
+| Direct curl, one request | HIT | `public, max-age=30` | 02:07:36.679 UTC |
+| Four new URLSessions, including two with default networking | HIT ×4 | `public, max-age=30` | All 02:07:36.679 UTC |
+
+All four URLSessions reported a proxy connection, including two diagnostics that requested a direct connection. The curl pair isolated the route with the client held constant. The ordinary URLSession hits establish that sharing works across clients without changing the app's HTTP request. Spacefast listed zero traffic rules on the Space. Its documented cache rules allow bypass, and the earlier response-header trial left shared caching under platform control. The precise condition Spacefast or its CDN applies to the two network exits remains unknown. [Spacefast caching](https://spacefast.com/docs/caching/) · [Traffic rules](https://spacefast.com/docs/traffic-rules/)
+
+One group of ten simultaneous URLSession requests for distinct real stop IDs received six 200s and four 429s. All four refusals carried the same 1,168-byte HTML document, Content-Type `text/html`, and no Retry-After or rate-limit reset field. The app maps every non-200 to its generic connection error. The first 200 decoded characters, JSON-escaped to preserve tabs and newlines, were
+
+```json
+"<!DOCTYPE html>\n<html lang=\"en\">\n\t<head>\n\t\t<meta charset=\"utf-8\">\n\t\t<title>429 Too Many Requests</title>\n\t\t<meta name=\"description\" content=\"\">\n\t\t<meta name=\"author\" content=\"\">\n\n\t\t<style>\n\t\tbody {\n\t\t"
+```
+
+After expiry, two default URLSession requests through the proxy received HTTP 200/STALE and decoded the original 02:07:36.679 UTC batch. Its age on receipt was 138.2 and 139.3 seconds, beyond Home's 60-second freshness window. Both responses omitted Age. Direct curl also received this same timestamp at age 381.3 seconds (response Date minus fetchedAt). Three seconds later direct curl hit a refreshed batch at age 2.4 seconds. A default URLSession then hit the new batch at age 4.0 seconds. The CDN served an expired shared response during revalidation. The evidence does not identify its maximum stale lifetime or explain why the earlier proxy reads had left the old timestamp in place.
+
+Local playback fed the 138.2-second batch and its receipt time into the app’s TransitStore. Home published two selections, considered zero fresh and requested a list refresh. The Home view shows its saved-times refresh banner and uses the stale row treatment in this state. HTTP 200 and successful APIService decoding alone do not establish freshness. A release-host check needs the JSON timestamp as well as the HTTP status.
+
+#### Recovering a fresh board
+
+On the same expired URL, three URLSession GETs returned the same underlying batch at ages 258.88, 260.00 and 261.12 seconds. The middle request explicitly sent `Cache-Control: no-cache`. All three received HTTP 200/STALE. The app already uses `reloadIgnoringLocalCacheData` for departures.
+
+Keeping all 17 IDs and their order fixed, the harness added `freshnessBucket=floor(Unix time / 30)` to the URL. Two requests in one bucket and one in the next returned HTTP 200/MISS with board ages of 0.37, 0.41 and 0.36 seconds. The server ignored the extra parameter when calling HERE. A bounded client recovery can use the ordinary URL first, retry once with the current bucket if the response is outside the app’s five-seconds-ahead to 60-seconds-behind window, and check the retry’s timestamp before marking it current. This keeps the ordinary cache key for fresh reads. Home’s existing saved-times presentation remains available when a fresh answer cannot be obtained. The experiment used the harness only.
+
+Spacefast also documents a cache-bypass rule that could match departures carrying `stopIds`. Applying it would give up CDN sharing on those batches and increase Function and provider demand. The trial did not enable it. No operator setting to enforce a maximum age for stale Functions responses was identified. [Spacefast traffic rules](https://spacefast.com/docs/traffic-rules/)
+
+#### Paced app latency
+
+The macOS harness used APIService's actual URL builders, request policies, decoding and 12-second timeout. Root used a plain URLSession GET. Each host received one warm-up and ten paced network requests per path, with the local URL cache disabled. The main comparison used Vienna stops, the same real stop and line, the same walk, and a 17-stop batch. The first batch series on Spacefast reused a Brotli entry populated during the curl comparison. All ten measured requests were STALE, with a median of 10 ms and a maximum of 13 ms. To measure misses, both hosts received a second 17-stop series with the same rotated ID order, previously unprimed by curl. Each table entry includes ten observations after the warm-up.
+
+| Endpoint | Spacefast, 10 misses, median / maximum ms | Vercel, 10 hits, median / maximum ms | Vercel, 10 misses, median / maximum ms |
+|---|---:|---:|---:|
+| Root | 398 / 743 | 32 / 36 | 149 / 219 |
+| Nearby stops | 444 / 699 | 34 / 61 | 149 / 162 |
+| Batch departures | 719 / 1,046 | 32 / 39 | 197 / 306 |
+| Per-line departures | 572 / 1,077 | 30 / 43 | 158 / 176 |
+| Walk | 363 / 561 | 31 / 47 | 157 / 198 |
+
+The rightmost column used one ignored query parameter with a different value for each request, giving Vercel a new CDN key for the same handler inputs. The middle column used ordinary app requests. All measured requests returned 200, including the independent warm-up requests. The smallest gap between Vercel requests was 2.15 seconds. These are end-to-end times from the test Mac. Worker process reuse cannot be verified from client timing.
+
+The follow-up sent 115 GETs to Spacefast and 121 to Vercel. Of these, 104 and 99 respectively targeted transit or walking data. Including possible background refreshes and departure retries gives conservative ceilings of 148 and 72 upstream calls. Exact provider counts were unavailable. Team worker usage increased from 656 to 748 with zero metered dollars.
