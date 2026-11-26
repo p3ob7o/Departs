@@ -6,7 +6,7 @@ On 16 November 2026 the owner defined Departs as two screens showing which trans
 
 Later that day the owner made it stricter: "This app is minimalistic and opinionated. It looks in a 400m radius, period." The wider search and place search are gone. With location off, the app shows pinned routes only.
 
-The owner retired the browser client on 15 November. iOS is the sole product client; the Vercel API remains at its existing host for installed builds. Historical web designs stay in `docs/archive/web/`.
+The owner retired the browser client on 15 November. iOS is the sole product client. Spacefast serves it at `api.departs.now`. The owner retired the legacy Vercel host without forwarding. Historical web designs stay in `docs/archive/web/`.
 
 ## Current implementation
 

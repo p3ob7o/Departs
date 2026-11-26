@@ -1,11 +1,12 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { GET } from "@/app/api/departures/route";
+import { workerContext } from "@/app/__tests__/setup";
+import { GET } from "@/spacefast/functions/api/departures";
 
 describe("GET /api/departures", () => {
   it("returns 400 when stopId is missing", async () => {
     const request = new Request("http://localhost/api/departures");
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(400);
     const body = await response.json();
@@ -16,7 +17,7 @@ describe("GET /api/departures", () => {
     const request = new Request(
       "http://localhost/api/departures?stopId=stop-1"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -71,7 +72,7 @@ describe("GET /api/departures", () => {
     const request = new Request(
       "http://localhost/api/departures?stopId=stop-1&lineName=17&direction=Alvik"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -91,7 +92,7 @@ describe("GET /api/departures", () => {
       { departures: [{ time: "2026-11-15T10:00:00Z", rtTime: "2026-11-15T10:30:00Z" }] },
       { departures: [5, 10, 15, 20].map((minute) => ({ time: `2026-11-15T10:${String(minute).padStart(2, "0")}:00Z` })) },
     ] })));
-    const response = await GET(new Request("http://localhost/api/departures?stopId=station"));
+    const response = await GET(new Request("http://localhost/api/departures?stopId=station"), workerContext);
     const body = await response.json();
     expect(body.map((departure: { time: string }) => departure.time)).toEqual([
       "2026-11-15T10:05:00Z", "2026-11-15T10:10:00Z", "2026-11-15T10:15:00Z", "2026-11-15T10:20:00Z",
@@ -102,7 +103,7 @@ describe("GET /api/departures", () => {
     const request = new Request(
       "http://localhost/api/departures?stopId=stop-1"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -113,13 +114,13 @@ describe("GET /api/departures", () => {
     });
   });
 
-  it("sets cache headers for 30 seconds", async () => {
+  it("prevents caching departure responses", async () => {
     const request = new Request(
       "http://localhost/api/departures?stopId=stop-1"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
-    expect(response.headers.get("Cache-Control")).toContain("max-age=30");
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
 
   it("returns 500 when HERE API fails", async () => {
@@ -135,7 +136,7 @@ describe("GET /api/departures", () => {
     const request = new Request(
       "http://localhost/api/departures?stopId=stop-1"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(500);
   });
@@ -143,7 +144,7 @@ describe("GET /api/departures", () => {
 
 describe("optional grouped boards", () => {
   it("returns groups with at most four departures without changing the legacy array", async () => {
-    const grouped = await GET(new Request("http://localhost/api/departures?stopId=stop-1&groupBy=line"));
+    const grouped = await GET(new Request("http://localhost/api/departures?stopId=stop-1&groupBy=line"), workerContext);
     const payload = await grouped.json();
     expect(Array.isArray(payload.groups)).toBe(true);
     expect(typeof payload.complete).toBe("boolean");
@@ -152,7 +153,7 @@ describe("optional grouped boards", () => {
       expect(group.departures.length).toBeLessThanOrEqual(4);
       expect(group.departures.every((departure: { line: unknown }) => JSON.stringify(departure.line) === JSON.stringify(group.line))).toBe(true);
     }
-    const legacy = await GET(new Request("http://localhost/api/departures?stopId=stop-1"));
+    const legacy = await GET(new Request("http://localhost/api/departures?stopId=stop-1"), workerContext);
     expect(Array.isArray(await legacy.json())).toBe(true);
   });
 });
@@ -165,7 +166,7 @@ it("does not claim a capped grouped board is complete", async () => {
       time: "2026-11-15T10:00:00Z", transport: { mode: "bus", name: "1", headsign: "Centre" },
     })) }],
   })));
-  const response = await GET(new Request("http://localhost/api/departures?stopId=stop-1&groupBy=line"));
+  const response = await GET(new Request("http://localhost/api/departures?stopId=stop-1&groupBy=line"), workerContext);
   const body = await response.json();
   expect(body.complete).toBe(false);
   expect(body.groups).toHaveLength(1);
@@ -180,7 +181,7 @@ it("checks the cap per platform board, not after flattening", async () => {
       time: "2026-11-15T10:00:00Z", transport: { mode: "bus", name: "1", headsign: "Centre" },
     })) })),
   })));
-  const response = await GET(new Request("http://localhost/api/departures?stopId=stop-1&groupBy=line"));
+  const response = await GET(new Request("http://localhost/api/departures?stopId=stop-1&groupBy=line"), workerContext);
   expect((await response.json()).complete).toBe(true);
 });
 
@@ -203,9 +204,9 @@ describe("plus signs in the line filter", () => {
       departure(6, "U2", "Pankow"),
       ...extra,
     ] }] })));
-    const response = await GET(new Request(`http://localhost/api/departures?stopId=49031_783&${query}`));
+    const response = await GET(new Request(`http://localhost/api/departures?stopId=49031_783&${query}`), workerContext);
     expect(response.status).toBe(200);
-    expect(response.headers.get("Cache-Control")).toBe("public, max-age=30");
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
     return (await response.json()) as { time: string; line: { name: string; direction: string } }[];
   }
 
@@ -275,7 +276,7 @@ it("skips a null line in a provider array while filtering departures", async () 
   server.use(http.get("https://transit.hereapi.com/v8/departures", () =>
     HttpResponse.json([{ time: "2026-11-24T10:00:00Z", line: null }, match])
   ));
-  const response = await GET(new Request("https://example.test/api/departures?stopId=s&lineName=U2&direction=Pankow"));
+  const response = await GET(new Request("https://example.test/api/departures?stopId=s&lineName=U2&direction=Pankow"), workerContext);
   expect(response.status).toBe(200);
   expect(await response.json()).toEqual([match]);
 });

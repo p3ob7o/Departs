@@ -11,5 +11,9 @@ afterEach(() => {
 });
 afterAll(() => server.close());
 
-vi.stubEnv("HERE_API_KEY", "test-here-api-key");
-vi.stubEnv("MAPBOX_SECRET_TOKEN", "sk.test-mapbox-secret");
+export const workerContext = {
+  env: {
+    HERE_API_KEY: "test-here-api-key",
+    MAPBOX_SECRET_TOKEN: "sk.test-mapbox-secret",
+  },
+};
