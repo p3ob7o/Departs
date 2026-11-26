@@ -18,6 +18,7 @@ struct DepartsApp: App {
 final class TransitSession {
     let store: TransitStore
     let locationService: LocationService
+    private let waitForRefresh: () async throws -> Void
     private var windows: [UUID: WindowDemand] = [:]
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var locationTask: Task<Void, Never>?
@@ -28,7 +29,8 @@ final class TransitSession {
         var selection: StopLineSelection?
     }
 
-    init(store: TransitStore? = nil, locationService: LocationService = LocationService()) {
+    init(store: TransitStore? = nil, locationService: LocationService = LocationService(),
+         waitForRefresh: @escaping () async throws -> Void = { try await Task.sleep(for: .seconds(30)) }) {
         #if DEBUG
         var client = TransitClient.live
         if let fixture = ProcessInfo.processInfo.environment["DEPARTS_TEST_WALKING_ROUTES"] {
@@ -46,6 +48,7 @@ final class TransitSession {
         self.store = store ?? TransitStore()
         #endif
         self.locationService = locationService
+        self.waitForRefresh = waitForRefresh
     }
 
     func updateWindow(_ id: UUID, active: Bool, showsList: Bool, selection: StopLineSelection?) {
@@ -75,7 +78,7 @@ final class TransitSession {
                     self.locationService.requestLocation()
                 }
                 await self.refreshVisibleAnswers()
-                do { try await Task.sleep(for: .seconds(30)) } catch { return }
+                do { try await self.waitForRefresh() } catch { return }
             }
         }
     }

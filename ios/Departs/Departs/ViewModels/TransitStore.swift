@@ -56,7 +56,14 @@ final class TransitStore {
     @ObservationIgnored private var interactingPresentations: Set<String> = []
     @ObservationIgnored private var detailChecks: [String: Date] = [:]
     @ObservationIgnored private var detailBoardIDs: Set<String> = []
-    @ObservationIgnored private var walkRequests: [String: (origin: Coordinate, id: UUID)] = [:]
+    @ObservationIgnored private var walkRequests: [String: WalkRequest] = [:]
+
+    private struct WalkRequest {
+        let origin: Coordinate
+        let destination: Coordinate
+        let id: UUID
+        let task: Task<Void, Never>
+    }
     private var savedBoards: Set<String> = []
 
     init(client: TransitClient = .live, persistence: TransitPersistence = .init(), now: @escaping () -> Date = { .now }) {
@@ -129,7 +136,7 @@ final class TransitStore {
         persistence.saveHome(home)
         // Start routes for the list actually published, including a response
         // that had to wait until the rider stopped scrolling.
-        Task { await self.refreshListedWalks() }
+        refreshListedWalks()
     }
 
     func isPinned(_ selection: StopLineSelection) -> Bool { pins.contains { $0.id == selection.id } }
@@ -172,6 +179,7 @@ final class TransitStore {
     func updateLocation(_ fix: LocationFix, showing selection: StopLineSelection? = nil, force: Bool = false) async {
         guard fix.coordinate.isValid else { return }
         location = fix
+        cancelSupersededWalks()
         if let selection { await refreshSelection(selection, force: force); return }
         guard let center, center.distance(to: fix.coordinate) <= 150 else {
             await loadArea(fix.coordinate)
@@ -244,6 +252,8 @@ final class TransitStore {
 
     private func resetArea() {
         areaRevision += 1
+        for request in walkRequests.values { request.task.cancel() }
+        walkRequests.removeAll()
         areaTask?.cancel()
         areaTask = nil
         batchTask?.cancel()
@@ -333,9 +343,8 @@ final class TransitStore {
     }
 
     func refreshSelection(_ selection: StopLineSelection, force: Bool = false) async {
-        async let route: Void = refreshWalk(for: selection.stop)
+        refreshWalk(for: selection.stop)
         await refreshBoard(selection, force: force)
-        await route
     }
     func refreshBoard(_ selection: StopLineSelection, force: Bool = false) async {
         let key = selection.id
@@ -360,40 +369,52 @@ final class TransitStore {
         boards[selection.id]?.isFresh(at: date) == true && !boardErrors.contains(selection.id) && !savedBoards.contains(selection.id)
     }
     func walk(for stop: NearbyStop, at date: Date = .now) -> CachedWalk? {
-        guard let origin = walkingOrigin, let walk = walks[stop.id], walk.matches(origin, at: date) else { return nil }
+        guard let origin = walkingOrigin, let walk = walks[stop.id], walk.destination == stop.location, walk.matches(origin, at: date) else { return nil }
         return walk
     }
     func walk(for group: StopGroup, at date: Date) -> CachedWalk? {
         guard let center, let platform = group.nearestPlatform(to: center) else { return nil }
         return walk(for: platform, at: date)
     }
-    private func refreshListedWalks() async {
+    private func refreshListedWalks() {
         guard let center else { return }
-        let platforms = mapGroups.compactMap { $0.nearestPlatform(to: center) }
-        await withTaskGroup(of: Void.self) { group in
-            var iterator = platforms.makeIterator()
-            for _ in 0..<3 {
-                if let stop = iterator.next() { group.addTask { await self.refreshWalk(for: stop) } }
-            }
-            while await group.next() != nil {
-                if let stop = iterator.next() { group.addTask { await self.refreshWalk(for: stop) } }
-            }
+        for group in mapGroups {
+            if let stop = group.nearestPlatform(to: center) { refreshWalk(for: stop) }
         }
     }
-    private func refreshWalk(for stop: NearbyStop) async {
-        guard let origin = walkingOrigin, origin.distance(to: stop.location) < 5000 else { return }
-        if walks[stop.id]?.matches(origin, at: now()) == true { return }
-        if let pending = walkRequests[stop.id], pending.origin.distance(to: origin) <= 40 { return }
-        let requestID = UUID()
-        walkRequests[stop.id] = (origin, requestID)
-        defer {
-            if walkRequests[stop.id]?.id == requestID { walkRequests[stop.id] = nil }
+
+    private func cancelSupersededWalks() {
+        let origin = walkingOrigin
+        for (stopID, request) in walkRequests where origin.map({ request.origin.distance(to: $0) > 40 }) ?? true {
+            walkRequests[stopID] = nil
+            request.task.cancel()
         }
-        do {
-            let route = try await client.directions(origin, stop.location)
-            guard let currentOrigin = walkingOrigin, origin.distance(to: currentOrigin) <= 40 else { return }
-            walks[stop.id] = .init(origin: origin, route: route, checkedAt: now())
-        } catch { /* A walking failure never hides departure information. */ }
+    }
+
+    private func refreshWalk(for stop: NearbyStop) {
+        cancelSupersededWalks()
+        guard let origin = walkingOrigin, origin.distance(to: stop.location) < 5000 else { return }
+        if let pending = walkRequests[stop.id] {
+            if pending.destination == stop.location { return }
+            walkRequests[stop.id] = nil
+            pending.task.cancel()
+        }
+        if walk(for: stop, at: now()) != nil { return }
+
+        let requestID = UUID()
+        let task = Task { [weak self, client] in
+            defer {
+                if self?.walkRequests[stop.id]?.id == requestID { self?.walkRequests[stop.id] = nil }
+            }
+            do {
+                try Task.checkCancellation()
+                let route = try await client.directions(origin, stop.location)
+                guard let self, !Task.isCancelled, self.walkRequests[stop.id]?.id == requestID,
+                      let currentOrigin = self.walkingOrigin, origin.distance(to: currentOrigin) <= 40 else { return }
+                self.walks[stop.id] = .init(origin: origin, destination: stop.location, route: route, checkedAt: self.now())
+            } catch { /* A walking failure never hides departure information. */ }
+        }
+        walkRequests[stop.id] = .init(origin: origin, destination: stop.location, id: requestID, task: task)
     }
     private static func cancelled(_ error: Error) -> Bool {
         error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled

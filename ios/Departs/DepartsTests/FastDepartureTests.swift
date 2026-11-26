@@ -187,6 +187,7 @@ final class FastDepartureTests: XCTestCase {
         let store = makeStore(api)
         await store.updateLocation(fix, showing: selection)
         await store.refreshSelection(selection, force: true)
+        await Task.yield()
 
         XCTAssertEqual(requests, 1)
         XCTAssertEqual(store.walk(for: platform, at: instant)?.route, expectedRoute)
@@ -204,7 +205,9 @@ final class FastDepartureTests: XCTestCase {
             let store = makeStore(api)
 
             await store.updateLocation(fix, showing: selection)
+            await Task.yield()
             await store.refreshSelection(selection, force: true)
+            await Task.yield()
 
             XCTAssertEqual(requests, 2, "A failed walk can be requested again")
             XCTAssertNil(store.walk(for: platform, at: instant))
@@ -379,22 +382,121 @@ final class FastDepartureTests: XCTestCase {
     }
 
     @MainActor func testHomePublishesBeforeSlowWalkingAndWalkingNeverReorders() async throws {
-        let started = expectation(description: "routes started"); started.expectedFulfillmentCount = 3
-        var finishes: [CheckedContinuation<WalkingRoute, Error>] = []
+        let started = expectation(description: "routes started")
+        started.expectedFulfillmentCount = 3
+        let probe = WalkingProbe()
+        probe.onStart = { _ in started.fulfill() }
+        let service = WalkingRouteService(start: probe.start)
         var api = try sampleClient()
-        let route = route()
-        api.directions = { _, _ in
-            if finishes.count >= 3 { return route }
-            return try await withCheckedThrowingContinuation { finishes.append($0); started.fulfill() }
-        }
+        api.directions = { try await service.route(from: $0, to: $1) }
         let store = makeStore(api)
         await store.loadArea(coordinate)
         await fulfillment(of: [started], timeout: 2)
         let before = store.displayedOptions.map(\.id)
         XCTAssertEqual(before.count, 8)
-        for finish in finishes { finish.resume(returning: route) }
-        for _ in 0..<20 { await Task.yield() }
+        let fourth = expectation(description: "fourth route")
+        probe.onStart = { _ in fourth.fulfill() }
+        probe.complete(0)
+        await fulfillment(of: [fourth], timeout: 2)
+        for index in 1...3 { probe.complete(index) }
         XCTAssertEqual(store.displayedOptions.map(\.id), before)
+    }
+
+    @MainActor func testDepartureClockTicksWhileWalkingIsStalled() async {
+        let timestamp = Date.now
+        var date = timestamp
+        var api = client()
+        api.stops = { _ in [] }
+        let initialBoard = expectation(description: "initial board")
+        let nextBoard = expectation(description: "next board while walk is stalled")
+        var boardCount = 0
+        api.departures = { _ in
+            boardCount += 1
+            if boardCount == 1 { initialBoard.fulfill() }
+            if boardCount == 2 { nextBoard.fulfill() }
+            return [self.departure(7)]
+        }
+
+        let probe = WalkingProbe()
+        let started = expectation(description: "walk started")
+        probe.onStart = { _ in started.fulfill() }
+        let service = WalkingRouteService(start: probe.start)
+        api.directions = { try await service.route(from: $0, to: $1) }
+        let store = TransitStore(client: api, persistence: persistence(), now: { date })
+        let selection = StopLineSelection(stop: stop(), line: line, lineIndex: 0)
+        await store.updateLocation(.init(coordinate: coordinate, capturedAt: timestamp, accuracy: 10))
+
+        let sleeping = expectation(description: "foreground clock reached its wait")
+        let clock = AsyncGate()
+        let session = TransitSession(store: store, waitForRefresh: {
+            if boardCount == 1 { sleeping.fulfill() }
+            try await clock.wait()
+        })
+        let window = UUID()
+        session.updateWindow(window, active: true, showsList: false, selection: selection)
+        await fulfillment(of: [initialBoard, started, sleeping], timeout: 2)
+        date += 61
+        clock.resume()
+        await fulfillment(of: [nextBoard], timeout: 2)
+        session.updateWindow(window, active: false, showsList: false, selection: nil)
+        clock.resume()
+        XCTAssertTrue(store.isBoardFresh(for: selection, at: date))
+        XCTAssertEqual(probe.active, 1)
+        store.clearArea()
+    }
+
+    @MainActor func testOriginABARejectsLateRoutesInStoreAndServiceCache() async throws {
+        let probe = WalkingProbe()
+        let service = WalkingRouteService(start: probe.start)
+        var api = client()
+        api.directions = { try await service.route(from: $0, to: $1) }
+        let store = makeStore(api)
+        let platform = stop()
+        let selection = StopLineSelection(stop: platform, line: line, lineIndex: 0)
+        let b = Coordinate(lat: coordinate.lat + 0.00051, lon: coordinate.lon)
+        for origin in [coordinate, b, coordinate] {
+            let started = expectation(description: "request at \(origin)")
+            probe.onStart = { _ in started.fulfill() }
+            await store.updateLocation(.init(coordinate: origin, capturedAt: instant, accuracy: 10), showing: selection)
+            await fulfillment(of: [started], timeout: 2)
+        }
+
+        XCTAssertEqual(probe.cancelled, [0, 1])
+        probe.complete(2, duration: 200)
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(store.walk(for: platform, at: instant)?.route.duration, 200)
+        probe.complete(1, duration: 100)
+        probe.complete(0, duration: 300)
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(store.walk(for: platform, at: instant)?.route.duration, 200)
+        let cached = try await service.route(from: coordinate, to: platform.location)
+        XCTAssertEqual(cached.duration, 200)
+        XCTAssertEqual(probe.started, 3)
+    }
+
+    @MainActor func testMovingDuringHomeRefreshKeepsGlobalWalkingLimit() async throws {
+        let probe = WalkingProbe()
+        let service = WalkingRouteService(start: probe.start)
+        var api = try sampleClient()
+        api.directions = { try await service.route(from: $0, to: $1) }
+        let store = makeStore(api)
+
+        let first = expectation(description: "three original routes")
+        first.expectedFulfillmentCount = 3
+        probe.onStart = { _ in first.fulfill() }
+        await store.updateLocation(fix)
+        await fulfillment(of: [first], timeout: 2)
+
+        let moved = expectation(description: "three routes for the new origin")
+        moved.expectedFulfillmentCount = 3
+        probe.onStart = { _ in moved.fulfill() }
+        let coordinate = Coordinate(lat: self.coordinate.lat + 0.00051, lon: self.coordinate.lon)
+        await store.updateLocation(.init(coordinate: coordinate, capturedAt: instant, accuracy: 10), force: true)
+        await fulfillment(of: [moved], timeout: 2)
+        XCTAssertEqual(Set(probe.cancelled), [0, 1, 2])
+        XCTAssertEqual(probe.peak, 3)
+        XCTAssertEqual(probe.active, 3)
+        store.clearArea()
     }
 
     func testCountdownUsesNowBelowAMinuteAndClockBeyondTheHour() {
@@ -463,18 +565,26 @@ final class FastDepartureTests: XCTestCase {
     @MainActor func testLineOpensWithTwoThenFetchesFourAndItsOwnPlatformRoute() async throws {
         var api = try sampleClient(), detailCalls = 0
         var destinations: [Coordinate] = []
+        var linePlatform: Coordinate?
+        let lineWalk = expectation(description: "line screen requests its own platform route")
         let four = [departure(2), departure(6), departure(10), departure(14)], route = route()
         api.departures = { _ in detailCalls += 1; return four }
-        api.directions = { _, to in destinations.append(to); return route }
+        api.directions = { _, to in
+            destinations.append(to)
+            if to == linePlatform { lineWalk.fulfill() }
+            return route
+        }
         let store = makeStore(api)
         await store.updateLocation(fix)
         for _ in 0..<20 { await Task.yield() }
         let selection = try XCTUnwrap(store.displayedOptions.first { $0.line.name == "48A" })
+        linePlatform = selection.stop.location
         XCTAssertEqual(store.boards[selection.id]?.departures.count, 2)
         XCTAssertFalse(destinations.contains(selection.stop.location), "Home walks to the merged stop's nearest platform")
         await store.refreshSelection(selection)
         XCTAssertEqual(store.boards[selection.id]?.departures.count, 4)
         XCTAssertEqual(detailCalls, 1)
+        await fulfillment(of: [lineWalk], timeout: 2)
         XCTAssertTrue(destinations.contains(selection.stop.location), "Line screen must walk to its own platform")
         let destination = WalkingDirections.destination(for: selection)
         XCTAssertEqual(destination.location.coordinate.latitude, selection.stop.location.lat)
@@ -1164,14 +1274,15 @@ final class WalkingRouteServiceTests: XCTestCase {
     @MainActor func testWalkingRequestMapsPolylineAndMetrics() async throws {
         let corner = Coordinate(lat: origin.lat, lon: destination.lon)
         let polyline = polyline([origin, corner, destination])
-        let service = WalkingRouteService(calculate: { request in
+        let service = WalkingRouteService(start: { request, complete in
             XCTAssertEqual(request.transportType, .walking)
             XCTAssertFalse(request.requestsAlternateRoutes)
             XCTAssertEqual(request.source?.location.coordinate.latitude, self.origin.lat)
             XCTAssertEqual(request.source?.location.coordinate.longitude, self.origin.lon)
             XCTAssertEqual(request.destination?.location.coordinate.latitude, self.destination.lat)
             XCTAssertEqual(request.destination?.location.coordinate.longitude, self.destination.lon)
-            return (polyline, 195, 234)
+            complete(.success((polyline, 195, 234)))
+            return {}
         })
 
         let route = try await service.route(from: origin, to: destination)
@@ -1202,10 +1313,11 @@ final class WalkingRouteServiceTests: XCTestCase {
         var date = Date(timeIntervalSince1970: 1_800_000_000)
         var requests = 0
         let polyline = polyline([origin, destination])
-        let service = WalkingRouteService(now: { date }) { _ in
+        let service = WalkingRouteService(now: { date }, start: { _, complete in
             requests += 1
-            return (polyline, Double(requests), 234)
-        }
+            complete(.success((polyline, Double(requests), 234)))
+            return {}
+        })
 
         let initial = try await service.route(from: origin, to: destination)
         _ = try await service.route(from: origin, to: origin)
@@ -1217,5 +1329,142 @@ final class WalkingRouteServiceTests: XCTestCase {
         date += 1
         let expired = try await service.route(from: origin, to: destination)
         XCTAssertEqual(expired.duration, 4)
+    }
+
+    @MainActor func testIdenticalRequestsShareOneCalculationAndEitherWaiterCanCancel() async throws {
+        let probe = WalkingProbe()
+        let service = WalkingRouteService(start: probe.start)
+        let started = expectation(description: "shared calculation")
+        probe.onStart = { _ in started.fulfill() }
+        let first = Task { try await service.route(from: origin, to: destination) }
+        await fulfillment(of: [started], timeout: 2)
+        let joining = expectation(description: "second caller")
+        let second = Task {
+            joining.fulfill()
+            return try await service.route(from: origin, to: destination)
+        }
+        await fulfillment(of: [joining], timeout: 2)
+        first.cancel()
+        do { _ = try await first.value; XCTFail("Expected cancellation") }
+        catch is CancellationError {}
+        XCTAssertEqual(probe.started, 1)
+        XCTAssertEqual(probe.cancelled, [])
+        probe.complete(0)
+        let route = try await second.value
+        XCTAssertEqual(route.duration, 180)
+    }
+
+    @MainActor func testCancellingLastCallerCancelsMapKitCalculation() async throws {
+        let probe = WalkingProbe()
+        let service = WalkingRouteService(start: probe.start)
+        let started = expectation(description: "calculation started")
+        probe.onStart = { _ in started.fulfill() }
+        let route = Task { try await service.route(from: origin, to: destination) }
+        await fulfillment(of: [started], timeout: 2)
+        route.cancel()
+        do { _ = try await route.value; XCTFail("Expected cancellation") }
+        catch is CancellationError {}
+        XCTAssertEqual(probe.cancelled, [0])
+        XCTAssertEqual(probe.active, 0)
+    }
+
+    @MainActor func testStalledCalculationTimesOutAndCancelsMapKit() async throws {
+        let probe = WalkingProbe()
+        let sleeping = expectation(description: "timeout started")
+        let clock = AsyncGate()
+        let service = WalkingRouteService(sleep: { interval in
+            XCTAssertEqual(interval, .seconds(12))
+            sleeping.fulfill()
+            try await clock.wait()
+        }, start: probe.start)
+        let route = Task { try await service.route(from: origin, to: destination) }
+        await fulfillment(of: [sleeping], timeout: 2)
+        clock.resume()
+        do { _ = try await route.value; XCTFail("Expected timeout") }
+        catch let error as URLError { XCTAssertEqual(error.code, .timedOut) }
+        XCTAssertEqual(probe.cancelled, [0])
+        XCTAssertEqual(probe.active, 0)
+    }
+
+    @MainActor func testCacheEvictsOldestAndDropsExpiredEntriesOnRead() async throws {
+        var date = Date(timeIntervalSince1970: 1_800_000_000)
+        var requests = 0
+        var fail = false
+        let polyline = polyline([origin, destination])
+        let service = WalkingRouteService(now: { date }, start: { _, complete in
+            requests += 1
+            complete(fail ? .failure(MKError(.directionsNotFound)) : .success((polyline, Double(requests), 234)))
+            return {}
+        })
+        let count = WalkingRouteService.cacheCapacity
+        for index in 0...count {
+            let point = Coordinate(lat: destination.lat, lon: destination.lon + Double(index) / 1000)
+            _ = try await service.route(from: origin, to: point)
+            date += 1
+        }
+        let newest = Coordinate(lat: destination.lat, lon: destination.lon + Double(count) / 1000)
+        let kept = try await service.route(from: origin, to: newest)
+        XCTAssertEqual(kept.duration, Double(count + 1))
+        let evicted = try await service.route(from: origin, to: destination)
+        XCTAssertEqual(evicted.duration, Double(count + 2))
+
+        let savedTime = date
+        date += 3_600
+        fail = true
+        do { _ = try await service.route(from: origin, to: newest); XCTFail("Expected a miss") }
+        catch let error as MKError { XCTAssertEqual(error.code, .directionsNotFound) }
+        date = savedTime
+        fail = false
+        let pruned = try await service.route(from: origin, to: newest)
+        XCTAssertEqual(pruned.duration, Double(count + 4))
+    }
+
+}
+
+
+@MainActor
+private final class WalkingProbe {
+    var onStart: ((Int) -> Void)?
+    private var completions: [WalkingRouteService.Completion] = []
+    private var running: Set<Int> = []
+    private(set) var cancelled: [Int] = []
+    private(set) var peak = 0
+    var started: Int { completions.count }
+    var active: Int { running.count }
+
+    func start(_ request: MKDirections.Request, _ completion: @escaping WalkingRouteService.Completion) -> () -> Void {
+        let index = completions.count
+        completions.append(completion)
+        running.insert(index)
+        peak = max(peak, running.count)
+        onStart?(index)
+        return {
+            self.running.remove(index)
+            self.cancelled.append(index)
+        }
+    }
+
+    func complete(_ index: Int, duration: Double = 180) {
+        running.remove(index)
+        let coordinates = [CLLocationCoordinate2D(latitude: 48.2, longitude: 16.3),
+                           CLLocationCoordinate2D(latitude: 48.21, longitude: 16.3)]
+        completions[index](.success((MKPolyline(coordinates: coordinates, count: 2), duration, 220)))
+    }
+}
+
+@MainActor
+private final class AsyncGate {
+    private var continuation: CheckedContinuation<Void, Never>?
+
+    func wait() async throws {
+        try Task.checkCancellation()
+        await withCheckedContinuation { continuation = $0 }
+        try Task.checkCancellation()
+    }
+
+    func resume() {
+        let waiting = continuation
+        continuation = nil
+        waiting?.resume()
     }
 }

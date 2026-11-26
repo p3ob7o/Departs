@@ -1,4 +1,5 @@
 import MapKit
+import os
 
 @MainActor
 final class WalkingRouteService {
@@ -10,35 +11,144 @@ final class WalkingRouteService {
     }
 
     typealias RouteData = (polyline: MKPolyline, duration: TimeInterval, distance: CLLocationDistance)
-    typealias Calculate = (MKDirections.Request) async throws -> RouteData
+    typealias Completion = (Result<RouteData, Error>) -> Void
+    typealias Start = (MKDirections.Request, @escaping Completion) -> () -> Void
 
-    private let calculate: Calculate
+    private final class Ticket: Sendable {
+        private let cancelled = OSAllocatedUnfairLock(initialState: false)
+        var isCancelled: Bool { cancelled.withLock { $0 } }
+        func cancel() { cancelled.withLock { $0 = true } }
+    }
+
+    private struct Request {
+        let id = UUID()
+        var waiters: [UUID: (Ticket, CheckedContinuation<WalkingRoute, Error>)] = [:]
+        var cancel: (() -> Void)?
+        var timeout: Task<Void, Never>?
+    }
+
+    static let cacheCapacity = 32
+    private static let concurrencyLimit = 3
+    private static let timeout: Duration = .seconds(12)
+
+    private let start: Start
     private let now: () -> Date
+    private let sleep: (Duration) async throws -> Void
     private var routes: [Endpoints: (route: WalkingRoute, expiresAt: Date)] = [:]
+    private var requests: [Endpoints: Request] = [:]
+    private var queue: [Endpoints] = []
+    private var active = 0
 
-    init(now: @escaping () -> Date = { .now }, calculate: Calculate? = nil) {
+    init(now: @escaping () -> Date = { .now },
+         sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+         start: Start? = nil) {
         self.now = now
-        self.calculate = calculate ?? Self.calculateWalkingRoute
+        self.sleep = sleep
+        self.start = start ?? Self.startWalkingRoute
     }
 
     func route(from origin: Coordinate, to destination: Coordinate) async throws -> WalkingRoute {
         try Task.checkCancellation()
         let endpoints = Endpoints(origin: origin, destination: destination)
-        if let entry = routes[endpoints], entry.expiresAt > now() { return entry.route }
-
-        let request = MKDirections.Request()
-        request.source = Self.mapItem(at: origin)
-        request.destination = Self.mapItem(at: destination)
-        request.transportType = .walking
-        request.requestsAlternateRoutes = false
-
-        let (polyline, duration, distance) = try await calculate(request)
+        let ticket = Ticket()
+        let waiterID = UUID()
+        let route = try await withTaskCancellationHandler {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<WalkingRoute, Error>) in
+                // A replacement can arrive before the cancelled caller's MainActor cleanup.
+                removeCancelledWaiters()
+                routes = routes.filter { $0.value.expiresAt > now() }
+                if ticket.isCancelled {
+                    continuation.resume(throwing: CancellationError())
+                } else if let entry = routes[endpoints] {
+                    continuation.resume(returning: entry.route)
+                } else {
+                    if requests[endpoints] == nil {
+                        requests[endpoints] = Request()
+                        queue.append(endpoints)
+                    }
+                    requests[endpoints]?.waiters[waiterID] = (ticket, continuation)
+                }
+                startQueuedRequests()
+            }
+        } onCancel: {
+            ticket.cancel()
+            Task { @MainActor in
+                self.removeCancelledWaiters()
+                self.startQueuedRequests()
+            }
+        }
         try Task.checkCancellation()
-        let route = try Self.walkingRoute(polyline: polyline, duration: duration, distance: distance)
-        let fetchedAt = now()
-        routes = routes.filter { $0.value.expiresAt > fetchedAt }
-        routes[endpoints] = (route, fetchedAt.addingTimeInterval(3_600))
         return route
+    }
+
+    private func removeCancelledWaiters() {
+        for endpoints in Array(requests.keys) {
+            guard var request = requests[endpoints] else { continue }
+            for (id, (ticket, waiter)) in request.waiters where ticket.isCancelled {
+                request.waiters[id] = nil
+                waiter.resume(throwing: CancellationError())
+            }
+            if request.waiters.isEmpty {
+                removeRequest(at: endpoints, request: request, cancel: true)
+            } else {
+                requests[endpoints] = request
+            }
+        }
+    }
+
+    private func startQueuedRequests() {
+        while active < Self.concurrencyLimit, !queue.isEmpty {
+            let endpoints = queue.removeFirst()
+            guard let id = requests[endpoints]?.id else { continue }
+            let request = MKDirections.Request()
+            request.source = Self.mapItem(at: endpoints.origin)
+            request.destination = Self.mapItem(at: endpoints.destination)
+            request.transportType = .walking
+            request.requestsAlternateRoutes = false
+
+            active += 1
+            requests[endpoints]?.cancel = start(request) { result in
+                Task { @MainActor in self.finish(endpoints, id: id, result: result) }
+            }
+            requests[endpoints]?.timeout = Task { [weak self, sleep] in
+                do {
+                    try await sleep(Self.timeout)
+                    try Task.checkCancellation()
+                    self?.finish(endpoints, id: id, result: .failure(URLError(.timedOut)), cancel: true)
+                } catch { /* The request already ended. */ }
+            }
+        }
+    }
+
+    private func finish(_ endpoints: Endpoints, id: UUID, result: Result<RouteData, Error>, cancel: Bool = false) {
+        removeCancelledWaiters()
+        defer { startQueuedRequests() }
+        guard let request = requests[endpoints], request.id == id else { return }
+        removeRequest(at: endpoints, request: request, cancel: cancel)
+        let route = result.flatMap { data in
+            Result { try Self.walkingRoute(polyline: data.polyline, duration: data.duration, distance: data.distance) }
+        }
+        if case let .success(value) = route {
+            let fetchedAt = now()
+            routes = routes.filter { $0.value.expiresAt > fetchedAt }
+            if routes.count >= Self.cacheCapacity,
+               let oldest = routes.min(by: { $0.value.expiresAt < $1.value.expiresAt }) {
+                routes[oldest.key] = nil
+            }
+            routes[endpoints] = (value, fetchedAt.addingTimeInterval(3_600))
+        }
+        for (_, waiter) in request.waiters.values { waiter.resume(with: route) }
+    }
+
+    private func removeRequest(at endpoints: Endpoints, request: Request, cancel: Bool) {
+        requests[endpoints] = nil
+        request.timeout?.cancel()
+        if let stop = request.cancel {
+            if cancel { stop() }
+            active -= 1
+        } else {
+            queue.removeAll { $0 == endpoints }
+        }
     }
 
     private static func mapItem(at coordinate: Coordinate) -> MKMapItem {
@@ -46,15 +156,16 @@ final class WalkingRouteService {
         return MKMapItem(location: location, address: nil)
     }
 
-    private static func calculateWalkingRoute(_ request: MKDirections.Request) async throws -> RouteData {
+    private static func startWalkingRoute(_ request: MKDirections.Request, completion: @escaping Completion) -> () -> Void {
         let directions = MKDirections(request: request)
-        let response = try await withTaskCancellationHandler {
-            try await directions.calculate()
-        } onCancel: {
-            Task { @MainActor in directions.cancel() }
+        directions.calculate { response, error in
+            if let route = response?.routes.first {
+                completion(.success((route.polyline, route.expectedTravelTime, route.distance)))
+            } else {
+                completion(.failure(error ?? MKError(.directionsNotFound)))
+            }
         }
-        guard let route = response.routes.first else { throw MKError(.directionsNotFound) }
-        return (route.polyline, route.expectedTravelTime, route.distance)
+        return { directions.cancel() }
     }
 
     static func walkingRoute(polyline: MKPolyline, duration: TimeInterval, distance: CLLocationDistance) throws -> WalkingRoute {

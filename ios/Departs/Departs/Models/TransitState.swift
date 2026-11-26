@@ -26,6 +26,7 @@ struct DepartureBoard: Codable {
 
 struct CachedWalk: Codable {
     let origin: Coordinate
+    let destination: Coordinate
     let route: WalkingRoute
     let checkedAt: Date
 

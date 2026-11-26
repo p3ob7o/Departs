@@ -67,4 +67,4 @@ The backend Space has the serving attachment for `api.departs.now`. The separate
 
 ## Retire Vercel
 
-Vercel documents automatic promotion of the most recent successful production build. We therefore expect a later failed build to leave the last good deployment serving. To stop automatic Vercel checks on future PRs, the owner opens the project's **Settings → Git → Connected Git Repository → Disconnect**. If GitHub requires that check to merge, remove it from the branch rules as well. We expect existing deployments to remain online after Git disconnection. The Git settings guide documents disconnection only. To take the old endpoint offline, pause the project (returns 503) or explicitly delete it. Deletion also removes deployments, domains, variables and project settings. [Vercel production promotion](https://vercel.com/docs/deployment-checks) · [Disconnect Git](https://vercel.com/docs/project-configuration/git-settings) · [Pause or delete a project](https://vercel.com/docs/projects/managing-projects)
+The Vercel project was deleted on 26 November 2026. There is no project left to disconnect, pause, or delete.
