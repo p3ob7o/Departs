@@ -1,10 +1,10 @@
 # Departs API hosting
 
-Spacefast serves Departs at `api.departs.now` (managed hostname `departs-api.space.fast`). The `departs-api` Space runs three Functions from this repository. Builds from iOS 1.3 (15) use the custom domain. The owner retired the Vercel host used through build 14 without forwarding.
+Spacefast serves Departs at `api.departs.now` (managed hostname `departs-api.space.fast`). This repository builds three Functions for the `departs-api` Space. Builds from iOS 1.3 (15) use the custom domain. Builds through 1.3 (14) already lost all backend data when the owner retired the Vercel host without forwarding and deleted it on 26 November 2026.
 
 ## Ship a backend change
 
-Run `npm ci`, `npm run test:run`, `npm run test:coverage`, `npm run lint` and `npm run build:spacefast`. Open the PR’s **Spacefast Builds** check, follow its details to the build for the PR head, and open the produced or reused version’s preview address. If it requires a session, open the version preview in Spacefast and use that session for the requests. Run the [four rider checks](#check-what-a-rider-receives) on that preview before merging. On an approved merge to `main`, open **departs-api → Builds** and find the **push** build for the full merge SHA. Verify it succeeded and its produced or reused version is live. A reused version can carry an earlier source SHA.
+Run `npm ci`, `npm run test:run`, `npm run test:coverage`, `npm run lint` and `npm run build:spacefast`. Open the PR’s **Spacefast Builds** check, follow its details to the build for the PR head, and identify the produced or reused version. Public access covers the live address only. Version and branch preview addresses return HTTP 403 (`access_denied`) to anonymous requests unless a share grant targets that version or branch. The owner decides how to provide access for the [four rider checks](#check-what-a-rider-receives) on that preview before merging. On an approved merge to `main`, open **departs-api → Builds** and find the **push** build for the full merge SHA. Verify it succeeded and its produced or reused version is live. A reused version can carry an earlier source SHA.
 
 The [project config](../sf.jsonc) specifies repository root `.`, install directory `.`, install command `npm ci`, build command `npm run build:spacefast` and output `.spacefast/worker`. Leave **Framework preset** (`frameworkPreset`, CLI `--framework-preset`) and **Platform preset** (`platformPreset`, CLI `--platform-preset`) unset. With those settings saved on the GitHub connection, the push filter covers the entire repository, including docs-only and iOS-only merges. A PR preview alone does not verify the push filter. [Spacefast Git builds](https://spacefast.com/docs/frameworks/)
 
@@ -42,10 +42,10 @@ If the recipe makes a build fail, every later build using that broken recipe wil
 | Root directory | `spacefast` |
 | Install directory | `.` |
 | Install command | `npm ci` |
-| Build command | `npm --prefix .. run build:spacefast && mkdir -p dist && cp -R ../.spacefast/worker/functions dist/` |
+| Build command | `npm --prefix .. run build:spacefast && mkdir -p dist && rm -rf dist/functions && cp -R ../.spacefast/worker/functions dist/` |
 | Output directory | `dist` |
 
-This recipe built the removal PR. It restores the old push filter, which can skip changes confined to shared handlers or dependencies outside `spacefast/`. Use it only while repository-root triggering is unnecessary. Restoring settings repairs future builds. If a successful build already put the wrong output live, [restore the last good version](#rollback-bindings-and-logs) as well.
+The removal PR used this recipe without the cleanup of `dist/functions`. It restores the old push filter, which can skip changes confined to shared handlers or dependencies outside `spacefast/`. Use it only while repository-root triggering is unnecessary. Restoring settings repairs future builds. If a successful build already put the wrong output live, [restore the last good version](#rollback-bindings-and-logs) as well.
 
 ## Check what a rider receives
 
@@ -59,7 +59,7 @@ List ready versions with `npx -y spacefast@0.10.0 versions ls --space departs-ap
 
 Spacefast seals the `HERE_API_KEY` runtime binding with each version. A variable write can change the live version. After a Space change, verify a transit request. An empty binding sends an empty key to HERE. Calling an API entry without its runtime context throws before it can return JSON.
 
-Since TestFlight 1.3 (16), the app gets walking routes from MapKit on the device. Once the endpoint removal is deployed, builds 1.3 (15) and earlier lose their walking route. The owner accepted this after confirming build 16 worked on his phone. After merge, the owner decides when to delete `MAPBOX_SECRET_TOKEN` from the Space and revoke the token in the Mapbox account.
+Since TestFlight 1.3 (16), the app gets walking routes from MapKit on the device. Once the endpoint removal is deployed, only build 1.3 (15) loses its walking route. The owner accepted this after confirming build 16 worked on his phone. After merge, the owner decides when to delete `MAPBOX_SECRET_TOKEN` from the Space and revoke the token in the Mapbox account.
 
 Access and edge logs may include client addresses, location queries and long-lived signed bundle URLs. Upstream URLs can carry provider credentials. Keep raw logs and receipts owner-readable outside Git. Share only redacted observations.
 

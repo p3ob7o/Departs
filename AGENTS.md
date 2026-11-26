@@ -46,7 +46,7 @@ Spacefast supplies `HERE_API_KEY` for transit. Local backend tests mock HERE and
 
 - Backend: Vitest in Node, MSW mocks only external HERE calls, fixtures in `app/__tests__/fixtures/`.
 - Native: unit XCTest in `ios/Departs/DepartsTests/`, UI flows with an in-process fixture HTTP server in `ios/Departs/DepartsUITests/`. The shared scheme runs both. Use normal simulator signing so App Intents can register correctly.
-- For backend changes run `npm ci`, `npm run test:run`, `npm run test:coverage`, `npm run lint`, `npx tsc --noEmit` and `npm run build:spacefast` locally. For HTTP checks, open the PR’s **Spacefast Builds** check details, select the version for the PR head and open its preview address. Run the [four rider requests](docs/backend-hosting.md#check-what-a-rider-receives) there.
+- For backend changes run `npm ci`, `npm run test:run`, `npm run test:coverage`, `npm run lint`, `npx tsc --noEmit` and `npm run build:spacefast` locally. For HTTP checks, open the PR’s **Spacefast Builds** check details and select the version for the PR head. Public access covers the live address only. Version and branch preview addresses return HTTP 403 (`access_denied`) to anonymous requests unless a share grant targets that version or branch. The owner decides how to provide access for the [four rider requests](docs/backend-hosting.md#check-what-a-rider-receives).
 - Run native tests/build for native changes. Validate live data against the production API after deployment; test UI behavior in the iOS app.
 - After implementing a change, commit, push and open or update its PR. Record which checks ran and distinguish local/preview verification from production verification.
 - Preserve historical release records and archived web designs.
