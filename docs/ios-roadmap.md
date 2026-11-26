@@ -42,6 +42,8 @@ The uploaded build uses the tested release branch. Backend-first is satisfied. C
 
 **Departs 1.3 (15) followed on 26 November: uploaded, VALID and IN_BETA_TESTING for internal testers.** It is the first build that calls `api.departs.now` on Spacefast ([PR #55](https://github.com/p3ob7o/Departs/pull/55)). It retries a rate-limit response once and keeps stops and walks available through local caching. Builds through 1.3 (14) used the now-retired Vercel host. The [release record](releases/1.3-15.md) lists the simulator checks, the live check on the new hostname in Vienna and Berlin, the upload, and what remains unverified on a physical device.
 
+**Departs 1.3 (16) followed on 27 November: uploaded, VALID and IN_BETA_TESTING for internal testers.** It is the first build that gets walking routes from MapKit on the device ([PR #63](https://github.com/p3ob7o/Departs/pull/63)); builds through 1.3 (15) asked the backend, which called Mapbox. Departures no longer wait for a walking route, and no route is requested while location access is denied or restricted. The [release record](releases/1.3-16.md) lists the checks, the upload, and what remains unverified on a physical device. The backend keeps `/api/directions` until this build has replaced 1.3 (15).
+
 ## Next decisions and checks
 
 - Review A34 to A42 in the [fifth amendment](plans/ios-two-screens.md#fifth-amendment-the-line-screens-controls-under-its-map): which times share the countdown column, when the map-app choice is offered and how it is remembered, the plain controls under the line map, and the line screen at accessibility sizes. On a phone, check the long press on the walk button, Google Maps' walking directions, and the swipe back from the left edge.
