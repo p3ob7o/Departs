@@ -13,8 +13,8 @@ struct RouteMapView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> MapContainerView {
         let map = MKMapView()
-        map.isScrollEnabled = true
-        map.isZoomEnabled = true
+        map.isScrollEnabled = false
+        map.isZoomEnabled = false
         map.isRotateEnabled = false
         map.isPitchEnabled = false
         map.showsUserLocation = true
@@ -62,36 +62,37 @@ struct RouteMapView: UIViewRepresentable {
             context.coordinator.routeKey = routeKey
         }
 
-        // Fit region to the stop, the origin and the route, whichever exist.
-        var lats = [stop.location.lat] + (userCoordinate.map { [$0.latitude] } ?? [])
-        var lons = [stop.location.lon] + (userCoordinate.map { [$0.longitude] } ?? [])
-        for coord in routeCoordinates {
-            lats.append(coord.latitude)
-            lons.append(coord.longitude)
-        }
-        let center = CLLocationCoordinate2D(
-            latitude: (lats.min()! + lats.max()!) / 2,
-            longitude: (lons.min()! + lons.max()!) / 2
-        )
-        // 1° lat ≈ 111km; min span ~150m = 0.00135°. Add 60% padding.
-        let latSpan = max((lats.max()! - lats.min()!) * 1.6, 0.00135)
-        let lonSpan = max((lons.max()! - lons.min()!) * 1.6, 0.002)
-        let region = MKCoordinateRegion(
-            center: center,
-            span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan)
-        )
-
         let origin = userCoordinate.map { "\($0.latitude),\($0.longitude)" } ?? "none"
         let regionKey = "\(origin)|\(stop.location.lat),\(stop.location.lon)|\(routeKey)"
         if context.coordinator.regionKey != regionKey {
             context.coordinator.regionKey = regionKey
+            let region = Self.fittedRegion(stop: stop.location.clLocationCoordinate2D,
+                                           origin: userCoordinate, route: routeCoordinates)
             container.fittedRegion = region
             container.targetRegion = region
-            if map.bounds.size.width > 0 {
+            if map.bounds.width > 0, map.bounds.height > 0 {
                 container.targetRegion = nil
                 map.setRegion(region, animated: false)
             }
         }
+    }
+
+    static func fittedRegion(stop: CLLocationCoordinate2D, origin: CLLocationCoordinate2D?,
+                             route: [CLLocationCoordinate2D]) -> MKCoordinateRegion {
+        var south = stop.latitude, north = stop.latitude
+        var west = stop.longitude, east = stop.longitude
+        for coordinate in (origin.map { [$0] } ?? []) + route {
+            south = min(south, coordinate.latitude)
+            north = max(north, coordinate.latitude)
+            west = min(west, coordinate.longitude)
+            east = max(east, coordinate.longitude)
+        }
+        return MKCoordinateRegion(
+            center: CLLocationCoordinate2D(latitude: (south + north) / 2, longitude: (west + east) / 2),
+            // Add 60% padding and keep a minimum span of about 150 m.
+            span: MKCoordinateSpan(latitudeDelta: max((north - south) * 1.6, 0.00135),
+                                   longitudeDelta: max((east - west) * 1.6, 0.002))
+        )
     }
 
     func makeCoordinator() -> Coordinator {
@@ -100,7 +101,7 @@ struct RouteMapView: UIViewRepresentable {
 
     // MARK: - Container view
 
-    /// Wraps MKMapView to apply deferred zoom in layoutSubviews,
+    /// Wraps MKMapView to apply deferred framing in layoutSubviews,
     /// which is guaranteed to fire when the frame becomes valid
     /// (unlike delegate callbacks during NavigationStack transitions).
     final class MapContainerView: UIView {
@@ -116,15 +117,14 @@ struct RouteMapView: UIViewRepresentable {
 
         required init?(coder: NSCoder) { fatalError() }
 
-        /// Under the status bar the map is shown and takes no touch, as on home
-        /// (A26). The map below pans and zooms (A17).
+        /// Under the status bar the map is shown and takes no touch, as on home (A26).
         override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
             point.y < safeAreaInsets.top ? nil : super.hitTest(point, with: event)
         }
 
         override func layoutSubviews() {
             super.layoutSubviews()
-            if traitCollection.userInterfaceIdiom == .pad, mapView.bounds.size != bounds.size {
+            if mapView.bounds.size != bounds.size {
                 targetRegion = fittedRegion
             }
             mapView.frame = bounds

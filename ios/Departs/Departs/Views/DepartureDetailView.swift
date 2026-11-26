@@ -319,10 +319,10 @@ struct EdgeSwipeBack: UIViewControllerRepresentable {
         }
 
         /// Every other gesture on the screen waits for the swipe to fail, so a
-        /// swipe that starts at the edge goes back over the map too, instead of
-        /// panning it. The swipe gives up when a touch starts away from the edge
-        /// or moves along it, so taps, long presses, scrolls and other pans still
-        /// work (`testEdgeSwipeLeavesTapsLongPressesAndScrollsAlone`).
+        /// swipe that starts at the edge goes back over the map too. The swipe
+        /// gives up when a touch starts away from the edge or moves along it,
+        /// so taps, long presses and scrolls still work
+        /// (`testEdgeSwipeLeavesTapsLongPressesAndScrollsAlone`).
         func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer,
                                shouldBeRequiredToFailBy other: UIGestureRecognizer) -> Bool {
             true

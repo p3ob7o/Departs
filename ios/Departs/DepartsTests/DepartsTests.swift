@@ -1,8 +1,43 @@
 import UIKit
 import XCTest
+import MapKit
 @testable import Departs
 
 final class DepartsTests: XCTestCase {
+    func testLineMapFitsPlatformOriginAndRouteAsTheyChange() {
+        let platform = CLLocationCoordinate2D(latitude: 48.20, longitude: 16.35)
+        let origin = CLLocationCoordinate2D(latitude: 48.20, longitude: 16.34)
+        let bend = CLLocationCoordinate2D(latitude: 48.21, longitude: 16.36)
+        let movedOrigin = CLLocationCoordinate2D(latitude: 48.19, longitude: 16.34)
+        let otherPlatform = CLLocationCoordinate2D(latitude: 48.20, longitude: 16.37)
+
+        let stopOnly = RouteMapView.fittedRegion(stop: platform, origin: nil, route: [])
+        XCTAssertEqual(stopOnly.center.latitude, platform.latitude, accuracy: 0.000001)
+        XCTAssertEqual(stopOnly.center.longitude, platform.longitude, accuracy: 0.000001)
+        XCTAssertEqual(stopOnly.span.latitudeDelta, 0.00135, accuracy: 0.000001)
+        XCTAssertEqual(stopOnly.span.longitudeDelta, 0.002, accuracy: 0.000001)
+
+        let endpoints = RouteMapView.fittedRegion(stop: platform, origin: origin, route: [])
+        XCTAssertEqual(endpoints.center.longitude, 16.345, accuracy: 0.000001)
+        XCTAssertEqual(endpoints.span.longitudeDelta, 0.016, accuracy: 0.000001)
+
+        // The route can arrive later and extend outside the bounds of its endpoints.
+        let route = [origin, bend, platform]
+        let routed = RouteMapView.fittedRegion(stop: platform, origin: origin, route: route)
+        XCTAssertEqual(routed.center.latitude, 48.205, accuracy: 0.000001)
+        XCTAssertEqual(routed.center.longitude, 16.35, accuracy: 0.000001)
+        XCTAssertEqual(routed.span.latitudeDelta, 0.016, accuracy: 0.000001)
+        XCTAssertEqual(routed.span.longitudeDelta, 0.032, accuracy: 0.000001)
+
+        let moved = RouteMapView.fittedRegion(stop: platform, origin: movedOrigin, route: route)
+        XCTAssertEqual(moved.center.latitude, 48.20, accuracy: 0.000001)
+        XCTAssertEqual(moved.span.latitudeDelta, 0.032, accuracy: 0.000001)
+
+        let changedPlatform = RouteMapView.fittedRegion(stop: otherPlatform, origin: movedOrigin, route: [])
+        XCTAssertEqual(changedPlatform.center.longitude, 16.355, accuracy: 0.000001)
+        XCTAssertEqual(changedPlatform.span.longitudeDelta, 0.048, accuracy: 0.000001)
+    }
+
     @MainActor func testAppSupportsOneWindow() {
         XCTAssertFalse(UIApplication.shared.supportsMultipleScenes)
     }
