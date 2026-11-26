@@ -40,7 +40,7 @@ The uploaded build uses the tested release branch. Backend-first is satisfied. C
 
 **Departs 1.3 (14) followed on 24 November: uploaded, VALID and IN_BETA_TESTING for internal testers.** The owner chose version 1.3 for the first build with iPad support. It is the first build named Departs Now ([PR #50](https://github.com/p3ob7o/Departs/pull/50)), adds one resizable iPad window with stacked and side-by-side layouts ([PR #48](https://github.com/p3ob7o/Departs/pull/48)) and the plus-sign encoding ([PR #51](https://github.com/p3ob7o/Departs/pull/51)). The [release record](releases/1.3-14.md) lists its checks and what remains unverified on iPad. The record also holds the upload. The icon still shows the word "Departs": the owner chose to ship with it.
 
-**Departs 1.3 (15) prepares the switch to `api.departs.now`.** New builds use the new hostname, retry a rate-limit response once and keep the stops and walks available through local caching. The [release record](releases/1.3-15.md) lists the simulator and backend checks.
+**Departs 1.3 (15) followed on 26 November: uploaded, VALID and IN_BETA_TESTING for internal testers.** It is the first build that calls `api.departs.now` on Spacefast ([PR #55](https://github.com/p3ob7o/Departs/pull/55)). It retries a rate-limit response once and keeps stops and walks available through local caching. Builds through 1.3 (14) keep calling the Vercel host. The [release record](releases/1.3-15.md) lists the simulator checks, the live check on the new hostname in Vienna and Berlin, the upload, and what remains unverified on a physical device.
 
 ## Next decisions and checks
 
