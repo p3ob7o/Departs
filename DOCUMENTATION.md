@@ -16,7 +16,7 @@ Fresh home times count from the provider timestamp, including CDN age. Failed or
 
 ## Backend contract
 
-The app uses `https://api.departs.now` for HERE stops and departures. Four entries in `spacefast/functions/` serve the root and three API paths. The backend keeps `/api/directions` and `MAPBOX_SECRET_TOKEN` for TestFlight 1.3 (15) until a newer build replaces it.
+The app uses `https://api.departs.now` for HERE stops and departures. Three entries in `spacefast/functions/` serve the root notice, nearby stops and departures.
 
 | Endpoint | Query | Response |
 | --- | --- | --- |
@@ -24,17 +24,16 @@ The app uses `https://api.departs.now` for HERE stops and departures. Four entri
 | `/api/departures` | `stopId`, optional paired `lineName`, `direction` | Up to four departure records. Both filters match exactly, except that a `+` and a space count as the same character: installed builds send a raw `+`, which the query parser reads as a space. A departure without a line, or with a provider name or direction that is not a string, never matches |
 | `/api/departures` | `stopId`, `groupBy=line` | Compatible grouped response with `groups` and `complete` |
 | `/api/departures` | `stopIds=a,b,c`, 1–50 IDs | `{fetchedAt, boards: [{stopId, groups}], missing}`; two departures per transport, 50 per platform |
-| `/api/directions` (legacy) | `from=lat,lon`, `to=lat,lon` | First walking route `{geometry, duration, distance}`, in seconds/metres |
 
 The batch handler sends one provider request and retries once on network/5xx failure. On final failure it returns 502, which Spacefast has delivered as 500. Legacy calls keep their 500 failure contract. Logging contains only a fixed error class and optional numeric status, never the credential-bearing URL. `fetchedAt` is captured before the successful attempt; upstream `no-store` prevents a new timestamp wrapping a cached provider body.
 
-HTTP cache lifetimes are 24 hours for stops and one hour for legacy walking responses. All departures responses carry `Cache-Control: no-store`. They do not trigger native refreshes. Home has no fallback to an older backend. The provider can omit boards or cap away lines, and scheduled data does not imply realtime coverage.
+Nearby stops have a public cache lifetime of 24 hours. All departures responses carry `Cache-Control: no-store`. They do not trigger native refreshes. Home has no fallback to an older backend. The provider can omit boards or cap away lines, and scheduled data does not imply realtime coverage.
 
 The API root (`GET /`) returns a plain-text notice about the retired browser app without provider calls.
 
 ## Development and verification
 
-Use [AGENTS.md](AGENTS.md) for commands and simulator rules. Vitest/MSW intercept external providers; native XCTest uses a small derived Vienna sample and a local fixture server. Live backend checks require provider credentials on the deployment, not embedded in the app.
+Use [AGENTS.md](AGENTS.md) for commands and simulator rules. Vitest/MSW intercept HERE requests; native XCTest uses a small derived Vienna sample and a local fixture server. Live backend checks require provider credentials on the deployment, not embedded in the app.
 
 Debug builds accept API, preferences, location-accuracy and walking-route test overrides. `NSAllowsLocalNetworking` is included only by the Debug Info.plist preprocessor definition. Release contains no such overrides and loads production directly. Previews using `PreviewData` stay inside `#if DEBUG`.
 

@@ -23,7 +23,7 @@ npm run lint
 
 ## Environment variables
 
-Spacefast supplies `HERE_API_KEY` for transit. Keep `MAPBOX_SECRET_TOKEN` and `/api/directions` until a newer TestFlight build replaces 1.3 (15), which still uses them. Local backend tests mock both providers and use dummy bindings.
+Spacefast supplies `HERE_API_KEY` for transit. Local backend tests mock HERE and use a dummy binding.
 
 ## Architecture
 
@@ -39,14 +39,14 @@ Spacefast supplies `HERE_API_KEY` for transit. Keep `MAPBOX_SECRET_TOKEN` and `/
 - iOS structure: `Models/`, `Services/`, `ViewModels/`, `Views/`, `Utilities/`, `Preview Content/`.
 - iOS `NearbyStop.distance` is optional; `LineInfo.id` is computed from `name::direction` because provider IDs are not consistently present.
 - Wrap previews that use `PreviewData` in `#if DEBUG`: Preview Content is excluded from release builds.
-- Spacefast routes requests to four entries in `spacefast/functions/`. The root returns the plain-text browser retirement notice. The API entries call handlers in `app/lib/`.
+- Spacefast routes requests to three entries in `spacefast/functions/`. The root returns the plain-text browser retirement notice. The nearby stops and departures entries call handlers in `app/lib/`.
 - `@/*` maps to the repository root. `app/types.ts` describes the backend transit response shapes.
 
 ## Testing and workflow
 
-- Backend: Vitest in Node, MSW mocks only external HERE and Mapbox calls, fixtures in `app/__tests__/fixtures/`.
+- Backend: Vitest in Node, MSW mocks only external HERE calls, fixtures in `app/__tests__/fixtures/`.
 - Native: unit XCTest in `ios/Departs/DepartsTests/`, UI flows with an in-process fixture HTTP server in `ios/Departs/DepartsUITests/`. The shared scheme runs both. Use normal simulator signing so App Intents can register correctly.
-- For backend changes run `npm ci`, `npm run test:run`, `npm run test:coverage`, `npm run lint`, `npx tsc --noEmit` and `npm run build:spacefast` locally. For HTTP checks, open the PR’s **Spacefast Builds** check details, select the version for the PR head and open its preview address. Run the [five rider requests](docs/backend-hosting.md#check-what-a-rider-receives) there.
+- For backend changes run `npm ci`, `npm run test:run`, `npm run test:coverage`, `npm run lint`, `npx tsc --noEmit` and `npm run build:spacefast` locally. For HTTP checks, open the PR’s **Spacefast Builds** check details, select the version for the PR head and open its preview address. Run the [four rider requests](docs/backend-hosting.md#check-what-a-rider-receives) there.
 - Run native tests/build for native changes. Validate live data against the production API after deployment; test UI behavior in the iOS app.
 - After implementing a change, commit, push and open or update its PR. Record which checks ran and distinguish local/preview verification from production verification.
 - Preserve historical release records and archived web designs.
@@ -55,7 +55,7 @@ Spacefast supplies `HERE_API_KEY` for transit. Keep `MAPBOX_SECRET_TOKEN` and `/
 
 - HERE Transit v8: `/v8/stations` for nearby stops and `/v8/departures` for departures. Encode stop IDs using URL query parameters.
 - Search radius: the app always asks for 400 metres around the rider, up to 50 stops. It has no wider search and no place search. The backend still accepts an optional radius of 100–2000 metres for installed builds. `stopId` plus optional paired `lineName` and `direction` returns up to four departures; `groupBy=line` stays compatible with installed builds. Additive `stopIds=a,b` accepts 1–50 IDs, asks for two departures per transport, and returns `{fetchedAt, boards, missing}`. Home freshness uses `fetchedAt`, including CDN age.
-- MapKit supplies a single walking route on the device. The legacy backend endpoint returns the first Mapbox walking route as `{geometry, duration, distance}`.
+- MapKit supplies a single walking route on the device.
 - Cache headers do not make the native client refresh automatically.
 
 ## iOS simulator

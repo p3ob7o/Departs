@@ -9,7 +9,7 @@ Development focuses exclusively on iOS. Spacefast serves the iOS API. Its root r
 ## Project layout
 
 - `ios/Departs/`: the iOS app and XCTest suite.
-- `spacefast/functions/`: HTTP entry points for the root, nearby stops, departures and the legacy walking endpoint. TestFlight 1.3 (15) still uses `/api/directions` and its `MAPBOX_SECRET_TOKEN` binding. Remove both after a newer build replaces it.
+- `spacefast/functions/`: HTTP entry points for the root, nearby stops and departures. HERE supplies the transit data. The app requests walking routes from MapKit on the device.
 - `app/lib/`: request validation, provider calls and response normalization.
 - [iOS roadmap and product decision](docs/ios-roadmap.md).
 - [Implementation and API guide](DOCUMENTATION.md).
@@ -30,7 +30,7 @@ The scheme runs unit tests and UI tests. UI tests serve their own local transit 
 
 ## Backend development
 
-The local suite uses MSW fixtures for HERE and Mapbox. It needs no provider credentials.
+The local suite uses MSW fixtures for HERE. It needs no provider credentials.
 
 ```bash
 npm ci
@@ -40,4 +40,4 @@ npm run lint
 npm run build:spacefast
 ```
 
-The build writes the four Functions under `.spacefast/worker/functions/`. See the [hosting guide](docs/backend-hosting.md) for preview checks, releases and rollback. A backend release is independent of iOS distribution.
+The build writes the three Functions under `.spacefast/worker/functions/`. See the [hosting guide](docs/backend-hosting.md) for preview checks, releases and rollback. A backend release is independent of iOS distribution.
