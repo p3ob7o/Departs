@@ -34,7 +34,9 @@ final class WalkingRouteService {
     private let start: Start
     private let now: () -> Date
     private let sleep: (Duration) async throws -> Void
-    private var routes: [Endpoints: (route: WalkingRoute, expiresAt: Date)] = [:]
+    private var routes: [Endpoints: (route: WalkingRoute, expiresAt: Date, insertion: UInt64)] = [:]
+    private var insertion: UInt64 = 0
+    private var priorityDestinations: Set<Coordinate> = []
     private var requests: [Endpoints: Request] = [:]
     private var queue: [Endpoints] = []
     private var active = 0
@@ -45,6 +47,10 @@ final class WalkingRouteService {
         self.now = now
         self.sleep = sleep
         self.start = start ?? Self.startWalkingRoute
+    }
+
+    func prioritize(destinations: Set<Coordinate>) {
+        priorityDestinations = destinations
     }
 
     func route(from origin: Coordinate, to destination: Coordinate) async throws -> WalkingRoute {
@@ -98,7 +104,8 @@ final class WalkingRouteService {
 
     private func startQueuedRequests() {
         while active < Self.concurrencyLimit, !queue.isEmpty {
-            let endpoints = queue.removeFirst()
+            let index = queue.firstIndex { priorityDestinations.contains($0.destination) } ?? queue.startIndex
+            let endpoints = queue.remove(at: index)
             guard let id = requests[endpoints]?.id else { continue }
             let request = MKDirections.Request()
             request.source = Self.mapItem(at: endpoints.origin)
@@ -132,10 +139,11 @@ final class WalkingRouteService {
             let fetchedAt = now()
             routes = routes.filter { $0.value.expiresAt > fetchedAt }
             if routes.count >= Self.cacheCapacity,
-               let oldest = routes.min(by: { $0.value.expiresAt < $1.value.expiresAt }) {
+               let oldest = routes.min(by: { $0.value.insertion < $1.value.insertion }) {
                 routes[oldest.key] = nil
             }
-            routes[endpoints] = (value, fetchedAt.addingTimeInterval(3_600))
+            insertion += 1
+            routes[endpoints] = (value, fetchedAt.addingTimeInterval(3_600), insertion)
         }
         for (_, waiter) in request.waiters.values { waiter.resume(with: route) }
     }

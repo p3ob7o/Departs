@@ -56,9 +56,9 @@ struct ContentView: View {
         }
         .onChange(of: session.locationService.state) { _, _ in session.receivedLocation() }
         .onChange(of: demandKey, initial: true) { _, _ in
-            store.setPresentationActive(scenePhase == .active, presentationID: "\(windowID)")
             session.updateWindow(windowID, active: scenePhase == .active, showsList: selected == nil,
                                  selection: selected)
+            store.setPresentationActive(scenePhase == .active, presentationID: "\(windowID)")
             if scenePhase == .active { openRequestedPin() }
         }
         .onDisappear {

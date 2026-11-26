@@ -4,14 +4,16 @@ import SwiftUI
 struct TransitClient {
     var stops: (Coordinate) async throws -> [NearbyStop]
     var departures: (StopLineSelection) async throws -> [Departure]
-    var directions: (Coordinate, Coordinate) async throws -> WalkingRoute
+    var directions: @MainActor (Coordinate, Coordinate) async throws -> WalkingRoute
     var batch: ([String]) async throws -> BatchDepartures
+    var prioritizeWalks: @MainActor (Set<Coordinate>) -> Void = { _ in }
 
     static let live = TransitClient(
         stops: { try await APIService.shared.fetchNearbyStops(lat: $0.lat, lon: $0.lon) },
         departures: { try await APIService.shared.fetchDepartures(stopId: $0.stop.id, line: $0.line) },
         directions: { try await WalkingRouteService.shared.route(from: $0, to: $1) },
-        batch: { try await APIService.shared.fetchDepartureBoards(stopIDs: $0) }
+        batch: { try await APIService.shared.fetchDepartureBoards(stopIDs: $0) },
+        prioritizeWalks: { WalkingRouteService.shared.prioritize(destinations: $0) }
     )
 }
 
@@ -56,13 +58,16 @@ final class TransitStore {
     @ObservationIgnored private var interactingPresentations: Set<String> = []
     @ObservationIgnored private var detailChecks: [String: Date] = [:]
     @ObservationIgnored private var detailBoardIDs: Set<String> = []
+    @ObservationIgnored private var showsHomeWalks = true
+    @ObservationIgnored private var selectedWalkStops: [NearbyStop] = []
+    @ObservationIgnored private var listedWalkStops: [NearbyStop] = []
     @ObservationIgnored private var walkRequests: [String: WalkRequest] = [:]
 
     private struct WalkRequest {
         let origin: Coordinate
         let destination: Coordinate
         let id: UUID
-        let task: Task<Void, Never>
+        var task: Task<Void, Never>?
     }
     private var savedBoards: Set<String> = []
 
@@ -85,6 +90,7 @@ final class TransitStore {
             }
         }
         savedBoards = Set(boards.keys)
+        updateListedWalkStops()
     }
 
     var groups: [StopGroup] { home.groups }
@@ -136,7 +142,8 @@ final class TransitStore {
         persistence.saveHome(home)
         // Start routes for the list actually published, including a response
         // that had to wait until the rider stopped scrolling.
-        refreshListedWalks()
+        updateListedWalkStops()
+        reconcileWalks()
     }
 
     func isPinned(_ selection: StopLineSelection) -> Bool { pins.contains { $0.id == selection.id } }
@@ -179,12 +186,12 @@ final class TransitStore {
     func updateLocation(_ fix: LocationFix, showing selection: StopLineSelection? = nil, force: Bool = false) async {
         guard fix.coordinate.isValid else { return }
         location = fix
-        cancelSupersededWalks()
         if let selection { await refreshSelection(selection, force: force); return }
         guard let center, center.distance(to: fix.coordinate) <= 150 else {
             await loadArea(fix.coordinate)
             return
         }
+        reconcileWalks()
         // Same place. Two fixes at one spot never match exactly, so the centre
         // stays: a new one would empty the list and move the map for nothing.
         if stopsCheckedAt?.isRecent(at: now(), within: 300) != true { await loadArea(center) }
@@ -199,6 +206,7 @@ final class TransitStore {
         if !changed, let areaTask { await areaTask.value; return }
         if changed { resetArea() }
         center = newCenter
+        if changed { reconcileWalks() }
         let revision = areaRevision
         isLoadingStops = true
         stopsError = nil
@@ -216,6 +224,8 @@ final class TransitStore {
                 self.stopsCheckedAt = self.now()
                 if self.stops.isEmpty {
                     self.home = .init()
+                    self.listedWalkStops = []
+                    self.reconcileWalks()
                     self.pendingHome = nil
                     self.lastResponse = nil
                     self.persistence.saveHome(self.home)
@@ -242,9 +252,10 @@ final class TransitStore {
     /// instead of refreshing a place the rider may have left. Pins stay.
     func clearArea() {
         guard center != nil || location != nil else { return }
-        resetArea()
         center = nil
         location = nil
+        resetArea()
+        reconcileWalks()
         isLoadingStops = false
         stopsError = nil
         persistence.clearNearby()
@@ -252,8 +263,7 @@ final class TransitStore {
 
     private func resetArea() {
         areaRevision += 1
-        for request in walkRequests.values { request.task.cancel() }
-        walkRequests.removeAll()
+        listedWalkStops = []
         areaTask?.cancel()
         areaTask = nil
         batchTask?.cancel()
@@ -343,7 +353,7 @@ final class TransitStore {
     }
 
     func refreshSelection(_ selection: StopLineSelection, force: Bool = false) async {
-        refreshWalk(for: selection.stop)
+        reconcileWalks()
         await refreshBoard(selection, force: force)
     }
     func refreshBoard(_ selection: StopLineSelection, force: Bool = false) async {
@@ -376,33 +386,47 @@ final class TransitStore {
         guard let center, let platform = group.nearestPlatform(to: center) else { return nil }
         return walk(for: platform, at: date)
     }
-    private func refreshListedWalks() {
-        guard let center else { return }
-        for group in mapGroups {
-            if let stop = group.nearestPlatform(to: center) { refreshWalk(for: stop) }
-        }
+    func setWalkingDemand(showsList: Bool, selectedStops: [NearbyStop]) {
+        showsHomeWalks = showsList
+        selectedWalkStops = selectedStops
+        reconcileWalks()
     }
 
-    private func cancelSupersededWalks() {
+    private func updateListedWalkStops() {
+        listedWalkStops = center.map { origin in
+            mapGroups.compactMap { $0.nearestPlatform(to: origin) }
+        } ?? []
+    }
+
+    private func reconcileWalks() {
         let origin = walkingOrigin
-        for (stopID, request) in walkRequests where origin.map({ request.origin.distance(to: $0) > 40 }) ?? true {
-            walkRequests[stopID] = nil
-            request.task.cancel()
+        let priority = Set(selectedWalkStops.map(\.location))
+        let candidates = selectedWalkStops + (showsHomeWalks ? listedWalkStops : [])
+        var wanted: [String: Coordinate] = [:]
+        let stops = candidates.filter { stop in
+            guard let origin, origin.distance(to: stop.location) < 5000, wanted[stop.id] == nil else { return false }
+            wanted[stop.id] = stop.location
+            return true
+        }
+
+        for (stopID, request) in walkRequests {
+            let originMatches = origin.map { request.origin.distance(to: $0) <= 40 } ?? false
+            if wanted[stopID] != request.destination || !originMatches {
+                walkRequests[stopID] = nil
+                request.task?.cancel()
+            }
+        }
+        client.prioritizeWalks(priority)
+        guard let origin else { return }
+        for stop in stops where walkRequests[stop.id] == nil && walk(for: stop, at: now()) == nil {
+            refreshWalk(for: stop, from: origin, prioritizing: priority.contains(stop.location))
         }
     }
 
-    private func refreshWalk(for stop: NearbyStop) {
-        cancelSupersededWalks()
-        guard let origin = walkingOrigin, origin.distance(to: stop.location) < 5000 else { return }
-        if let pending = walkRequests[stop.id] {
-            if pending.destination == stop.location { return }
-            walkRequests[stop.id] = nil
-            pending.task.cancel()
-        }
-        if walk(for: stop, at: now()) != nil { return }
-
+    private func refreshWalk(for stop: NearbyStop, from origin: Coordinate, prioritizing: Bool) {
         let requestID = UUID()
-        let task = Task { [weak self, client] in
+        walkRequests[stop.id] = .init(origin: origin, destination: stop.location, id: requestID)
+        let fetch: @MainActor () async -> Void = { [weak self, client] in
             defer {
                 if self?.walkRequests[stop.id]?.id == requestID { self?.walkRequests[stop.id] = nil }
             }
@@ -414,7 +438,10 @@ final class TransitStore {
                 self.walks[stop.id] = .init(origin: origin, destination: stop.location, route: route, checkedAt: self.now())
             } catch { /* A walking failure never hides departure information. */ }
         }
-        walkRequests[stop.id] = .init(origin: origin, destination: stop.location, id: requestID, task: task)
+        // Register a newly selected platform before cancellation or completion
+        // callbacks can refill the freed slots with queued home walks.
+        let task = prioritizing ? Task.immediate { await fetch() } : Task { await fetch() }
+        walkRequests[stop.id]?.task = task
     }
     private static func cancelled(_ error: Error) -> Bool {
         error is CancellationError || (error as? URLError)?.code == .cancelled || Task.isCancelled

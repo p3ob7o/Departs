@@ -49,11 +49,14 @@ final class TransitSession {
         #endif
         self.locationService = locationService
         self.waitForRefresh = waitForRefresh
+        self.store.setWalkingDemand(showsList: false, selectedStops: [])
     }
 
     func updateWindow(_ id: UUID, active: Bool, showsList: Bool, selection: StopLineSelection?) {
         let enteredForeground = active && windows[id] == nil
         windows[id] = active ? WindowDemand(showsList: showsList, selection: selection) : nil
+        store.setWalkingDemand(showsList: windows.values.contains(where: \.showsList),
+                               selectedStops: windows.values.compactMap { $0.selection?.stop })
         if windows.isEmpty {
             refreshTask?.cancel()
             refreshTask = nil

@@ -185,6 +185,7 @@ final class FastDepartureTests: XCTestCase {
         }
 
         let store = makeStore(api)
+        store.setWalkingDemand(showsList: false, selectedStops: [selection.stop])
         await store.updateLocation(fix, showing: selection)
         await store.refreshSelection(selection, force: true)
         await Task.yield()
@@ -203,6 +204,7 @@ final class FastDepartureTests: XCTestCase {
             var requests = 0
             api.directions = { _, _ in requests += 1; throw error }
             let store = makeStore(api)
+            store.setWalkingDemand(showsList: false, selectedStops: [selection.stop])
 
             await store.updateLocation(fix, showing: selection)
             await Task.yield()
@@ -438,10 +440,10 @@ final class FastDepartureTests: XCTestCase {
         date += 61
         clock.resume()
         await fulfillment(of: [nextBoard], timeout: 2)
-        session.updateWindow(window, active: false, showsList: false, selection: nil)
-        clock.resume()
         XCTAssertTrue(store.isBoardFresh(for: selection, at: date))
         XCTAssertEqual(probe.active, 1)
+        session.updateWindow(window, active: false, showsList: false, selection: nil)
+        clock.resume()
         store.clearArea()
     }
 
@@ -453,6 +455,7 @@ final class FastDepartureTests: XCTestCase {
         let store = makeStore(api)
         let platform = stop()
         let selection = StopLineSelection(stop: platform, line: line, lineIndex: 0)
+        store.setWalkingDemand(showsList: false, selectedStops: [platform])
         let b = Coordinate(lat: coordinate.lat + 0.00051, lon: coordinate.lon)
         for origin in [coordinate, b, coordinate] {
             let started = expectation(description: "request at \(origin)")
@@ -497,6 +500,146 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertEqual(probe.peak, 3)
         XCTAssertEqual(probe.active, 3)
         store.clearArea()
+    }
+
+    private func walkingDemandStops(_ count: Int) -> [NearbyStop] {
+        (0..<count).map { index in
+            let line = LineInfo(name: String(index), direction: "Centre", type: .bus)
+            let point = Coordinate(lat: coordinate.lat + Double(index) * 0.00018, lon: coordinate.lon)
+            return .init(id: "stop-\(index)", name: "Stop \(index)", type: .bus, lines: [line], location: point, distance: nil)
+        }
+    }
+
+    private func walkingDemandBatch(_ stops: [NearbyStop], showing visible: Set<String>, at date: Date) -> BatchDepartures {
+        let boards = stops.map { stop in
+            let groups: [BatchDepartures.Group] = visible.contains(stop.id) ? stop.lines.map { line in
+                let time = date.addingTimeInterval(420).ISO8601Format()
+                return BatchDepartures.Group(line: line, departures: [.init(time: time, realTime: false, delay: nil, line: line)])
+            } : []
+            return BatchDepartures.Board(stopId: stop.id, groups: groups)
+        }
+        return .init(fetchedAt: date.ISO8601Format(), boards: boards, missing: [])
+    }
+
+    @MainActor func testWalkDemandCancelsRemovedStopsKeepsWantedWalksAndPromotesSelection() async throws {
+        let date = Date.now
+        let stops = walkingDemandStops(10)
+        let replacement = try XCTUnwrap(stops.last)
+        let original = Set(stops.dropLast().map(\.id))
+        var visible = original
+        let probe = WalkingProbe()
+        let service = WalkingRouteService(now: { date }, sleep: { _ in try await Task.sleep(for: .seconds(300)) }, start: probe.start)
+        let admitted = expectation(description: "all nine original walks requested")
+        admitted.expectedFulfillmentCount = 9
+        let cancelled = expectation(description: "all nine original walkers cancelled")
+        cancelled.expectedFulfillmentCount = 9
+        var submissions: [Coordinate] = []
+        let originals = Set(stops.dropLast().map(\.location))
+
+        var api = client()
+        api.stops = { _ in stops }
+        api.batch = { _ in self.walkingDemandBatch(stops, showing: visible, at: date) }
+        api.prioritizeWalks = { service.prioritize(destinations: $0) }
+        api.directions = { origin, destination in
+            let firstRound = visible == original && originals.contains(destination)
+            submissions.append(destination)
+            if firstRound { admitted.fulfill() }
+            defer { if firstRound && Task.isCancelled { cancelled.fulfill() } }
+            return try await service.route(from: origin, to: destination)
+        }
+        let store = TransitStore(client: api, persistence: persistence(), now: { date })
+        let session = TransitSession(store: store)
+        let home = UUID()
+        let detail = UUID()
+        await store.updateLocation(.init(coordinate: coordinate, capturedAt: date, accuracy: 10))
+        session.updateWindow(home, active: true, showsList: true, selection: nil)
+        defer {
+            session.updateWindow(detail, active: false, showsList: false, selection: nil)
+            session.updateWindow(home, active: false, showsList: false, selection: nil)
+        }
+        await fulfillment(of: [admitted], timeout: 2)
+        XCTAssertEqual(probe.started, 3)
+
+        visible = [replacement.id]
+        let startedReplacement = expectation(description: "replacement starts before obsolete callbacks")
+        probe.onStart = { _ in startedReplacement.fulfill() }
+        await store.refreshAnswers(force: true)
+        let selection = StopLineSelection(stop: replacement, line: replacement.lines[0], lineIndex: 0)
+        session.updateWindow(home, active: true, showsList: false, selection: selection)
+        await fulfillment(of: [cancelled, startedReplacement], timeout: 2)
+        XCTAssertEqual(probe.destinations.dropFirst(3), [replacement.location])
+        XCTAssertEqual(Set(probe.cancelled), [0, 1, 2])
+        for index in 0..<3 { probe.complete(index) }
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertTrue(store.walks.isEmpty, "Late obsolete results never reach the store")
+
+        // Keep the replacement wanted across a home snapshot change, then
+        // select a queued platform while Home still wants the other walks.
+        probe.onStart = nil
+        session.updateWindow(home, active: true, showsList: true, selection: nil)
+        visible = Set(stops.map(\.id))
+        await store.refreshAnswers(force: true)
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(submissions.count, 19)
+        XCTAssertEqual(probe.active, 3)
+        XCTAssertFalse(probe.cancelled.contains(3), "The replacement is still wanted")
+        let activeDestinations = Set(probe.destinations.dropFirst(3))
+        let queued = submissions.dropFirst(10).filter { !activeDestinations.contains($0) }
+        XCTAssertGreaterThan(queued.count, 1)
+        let destination = try XCTUnwrap(queued.last)
+        let chosen = try XCTUnwrap(stops.first { $0.location == destination })
+        let chosenLine = StopLineSelection(stop: chosen, line: chosen.lines[0], lineIndex: 0)
+        session.updateWindow(detail, active: true, showsList: false, selection: chosenLine)
+        let promoted = expectation(description: "selected platform goes before queued home routes")
+        probe.onStart = { _ in promoted.fulfill() }
+        probe.complete(4)
+        await fulfillment(of: [promoted], timeout: 2)
+        XCTAssertEqual(probe.destinations.last, chosen.location)
+        XCTAssertEqual(probe.peak, 3)
+    }
+
+    @MainActor func testWalkingDemandStopsInBackgroundAndResumesInForeground() async {
+        let date = Date.now
+        let stops = walkingDemandStops(4)
+        let probe = WalkingProbe()
+        let service = WalkingRouteService(now: { date }, sleep: { _ in try await Task.sleep(for: .seconds(300)) }, start: probe.start)
+        let requests = expectation(description: "four routes admitted, one queued")
+        requests.expectedFulfillmentCount = 4
+        var submitted = 0
+        var api = client()
+        api.stops = { _ in stops }
+        api.batch = { _ in self.walkingDemandBatch(stops, showing: Set(stops.map(\.id)), at: date) }
+        api.prioritizeWalks = { service.prioritize(destinations: $0) }
+        api.directions = { origin, destination in
+            submitted += 1
+            if submitted <= 4 { requests.fulfill() }
+            return try await service.route(from: origin, to: destination)
+        }
+        let store = TransitStore(client: api, persistence: persistence(), now: { date })
+        let session = TransitSession(store: store)
+        let window = UUID()
+        await store.updateLocation(.init(coordinate: coordinate, capturedAt: date, accuracy: 10))
+        XCTAssertEqual(submitted, 0, "A snapshot can arrive before the first active window")
+        session.updateWindow(window, active: true, showsList: true, selection: nil)
+        await fulfillment(of: [requests], timeout: 2)
+        XCTAssertEqual(probe.started, 3)
+
+        session.updateWindow(window, active: false, showsList: false, selection: nil)
+        probe.complete(0)
+        await store.refreshAnswers(force: true)
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(submitted, 4)
+        XCTAssertEqual(probe.started, 3)
+        XCTAssertEqual(Set(probe.cancelled), [0, 1, 2])
+        XCTAssertTrue(store.walks.isEmpty)
+
+        let resumed = expectation(description: "foreground restores walking demand")
+        resumed.expectedFulfillmentCount = 3
+        probe.onStart = { _ in resumed.fulfill() }
+        session.updateWindow(window, active: true, showsList: true, selection: nil)
+        await fulfillment(of: [resumed], timeout: 2)
+        XCTAssertEqual(probe.active, 3)
+        session.updateWindow(window, active: false, showsList: false, selection: nil)
     }
 
     func testCountdownUsesNowBelowAMinuteAndClockBeyondTheHour() {
@@ -581,6 +724,7 @@ final class FastDepartureTests: XCTestCase {
         linePlatform = selection.stop.location
         XCTAssertEqual(store.boards[selection.id]?.departures.count, 2)
         XCTAssertFalse(destinations.contains(selection.stop.location), "Home walks to the merged stop's nearest platform")
+        store.setWalkingDemand(showsList: true, selectedStops: [selection.stop])
         await store.refreshSelection(selection)
         XCTAssertEqual(store.boards[selection.id]?.departures.count, 4)
         XCTAssertEqual(detailCalls, 1)
@@ -1419,12 +1563,37 @@ final class WalkingRouteServiceTests: XCTestCase {
         XCTAssertEqual(pruned.duration, Double(count + 4))
     }
 
+    @MainActor func testCacheEvictionFollowsInsertionOrderAfterBackwardClockChange() async throws {
+        var date = Date(timeIntervalSince1970: 1_800_000_000)
+        var requests = 0
+        let polyline = polyline([origin, destination])
+        let service = WalkingRouteService(now: { date }, start: { _, complete in
+            requests += 1
+            complete(.success((polyline, Double(requests), 220)))
+            return {}
+        })
+        let destinations = (0...WalkingRouteService.cacheCapacity).map { index in
+            Coordinate(lat: destination.lat, lon: destination.lon + Double(index) / 1000)
+        }
+        for (index, point) in destinations.enumerated() {
+            if index == WalkingRouteService.cacheCapacity - 1 { date -= 60 }
+            _ = try await service.route(from: origin, to: point)
+            date += 1
+        }
+        let penultimate = destinations[destinations.count - 2]
+        let retained = try await service.route(from: origin, to: penultimate)
+        XCTAssertEqual(retained.duration, 32)
+        let evicted = try await service.route(from: origin, to: destinations[0])
+        XCTAssertEqual(evicted.duration, 34)
+    }
+
 }
 
 
 @MainActor
 private final class WalkingProbe {
     var onStart: ((Int) -> Void)?
+    private(set) var destinations: [Coordinate] = []
     private var completions: [WalkingRouteService.Completion] = []
     private var running: Set<Int> = []
     private(set) var cancelled: [Int] = []
@@ -1434,6 +1603,9 @@ private final class WalkingProbe {
 
     func start(_ request: MKDirections.Request, _ completion: @escaping WalkingRouteService.Completion) -> () -> Void {
         let index = completions.count
+        if let coordinate = request.destination?.location.coordinate {
+            destinations.append(.init(lat: coordinate.latitude, lon: coordinate.longitude))
+        }
         completions.append(completion)
         running.insert(index)
         peak = max(peak, running.count)
