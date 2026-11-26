@@ -17,6 +17,7 @@
 /blob-report/
 
 # generated files left by older checkouts
+.vercel
 /.next/
 /next-env.d.ts
 

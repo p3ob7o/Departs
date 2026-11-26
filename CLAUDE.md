@@ -45,8 +45,8 @@ Spacefast supplies `HERE_API_KEY` for transit and `MAPBOX_SECRET_TOKEN` for walk
 ## Testing and workflow
 
 - Backend: Vitest in Node, MSW mocks only external HERE and Mapbox calls, fixtures in `app/__tests__/fixtures/`.
-- Native: XCTest in `ios/Departs/DepartsTests/`; use a simulator for native build/test validation.
-- Run backend tests, lint and a production build for backend changes; check the affected JSON endpoints over HTTP.
+- Native: unit XCTest in `ios/Departs/DepartsTests/`, UI flows with an in-process fixture HTTP server in `ios/Departs/DepartsUITests/`. The shared scheme runs both. Use normal simulator signing so App Intents can register correctly.
+- For backend changes run `npm ci`, `npm run test:run`, `npm run test:coverage`, `npm run lint`, `npx tsc --noEmit` and `npm run build:spacefast` locally. For HTTP checks, open the PR’s **Spacefast Builds** check details, select the version for the PR head and open its preview address. Run the [five rider requests](docs/backend-hosting.md#check-what-a-rider-receives) there.
 - Run native tests/build for native changes. Validate live data against the production API after deployment; test UI behavior in the iOS app.
 - After implementing a change, commit, push and open or update its PR. Record which checks ran and distinguish local/preview verification from production verification.
 - Preserve historical release records and archived web designs.

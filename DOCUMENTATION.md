@@ -30,7 +30,7 @@ The batch handler sends one provider request and retries once on network/5xx fai
 
 HTTP cache lifetimes are 24 hours for stops and one hour for walks. All departures responses carry `Cache-Control: no-store`. They do not trigger native refreshes. Home has no fallback to an older backend. The provider can omit boards or cap away lines, and scheduled data does not imply realtime coverage.
 
-The website root returns a plain-text iOS retirement notice without provider calls.
+The API root (`GET /`) returns a plain-text notice about the retired browser app without provider calls.
 
 ## Development and verification
 

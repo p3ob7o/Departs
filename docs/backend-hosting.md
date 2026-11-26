@@ -4,23 +4,23 @@ Spacefast serves Departs at `api.departs.now` (managed hostname `departs-api.spa
 
 ## Ship a backend change
 
-Run `npm ci`, `npm run test:run`, `npm run test:coverage`, `npm run lint` and `npm run build:spacefast`. Check the **Spacefast Builds** preview on the PR and exercise a real departures batch before merging. On an approved merge to `main`, open **departs-api → Builds** and find the **push** build for the full merge SHA. Verify it succeeded and its produced or reused version is live. A reused version can carry an earlier source SHA.
+Run `npm ci`, `npm run test:run`, `npm run test:coverage`, `npm run lint` and `npm run build:spacefast`. Open the PR’s **Spacefast Builds** check, follow its details to the build for the PR head, and open the produced or reused version’s preview address. If it requires a session, open the version preview in Spacefast and use that session for the requests. Run the [five rider checks](#check-what-a-rider-receives) on that preview before merging. On an approved merge to `main`, open **departs-api → Builds** and find the **push** build for the full merge SHA. Verify it succeeded and its produced or reused version is live. A reused version can carry an earlier source SHA.
 
-The [project config](../sf.jsonc) specifies repository root `.`, install directory `.`, install command `npm ci`, build command `npm run build:spacefast` and output `.spacefast/worker`. Leave the presets unset. With those settings saved on the GitHub connection, the push filter covers the entire repository, including docs-only and iOS-only merges. A PR preview alone does not verify the push filter. [Spacefast Git builds](https://spacefast.com/docs/frameworks/)
+The [project config](../sf.jsonc) specifies repository root `.`, install directory `.`, install command `npm ci`, build command `npm run build:spacefast` and output `.spacefast/worker`. Leave **Framework preset** (`frameworkPreset`, CLI `--framework-preset`) and **Platform preset** (`platformPreset`, CLI `--platform-preset`) unset. With those settings saved on the GitHub connection, the push filter covers the entire repository, including docs-only and iOS-only merges. A PR preview alone does not verify the push filter. [Spacefast Git builds](https://spacefast.com/docs/frameworks/)
 
 ### Cut over to repository-root builds
 
-- [ ] Merge the removal PR after approval. Check the automatic production build for that exact merge SHA while the connection still uses its previous settings. Confirm the live version.
-- [ ] In the GitHub connection for **Departs → departs-api**, save the five values from `sf.jsonc` above. Keep production on `main` and branch previews enabled. When connecting a new repository, enter the settings before confirming. Connecting queues a live build immediately.
-- [ ] Start a production build pinned to the merge SHA using the command below. Verify its settings snapshot, source SHA, successful status and live version.
-- [ ] Run the five rider checks below on `api.departs.now`.
+- [ ] Merge the removal PR after approval. Keep the old connection settings through the merge: before removal, Spacefast detects the repository-root `next` dependency as Next.js and the Functions build fails. Check the automatic production build for the exact merge SHA and record the last good live version.
+- [ ] In the GitHub connection for **Departs → departs-api**, save the five values from `sf.jsonc` above. Keep production on `main` and branch previews enabled. Read **Builds** immediately after saving. Connecting a *new* repository queued a live build immediately in our trial. Whether editing an existing connection queues one is unverified.
+- [ ] Run the [pinned production build command](#pinned-production-build) for the approved merge SHA. This build is required during cutover even when the preceding automatic build succeeded. Read the build record: compare its source commit to the full merge SHA and its settings snapshot to all five values above, especially output `.spacefast/worker`. A build can succeed with the wrong output directory. Verify that its produced or reused version is live.
+- [ ] Run the [five rider checks](#check-what-a-rider-receives) directly on `https://api.departs.now`. If a check fails, follow [rollback](#rollback-bindings-and-logs) to restore the recorded good version and repeat the checks.
 - [ ] After the next approved docs-only push to `main`, verify that the automatic push build ran for that SHA and produced or reused a ready version. This establishes that the previous directory filter is gone.
 
 The removal PR’s automatic preview used the saved `spacefast/` root and its copy-to-`dist` command even with `sf.jsonc` present. Committing the recipe alone does not switch the GitHub connection. Set it explicitly in the checklist above.
 
-### Manual build fallback
+### Pinned production build
 
-If the automatic release fails or must be bypassed, set `release_sha` to the full approved merge SHA. Keep the receipt owner-readable.
+Use this command during cutover and as a fallback for later automatic releases. Set `release_sha` to the full approved merge SHA. Keep the receipt owner-readable.
 
 ```sh
 : "${release_sha:?Set release_sha to the full approved merge SHA}"
@@ -31,7 +31,21 @@ npx -y spacefast@0.10.0 git build --space departs-api \
   --api-url https://api.spacefast.com >"$receipt" 2>&1
 ```
 
-If Spacefast returns `422 source_commit_not_saved`, wait for its GitHub mirror and retry with the same SHA while that release is current. An unpinned retry can release the previous commit. Confirm the source SHA on the build record, check its version against the live channel and run the rider checks.
+On 26 November 2026 we observed HTTP 422 with `source_commit_not_saved`; the public error reference lists HTTP 400. If the mirror cannot supply the commit, wait and retry the same full SHA while the release remains current. If the error persists, hold the release. We have no verified second procedure for this cutover. Never retry unpinned: in the trial an unpinned build selected the previous commit. [Spacefast error reference](https://spacefast.com/docs/errors/source_commit_not_saved/)
+
+### Restore the previous build settings
+
+If the recipe makes a build fail, every later build using that broken recipe will fail and the last good version stays live. Restore these five GitHub connection values to resume automatic deploys for changes under `spacefast/`:
+
+| Setting | Previous value |
+| --- | --- |
+| Root directory | `spacefast` |
+| Install directory | `.` |
+| Install command | `npm ci` |
+| Build command | `npm --prefix .. run build:spacefast && mkdir -p dist && cp -R ../.spacefast/worker/functions dist/` |
+| Output directory | `dist` |
+
+This recipe built the removal PR. It restores the old push filter, which can skip changes confined to shared handlers or dependencies outside `spacefast/`. Use it only while repository-root triggering is unnecessary. Restoring settings repairs future builds. If a successful build already put the wrong output live, [restore the last good version](#rollback-bindings-and-logs) as well.
 
 ## Check what a rider receives
 
@@ -53,4 +67,4 @@ The backend Space has the serving attachment for `api.departs.now`. The separate
 
 ## Retire Vercel
 
-A failed build leaves the last successful production deployment serving. To stop automatic Vercel checks on future PRs, the owner opens the project's **Settings → Git → Connected Git Repository → Disconnect**. If GitHub requires that check to merge, remove it from the branch rules as well. Disconnecting Git leaves existing deployments online. To take the old endpoint offline, pause the project (returns 503) or explicitly delete it. Deletion also removes deployments, domains, variables and project settings. [Vercel production promotion](https://vercel.com/docs/deployment-checks) · [Disconnect Git](https://vercel.com/docs/project-configuration/git-settings) · [Pause or delete a project](https://vercel.com/docs/projects/managing-projects)
+Vercel documents automatic promotion of the most recent successful production build. We therefore expect a later failed build to leave the last good deployment serving. To stop automatic Vercel checks on future PRs, the owner opens the project's **Settings → Git → Connected Git Repository → Disconnect**. If GitHub requires that check to merge, remove it from the branch rules as well. We expect existing deployments to remain online after Git disconnection. The Git settings guide documents disconnection only. To take the old endpoint offline, pause the project (returns 503) or explicitly delete it. Deletion also removes deployments, domains, variables and project settings. [Vercel production promotion](https://vercel.com/docs/deployment-checks) · [Disconnect Git](https://vercel.com/docs/project-configuration/git-settings) · [Pause or delete a project](https://vercel.com/docs/projects/managing-projects)
