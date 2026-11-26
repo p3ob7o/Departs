@@ -9,7 +9,7 @@ export default defineConfig({
     setupFiles: ["app/__tests__/setup.ts"],
     coverage: {
       provider: "v8",
-      include: ["app/lib/**/*.ts", "app/api/**/route.ts"],
+      include: ["app/lib/**/*.ts", "spacefast/functions/**/*.ts"],
       thresholds: {
         statements: 80,
         branches: 80,

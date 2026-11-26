@@ -16,9 +16,10 @@
 /playwright-report/
 /blob-report/
 
-# next.js
+# generated files left by older checkouts
+.vercel
 /.next/
-/out/
+/next-env.d.ts
 
 # production
 /build
@@ -36,12 +37,8 @@ yarn-error.log*
 # env files (can opt-in for committing if needed)
 .env*
 
-# vercel
-.vercel
-
 # typescript
 *.tsbuildinfo
-next-env.d.ts
 
 # Spacefast local state
 .spacefast/

@@ -1,8 +1,8 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { http, HttpResponse } from "msw";
-import { server } from "@/app/__tests__/setup";
-import { GET } from "@/app/api/departures/route";
+import { server, workerContext } from "@/app/__tests__/setup";
+import { GET } from "@/spacefast/functions/api/departures";
 
 const upstream = "https://transit.hereapi.com/v8/departures";
 // IDs only, derived from the 16 November Vienna capture. No raw responses.
@@ -14,7 +14,7 @@ const departure = (minute: number, name = "13A", headsign = "Wien Skodagasse") =
   transport: { name, headsign, mode: "bus" },
 });
 const board = (id: string, departures: (ReturnType<typeof departure> & { rtTime?: string })[] = [departure(5), departure(10), departure(15), departure(20)]) => ({ place: { id }, departures });
-const batch = (ids: string[]) => GET(new Request(`https://departs.test/api/departures?${new URLSearchParams({ stopIds: ids.join(",") })}`));
+const batch = (ids: string[]) => GET(new Request(`https://departs.test/api/departures?${new URLSearchParams({ stopIds: ids.join(",") })}`), workerContext);
 
 afterEach(() => { vi.restoreAllMocks(); vi.useRealTimers(); });
 
@@ -34,7 +34,7 @@ describe("batched departures", () => {
     expect(body.boards.map((item: { stopId: string }) => item.stopId)).toEqual(sampleIDs);
     expect(body.missing).toEqual([]);
     for (const item of body.boards) {
-      const legacy = await GET(new Request(`https://departs.test/api/departures?stopId=${item.stopId}&groupBy=line`));
+      const legacy = await GET(new Request(`https://departs.test/api/departures?stopId=${item.stopId}&groupBy=line`), workerContext);
       const grouped = await legacy.json();
       expect(item.groups).toEqual(grouped.groups.map((group: { departures: unknown[] }) => ({ ...group, departures: group.departures.slice(0, 2) })));
     }
@@ -58,12 +58,12 @@ describe("batched departures", () => {
   it.each(["", ",", "a,", ",a", "a, ,b", Array.from({ length: 51 }, (_, i) => `${i}`).join(",")])("rejects an invalid list (%s) without calling HERE", async (ids) => {
     let calls = 0;
     server.use(http.get(upstream, () => { calls++; return HttpResponse.json({ boards: [] }); }));
-    expect((await GET(new Request(`https://departs.test/api/departures?${new URLSearchParams({ stopIds: ids })}`))).status).toBe(400);
+    expect((await GET(new Request(`https://departs.test/api/departures?${new URLSearchParams({ stopIds: ids })}`), workerContext)).status).toBe(400);
     expect(calls).toBe(0);
   });
 
   it.each(["stopId=a", "lineName=13A&direction=Centre", "direction=Centre", "groupBy=line", "stopIds=b"])("rejects ambiguous batch parameters: %s", async (extra) => {
-    expect((await GET(new Request(`https://departs.test/api/departures?stopIds=a&${extra}`))).status).toBe(400);
+    expect((await GET(new Request(`https://departs.test/api/departures?stopIds=a&${extra}`), workerContext)).status).toBe(400);
   });
 
   it("normalizes repeated IDs while keeping request order", async () => {
@@ -112,7 +112,7 @@ describe("batched departures", () => {
     }));
     const response = await batch(["a"]);
     expect((await response.json()).fetchedAt).toBe("2026-11-16T12:00:00.000Z");
-    expect(response.headers.get("Cache-Control")).toBe("public, max-age=30");
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
   });
 
   it("retries a 503 once and dates the successful provider call", async () => {

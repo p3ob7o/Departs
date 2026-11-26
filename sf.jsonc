@@ -1,0 +1,9 @@
+{
+  "build": {
+    "rootDirectory": ".",
+    "installDirectory": ".",
+    "installCommand": "npm ci",
+    "buildCommand": "npm run build:spacefast",
+    "outputDirectory": ".spacefast/worker"
+  }
+}

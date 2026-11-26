@@ -1,11 +1,12 @@
 // @vitest-environment node
 import { describe, it, expect, vi } from "vitest";
-import { GET } from "@/app/api/stops/nearby/route";
+import { workerContext } from "@/app/__tests__/setup";
+import { GET } from "@/spacefast/functions/api/stops/nearby";
 
 describe("GET /api/stops/nearby", () => {
   it("returns 400 when lat is missing", async () => {
     const request = new Request("http://localhost/api/stops/nearby?lon=13.405");
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(400);
     const body = await response.json();
@@ -14,7 +15,7 @@ describe("GET /api/stops/nearby", () => {
 
   it("returns 400 when lon is missing", async () => {
     const request = new Request("http://localhost/api/stops/nearby?lat=52.52");
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(400);
     const body = await response.json();
@@ -25,7 +26,7 @@ describe("GET /api/stops/nearby", () => {
     const request = new Request(
       "http://localhost/api/stops/nearby?lat=abc&lon=13.405"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(400);
   });
@@ -33,7 +34,7 @@ describe("GET /api/stops/nearby", () => {
   it.each(["Infinity,13", "91,13", "52,181", " ,13"])("rejects invalid coordinates %s before calling HERE", async (value) => {
     const [lat, lon] = value.split(",");
     const spy = vi.spyOn(global, "fetch");
-    const response = await GET(new Request(`http://localhost/api/stops/nearby?${new URLSearchParams({ lat, lon })}`));
+    const response = await GET(new Request(`http://localhost/api/stops/nearby?${new URLSearchParams({ lat, lon })}`), workerContext);
     expect(response.status).toBe(400);
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
@@ -43,7 +44,7 @@ describe("GET /api/stops/nearby", () => {
     const request = new Request(
       "http://localhost/api/stops/nearby?lat=52.52&lon=13.405"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -54,7 +55,7 @@ describe("GET /api/stops/nearby", () => {
     const request = new Request(
       "http://localhost/api/stops/nearby?lat=52.52&lon=13.405"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.headers.get("Cache-Control")).toContain("max-age=86400");
   });
@@ -71,7 +72,7 @@ describe("GET /api/stops/nearby", () => {
     }));
     const query = new URLSearchParams({ lat: "48.2", lon: "16.35" });
     if (radius !== undefined) query.set("radius", radius);
-    const response = await GET(new Request(`http://localhost/api/stops/nearby?${query}`));
+    const response = await GET(new Request(`http://localhost/api/stops/nearby?${query}`), workerContext);
     expect(response.status).toBe(200);
     expect(requestedArea).toBe(`48.2,16.35;r=${radius ?? "400"}`);
   });
@@ -79,7 +80,7 @@ describe("GET /api/stops/nearby", () => {
   it.each(["", " ", "0", "-1", "99", "2001", "400.5", "Infinity", "abc"])("rejects invalid radius %s without a provider call", async (radius) => {
     const spy = vi.spyOn(global, "fetch");
     const query = new URLSearchParams({ lat: "48.2", lon: "16.35", radius });
-    const response = await GET(new Request(`http://localhost/api/stops/nearby?${query}`));
+    const response = await GET(new Request(`http://localhost/api/stops/nearby?${query}`), workerContext);
     expect(response.status).toBe(400);
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
@@ -99,7 +100,7 @@ describe("GET /api/stops/nearby", () => {
     const request = new Request(
       "http://localhost/api/stops/nearby?lat=52.52&lon=13.405"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(500);
   });

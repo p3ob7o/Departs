@@ -40,7 +40,7 @@ app/api/stops/nearby/route.test.ts | returns 500 when HERE API fails
 # ── API route: /api/departures ──
 app/api/departures/route.test.ts | returns 400 when stopId is missing
 app/api/departures/route.test.ts | proxies request to HERE boards API
-app/api/departures/route.test.ts | sets cache headers for 30 seconds
+app/api/departures/route.test.ts | prevents caching departure responses
 app/api/departures/route.test.ts | returns 500 when HERE API fails
 
 # ── API route: /api/directions ──

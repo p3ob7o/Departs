@@ -4,7 +4,7 @@
 
 Departs is an iOS app. The owner chose on 15 November 2026 to retire the browser app and focus development on iOS. Do not restore the browser client or work toward web/iOS feature parity. The active roadmap is `docs/ios-roadmap.md`; `docs/archive/web/` contains historical designs.
 
-Keep both API hosts. Installed builds through 1.3 (14) use `https://departs.vercel.app/api/*`. New builds target `https://api.departs.now/api/*` on Spacefast. Preserve the API contract on both. Server keys must never be embedded in the app.
+Spacefast serves the iOS API at `https://api.departs.now/api/*`. Preserve the API contract. Server keys stay in the backend Space. The owner retired support for the Vercel host without forwarding.
 
 ## Commands
 
@@ -15,8 +15,7 @@ xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs -destination '
 
 # API backend
 npm ci
-npm run dev
-npm run build
+npm run build:spacefast
 npm run test:run
 npm run test:coverage
 npm run lint
@@ -24,14 +23,7 @@ npm run lint
 
 ## Environment variables
 
-Required in `.env.local` and on Vercel for live API calls:
-
-```
-HERE_API_KEY=*             # Server-side transit data
-MAPBOX_SECRET_TOKEN=sk.*   # Server-side walking directions
-```
-
-The native MapKit map does not use a public Mapbox token. Local backend startup does not change the production host compiled into `APIService`.
+Spacefast supplies `HERE_API_KEY` for transit and `MAPBOX_SECRET_TOKEN` for walking directions as runtime bindings. Local tests mock both providers and use dummy bindings. MapKit renders the native maps.
 
 ## Architecture
 
@@ -47,17 +39,17 @@ The native MapKit map does not use a public Mapbox token. Local backend startup 
 - iOS structure: `Models/`, `Services/`, `ViewModels/`, `Views/`, `Utilities/`, `Preview Content/`.
 - iOS `NearbyStop.distance` is optional; `LineInfo.id` is computed from `name::direction` because provider IDs are not consistently present.
 - Wrap previews that use `PreviewData` in `#if DEBUG`: Preview Content is excluded from release builds.
-- Next.js serves `app/api/*`; `app/route.ts` returns a plain-text retirement notice. There is no browser app.
+- Spacefast routes requests to four entries in `spacefast/functions/`. The root returns the plain-text browser retirement notice. The API entries call handlers in `app/lib/`.
 - `@/*` maps to the repository root. `app/types.ts` describes the backend transit response shapes.
 
 ## Testing and workflow
 
 - Backend: Vitest in Node, MSW mocks only external HERE and Mapbox calls, fixtures in `app/__tests__/fixtures/`.
 - Native: unit XCTest in `ios/Departs/DepartsTests/`, UI flows with an in-process fixture HTTP server in `ios/Departs/DepartsUITests/`. The shared scheme runs both. Use normal simulator signing so App Intents can register correctly.
-- Run backend tests, lint and a production build for backend changes; check the affected JSON endpoints over HTTP.
+- For backend changes run `npm ci`, `npm run test:run`, `npm run test:coverage`, `npm run lint`, `npx tsc --noEmit` and `npm run build:spacefast` locally. For HTTP checks, open the PR’s **Spacefast Builds** check details, select the version for the PR head and open its preview address. Run the [five rider requests](docs/backend-hosting.md#check-what-a-rider-receives) there.
 - Run native tests/build for native changes. Validate live data against the production API after deployment; test UI behavior in the iOS app.
 - After implementing a change, commit, push and open or update its PR. Record which checks ran and distinguish local/preview verification from production verification.
-- Preserve archived web work in Git history. Do not delete the Vercel project or remove API secrets as part of retiring the browser UI.
+- Preserve historical release records and archived web designs.
 
 ## External APIs
 
@@ -79,14 +71,4 @@ Boot new simulators fully with `xcrun simctl bootstatus <SIMULATOR_UUID> -b` bef
 
 ## Deployment
 
-Vercel auto-deploys from `main` for installed builds. Publish the same shared handlers to Spacefast for new builds using `docs/backend-hosting.md`. Native changes require a separate iOS build and distribution through TestFlight/App Store. The batch endpoint from PR #27 is deployed; verify it before any distribution of the two-screen client. Each stacked phase must reach `main` in order, retargeting after its base merges. Merges, deployments, version preparation and uploads need the owner's approval.
-
-<!-- BEGIN:nextjs-agent-rules -->
-
-## This is NOT the Next.js you know
-
-This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
-
-This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
-
-<!-- END:nextjs-agent-rules -->
+Follow `docs/backend-hosting.md` for the Spacefast GitHub build, cutover checklist and pinned release fallback. Native changes require a separate iOS build and distribution through TestFlight/App Store. Each stacked phase must reach `main` in order, retargeting after its base merges. Merges, deployments, version preparation and uploads need the owner's approval.

@@ -1,6 +1,6 @@
 # Departs implementation guide
 
-Departs shows available transport nearby in a native iPhone and iPad app requiring iOS 26. iOS 27-only APIs require availability checks. The browser client is retired; the Vercel API remains required by installed builds.
+Departs shows available transport nearby in a native iPhone and iPad app requiring iOS 26. iOS 27-only APIs require availability checks. The browser client is retired. Spacefast serves the native app.
 
 ## Native app
 
@@ -16,7 +16,7 @@ Fresh home times count from the provider timestamp, including CDN age. Failed or
 
 ## Backend contract
 
-The backend proxies HERE and Mapbox using server credentials. Starting with 1.3 (15), the app calls `https://api.departs.now`. Builds through 1.3 (14) still call `https://departs.vercel.app`. Keep the API contract compatible on both hosts.
+The backend proxies HERE and Mapbox using server credentials. Starting with 1.3 (15), the app calls `https://api.departs.now`. Four entries in `spacefast/functions/` serve the root and three API paths.
 
 | Endpoint | Query | Response |
 | --- | --- | --- |
@@ -26,11 +26,11 @@ The backend proxies HERE and Mapbox using server credentials. Starting with 1.3 
 | `/api/departures` | `stopIds=a,b,c`, 1–50 IDs | `{fetchedAt, boards: [{stopId, groups}], missing}`; two departures per transport, 50 per platform |
 | `/api/directions` | `from=lat,lon`, `to=lat,lon` | First walking route `{geometry, duration, distance}`, in seconds/metres |
 
-The batch handler sends one provider request, retries once on network/5xx failure and returns 502 after final failure. Legacy calls keep their 500 failure contract. Logging contains only a fixed error class and optional numeric status, never the credential-bearing URL. `fetchedAt` is captured before the successful attempt; upstream `no-store` prevents a new timestamp wrapping a cached provider body.
+The batch handler sends one provider request and retries once on network/5xx failure. On final failure it returns 502, which Spacefast has delivered as 500. Legacy calls keep their 500 failure contract. Logging contains only a fixed error class and optional numeric status, never the credential-bearing URL. `fetchedAt` is captured before the successful attempt; upstream `no-store` prevents a new timestamp wrapping a cached provider body.
 
-HTTP cache lifetimes are 24 hours for stops, 30 seconds for departures and one hour for walks. They do not trigger native refreshes. Home has no fallback to an older backend. The provider can omit boards or cap away lines, and scheduled data does not imply realtime coverage.
+HTTP cache lifetimes are 24 hours for stops and one hour for walks. All departures responses carry `Cache-Control: no-store`. They do not trigger native refreshes. Home has no fallback to an older backend. The provider can omit boards or cap away lines, and scheduled data does not imply realtime coverage.
 
-The website root returns a plain-text iOS retirement notice without provider calls. React remains a Next.js dependency, but there is no browser transit client.
+The API root (`GET /`) returns a plain-text notice about the retired browser app without provider calls.
 
 ## Development and verification
 
@@ -44,4 +44,4 @@ Keep at most ten upright JPEG captures under 2 MB per phase PR. Export captures 
 
 Fixtures, preview and production establish different things. Each PR records all three explicitly. See the [Phase 3 validation](docs/plans/ios-two-screens-phase-3-validation.md) and [Phase 0 provider results](docs/plans/ios-two-screens-phase-0-validation.md).
 
-Vercel deploys from `main`. Each stacked PR must reach `main` in sequence, with owner approval. Native release is a separate operation. The batch backend is already deployed through #27; version 1.2 preparation and distribution await the owner.
+Spacefast builds the Functions from GitHub. See the [hosting guide](docs/backend-hosting.md) for release checks and rollback. Each stacked PR must reach `main` in sequence, with owner approval. Native releases ship separately.

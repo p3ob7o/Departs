@@ -1,13 +1,14 @@
 // @vitest-environment node
 import { describe, it, expect } from "vitest";
-import { GET } from "@/app/api/directions/route";
+import { workerContext } from "@/app/__tests__/setup";
+import { GET } from "@/spacefast/functions/api/directions";
 
 describe("GET /api/directions", () => {
   it("returns 400 when from is missing", async () => {
     const request = new Request(
       "http://localhost/api/directions?to=52.52,13.405"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(400);
     const body = await response.json();
@@ -18,7 +19,7 @@ describe("GET /api/directions", () => {
     const request = new Request(
       "http://localhost/api/directions?from=52.5195,13.4"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(400);
     const body = await response.json();
@@ -29,7 +30,7 @@ describe("GET /api/directions", () => {
     const request = new Request(
       "http://localhost/api/directions?from=abc,def&to=52.52,13.405"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(400);
   });
@@ -38,13 +39,13 @@ describe("GET /api/directions", () => {
     const request = new Request(
       "http://localhost/api/directions?from=Infinity,13.4&to=52.52,13.405"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(400);
   });
 
   it.each([",13.4", "52.5,", " ,13.4"])("rejects missing coordinate components in %s", async (from) => {
-    const response = await GET(new Request(`http://localhost/api/directions?${new URLSearchParams({ from, to: "52.52,13.405" })}`));
+    const response = await GET(new Request(`http://localhost/api/directions?${new URLSearchParams({ from, to: "52.52,13.405" })}`), workerContext);
     expect(response.status).toBe(400);
   });
 
@@ -52,7 +53,7 @@ describe("GET /api/directions", () => {
     const request = new Request(
       "http://localhost/api/directions?from=52.5195,13.4&to=52.52,13.405"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(200);
     const body = await response.json();
@@ -64,7 +65,7 @@ describe("GET /api/directions", () => {
     const request = new Request(
       "http://localhost/api/directions?from=52.5195,13.4&to=52.52,13.405"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.headers.get("Cache-Control")).toContain("max-age=3600");
   });
@@ -82,7 +83,7 @@ describe("GET /api/directions", () => {
     const request = new Request(
       "http://localhost/api/directions?from=52.5195,13.4&to=52.52,13.405"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(500);
   });
@@ -93,7 +94,7 @@ describe("GET /api/directions", () => {
     server.use(http.get("https://api.mapbox.com/directions/v5/mapbox/walking/*", () => HttpResponse.json({ routes: [{
       geometry: { type: "LineString", coordinates }, duration: 120, distance: 80,
     }] })));
-    const response = await GET(new Request("http://localhost/api/directions?from=52,13&to=52.1,13.1"));
+    const response = await GET(new Request("http://localhost/api/directions?from=52,13&to=52.1,13.1"), workerContext);
     expect(response.status).toBe(502);
   });
 
@@ -110,7 +111,7 @@ describe("GET /api/directions", () => {
     const request = new Request(
       "http://localhost/api/directions?from=52.5195,13.4&to=52.52,13.405"
     );
-    const response = await GET(request);
+    const response = await GET(request, workerContext);
 
     expect(response.status).toBe(502);
     const body = await response.json();

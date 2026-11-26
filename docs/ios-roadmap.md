@@ -6,7 +6,7 @@ On 16 November 2026 the owner defined Departs as two screens showing which trans
 
 Later that day the owner made it stricter: "This app is minimalistic and opinionated. It looks in a 400m radius, period." The wider search and place search are gone. With location off, the app shows pinned routes only.
 
-The owner retired the browser client on 15 November. iOS is the sole product client; the Vercel API remains at its existing host for installed builds. Historical web designs stay in `docs/archive/web/`.
+The owner retired the browser client on 15 November. iOS is the sole product client. Spacefast serves it at `api.departs.now`. The owner retired the legacy Vercel host without forwarding. Historical web designs stay in `docs/archive/web/`.
 
 ## Current implementation
 
@@ -40,7 +40,7 @@ The uploaded build uses the tested release branch. Backend-first is satisfied. C
 
 **Departs 1.3 (14) followed on 24 November: uploaded, VALID and IN_BETA_TESTING for internal testers.** The owner chose version 1.3 for the first build with iPad support. It is the first build named Departs Now ([PR #50](https://github.com/p3ob7o/Departs/pull/50)), adds one resizable iPad window with stacked and side-by-side layouts ([PR #48](https://github.com/p3ob7o/Departs/pull/48)) and the plus-sign encoding ([PR #51](https://github.com/p3ob7o/Departs/pull/51)). The [release record](releases/1.3-14.md) lists its checks and what remains unverified on iPad. The record also holds the upload. The icon still shows the word "Departs": the owner chose to ship with it.
 
-**Departs 1.3 (15) followed on 26 November: uploaded, VALID and IN_BETA_TESTING for internal testers.** It is the first build that calls `api.departs.now` on Spacefast ([PR #55](https://github.com/p3ob7o/Departs/pull/55)). It retries a rate-limit response once and keeps stops and walks available through local caching. Builds through 1.3 (14) keep calling the Vercel host. The [release record](releases/1.3-15.md) lists the simulator checks, the live check on the new hostname in Vienna and Berlin, the upload, and what remains unverified on a physical device.
+**Departs 1.3 (15) followed on 26 November: uploaded, VALID and IN_BETA_TESTING for internal testers.** It is the first build that calls `api.departs.now` on Spacefast ([PR #55](https://github.com/p3ob7o/Departs/pull/55)). It retries a rate-limit response once and keeps stops and walks available through local caching. Builds through 1.3 (14) used the now-retired Vercel host. The [release record](releases/1.3-15.md) lists the simulator checks, the live check on the new hostname in Vienna and Berlin, the upload, and what remains unverified on a physical device.
 
 ## Next decisions and checks
 
