@@ -38,8 +38,20 @@ Protect CLI output as a credential. Verify the receipt names the intended Space,
 
 1. In the [Spacefast dashboard](https://my.spacefast.com/), select the **Departs** team and **departs-api → Builds → Connect GitHub → Connect repository**. GitHub installation discovery requires a signed-in user session.
 2. Select **p3ob7o/Departs**. If it is missing, choose **Add repositories**, authorize only **Departs** on GitHub, then return to the picker.
-3. Enter the settings **before confirming the connection**. Connecting this repository immediately queued a live build with empty settings, which was cancelled before it produced a version. Select production branch `main`, repository root, install command `npm ci`, build command `npm run build:spacefast` and output directory `.spacefast/worker`. Keep production auto-deploy off and branch previews on.
-4. To test merged source, queue a repository build with the full commit SHA and target `preview`. Verify the queued target has `preview: true` and `channel: null`. On 26 November 2026 the preview of `d68ef5c` installed dependencies and emitted all four Function entry files. Spacefast then classified the repository as Next.js and failed the build because `.spacefast/next-build.json` was absent. The Functions build runs esbuild. No preview version was produced, so GitHub build parity and preview runtime bindings remain unverified. [Spacefast Git deployments](https://spacefast.com/docs/git/)
+3. Enter build settings **before confirming the connection**. Connecting this repository immediately queued a live build with empty settings, which was cancelled before it produced a version. The connection uses production branch `main`, production auto-deploy off and branch previews on. Its saved root is the repository root. At that root the build emits the Function files but Spacefast requires a Next.js adapter report. The same failure occurred with a per-build `frameworkPreset` of `static`.
+4. For a GitHub preview, use the repository build API with the full commit on `main`, `target: {"channel": null, "preview": true}` and the per-run settings below. Verify the target on the queued build. The build runs in `spacefast/`, outside the package that declares Next.js. It invokes the existing bundler in the parent package, then copies its four entries into the selected root’s output directory. The saved connection settings still need a separate owner decision before automatic previews use this recipe. [Spacefast Git deployments](https://spacefast.com/docs/git/) · [Build API](https://api.spacefast.com/openapi.json)
+
+```json
+{
+  "rootDirectory": "spacefast",
+  "installDirectory": ".",
+  "installCommand": "npm ci",
+  "buildCommand": "npm --prefix .. run build:spacefast && mkdir -p dist && cp -R ../.spacefast/worker/functions dist/",
+  "outputDirectory": "dist"
+}
+```
+
+On 26 November 2026 this recipe built GitHub `main` at `d68ef5c` as unpromoted V18. Its manifest hash, empty static file lists and routing summary matched live V17. On V18’s version hostname, a direct, paced preview session received five HTTP 200 responses: the root notice, 17 Vienna stops, 17 departure boards, four filtered departures and a walking route. Both provider bindings worked. All responses carried `private, no-store`, and the batch was 0.299 seconds old at receipt. The API exposes the worker bundle digest for the live runtime. A separate preview worker digest was unavailable for comparison.
 
 ## Rollback and secrets
 
