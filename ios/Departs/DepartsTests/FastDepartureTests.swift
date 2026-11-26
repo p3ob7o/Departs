@@ -430,7 +430,7 @@ final class FastDepartureTests: XCTestCase {
 
         let sleeping = expectation(description: "foreground clock reached its wait")
         let clock = AsyncGate()
-        let session = TransitSession(store: store, waitForRefresh: {
+        let session = TransitSession(store: store, authorizationStatus: { .authorizedWhenInUse }, waitForRefresh: {
             if boardCount == 1 { sleeping.fulfill() }
             try await clock.wait()
         })
@@ -548,7 +548,7 @@ final class FastDepartureTests: XCTestCase {
             return try await service.route(from: origin, to: destination)
         }
         let store = TransitStore(client: api, persistence: persistence(), now: { date })
-        let session = TransitSession(store: store)
+        let session = TransitSession(store: store, authorizationStatus: { .authorizedWhenInUse })
         let home = UUID()
         let detail = UUID()
         await store.updateLocation(.init(coordinate: coordinate, capturedAt: date, accuracy: 10))
@@ -616,7 +616,7 @@ final class FastDepartureTests: XCTestCase {
             return try await service.route(from: origin, to: destination)
         }
         let store = TransitStore(client: api, persistence: persistence(), now: { date })
-        let session = TransitSession(store: store)
+        let session = TransitSession(store: store, authorizationStatus: { .authorizedWhenInUse })
         let window = UUID()
         await store.updateLocation(.init(coordinate: coordinate, capturedAt: date, accuracy: 10))
         XCTAssertEqual(submitted, 0, "A snapshot can arrive before the first active window")
@@ -640,6 +640,99 @@ final class FastDepartureTests: XCTestCase {
         await fulfillment(of: [resumed], timeout: 2)
         XCTAssertEqual(probe.active, 3)
         session.updateWindow(window, active: false, showsList: false, selection: nil)
+    }
+
+    @MainActor private func savedWalkingArea(authorizationStatus: @escaping () -> CLAuthorizationStatus)
+        -> (session: TransitSession, probe: WalkingProbe, disk: TransitPersistence, selection: StopLineSelection) {
+        let date = Date.now
+        let stops = walkingDemandStops(4)
+        let disk = persistence()
+        let visible = Set(stops.map(\.id))
+        let batch = walkingDemandBatch(stops, showing: visible, at: date)
+        disk.saveNearby(.init(center: coordinate, stops: stops, checkedAt: date))
+        disk.saveHome(.make(stops: stops, origin: coordinate, pins: [], response: batch, checkedAt: date))
+        let probe = WalkingProbe()
+        let walking = WalkingRouteService(now: { date }, start: probe.start)
+        var api = client()
+        api.stops = { _ in stops }
+        api.batch = { _ in batch }
+        api.directions = { try await walking.route(from: $0, to: $1) }
+        let store = TransitStore(client: api, persistence: disk, now: { date })
+        let session = TransitSession(store: store, authorizationStatus: authorizationStatus)
+        let selection = StopLineSelection(stop: stops[0], line: stops[0].lines[0], lineIndex: 0)
+        return (session, probe, disk, selection)
+    }
+
+    @MainActor func testColdLaunchNeverStartsWalksWithDeniedOrRestrictedAuthorization() async {
+        for status: CLAuthorizationStatus in [.denied, .restricted] {
+            for showsList in [true, false] {
+                let (session, probe, disk, selection) = savedWalkingArea { status }
+                XCTAssertTrue(session.store.homeRestored)
+                let window = UUID()
+                session.updateWindow(window, active: true, showsList: showsList, selection: showsList ? nil : selection)
+                XCTAssertNil(disk.loadNearby(), "Foreground entry must clear the saved area synchronously")
+                await session.refreshVisibleAnswers()
+                for _ in 0..<20 { await Task.yield() }
+                XCTAssertEqual(probe.started, 0, "Authorization \(status.rawValue), showsList \(showsList)")
+                session.updateWindow(window, active: false, showsList: false, selection: nil)
+            }
+        }
+    }
+
+    @MainActor func testForegroundDoesNotRestartWalksAfterAuthorizationWasRevokedInBackground() async {
+        for revoked: CLAuthorizationStatus in [.denied, .restricted] {
+            var status = CLAuthorizationStatus.authorizedWhenInUse
+            let (session, probe, disk, _) = savedWalkingArea { status }
+            let window = UUID()
+            let granted = expectation(description: "three active walks before revocation")
+            granted.expectedFulfillmentCount = 3
+            probe.onStart = { _ in granted.fulfill() }
+            session.updateWindow(window, active: true, showsList: true, selection: nil)
+            await fulfillment(of: [granted], timeout: 2)
+            session.updateWindow(window, active: false, showsList: false, selection: nil)
+            probe.onStart = nil
+            status = revoked
+
+            session.updateWindow(window, active: true, showsList: true, selection: nil)
+            XCTAssertNil(disk.loadNearby())
+            await session.refreshVisibleAnswers()
+            for _ in 0..<20 { await Task.yield() }
+            XCTAssertEqual(probe.started, 3)
+            XCTAssertEqual(probe.active, 0)
+            session.updateWindow(window, active: false, showsList: false, selection: nil)
+        }
+    }
+
+    @MainActor func testColdLaunchStartsWantedWalksWithGrantedAuthorization() async {
+        for status: CLAuthorizationStatus in [.authorizedWhenInUse, .authorizedAlways] {
+            for showsList in [true, false] {
+                let (session, probe, _, selection) = savedWalkingArea { status }
+                let window = UUID()
+                let started = expectation(description: "visible routes with a grant")
+                let expectedCount = showsList ? 3 : 1
+                started.expectedFulfillmentCount = expectedCount
+                probe.onStart = { _ in started.fulfill() }
+                session.updateWindow(window, active: true, showsList: showsList, selection: showsList ? nil : selection)
+                await fulfillment(of: [started], timeout: 2)
+                XCTAssertEqual(probe.started, expectedCount)
+                session.updateWindow(window, active: false, showsList: false, selection: nil)
+            }
+        }
+    }
+
+    @MainActor func testUndeterminedAuthorizationPreservesRefreshTriggeredWalks() async {
+        for showsList in [true, false] {
+            let (session, probe, _, selection) = savedWalkingArea { .notDetermined }
+            let window = UUID()
+            let started = expectation(description: "refresh starts the visible walks")
+            started.expectedFulfillmentCount = showsList ? 3 : 1
+            probe.onStart = { _ in started.fulfill() }
+            session.updateWindow(window, active: true, showsList: showsList, selection: showsList ? nil : selection)
+            XCTAssertEqual(probe.started, 0, "Activation alone must not start MapKit before the prompt")
+            await session.refreshVisibleAnswers()
+            await fulfillment(of: [started], timeout: 2)
+            session.updateWindow(window, active: false, showsList: false, selection: nil)
+        }
     }
 
     func testCountdownUsesNowBelowAMinuteAndClockBeyondTheHour() {
@@ -1561,6 +1654,28 @@ final class WalkingRouteServiceTests: XCTestCase {
         fail = false
         let pruned = try await service.route(from: origin, to: newest)
         XCTAssertEqual(pruned.duration, Double(count + 4))
+    }
+
+    @MainActor func testQueuedWalkDoesNotStartWhenProviderAuthorizationIsRevoked() async throws {
+        var allowed = true
+        let probe = WalkingProbe()
+        let service = WalkingRouteService(canStart: { allowed }, start: probe.start)
+        let active = expectation(description: "three active calculations")
+        active.expectedFulfillmentCount = 3
+        probe.onStart = { _ in active.fulfill() }
+        let routes = (0..<4).map { index in
+            Task {
+                try await service.route(from: origin,
+                                        to: .init(lat: destination.lat, lon: destination.lon + Double(index) / 1000))
+            }
+        }
+        defer { for route in routes { route.cancel() } }
+        await fulfillment(of: [active], timeout: 2)
+        allowed = false
+        probe.onStart = nil
+        probe.complete(0)
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(probe.started, 3)
     }
 
     @MainActor func testCacheEvictionFollowsInsertionOrderAfterBackwardClockChange() async throws {

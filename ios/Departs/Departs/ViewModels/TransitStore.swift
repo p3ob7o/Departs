@@ -8,13 +8,16 @@ struct TransitClient {
     var batch: ([String]) async throws -> BatchDepartures
     var prioritizeWalks: @MainActor (Set<Coordinate>) -> Void = { _ in }
 
-    static let live = TransitClient(
-        stops: { try await APIService.shared.fetchNearbyStops(lat: $0.lat, lon: $0.lon) },
-        departures: { try await APIService.shared.fetchDepartures(stopId: $0.stop.id, line: $0.line) },
-        directions: { try await WalkingRouteService.shared.route(from: $0, to: $1) },
-        batch: { try await APIService.shared.fetchDepartureBoards(stopIDs: $0) },
-        prioritizeWalks: { WalkingRouteService.shared.prioritize(destinations: $0) }
-    )
+    @MainActor static func live(canStartWalk: @escaping () -> Bool) -> TransitClient {
+        let walking = WalkingRouteService(canStart: canStartWalk)
+        return TransitClient(
+            stops: { try await APIService.shared.fetchNearbyStops(lat: $0.lat, lon: $0.lon) },
+            departures: { try await APIService.shared.fetchDepartures(stopId: $0.stop.id, line: $0.line) },
+            directions: { try await walking.route(from: $0, to: $1) },
+            batch: { try await APIService.shared.fetchDepartureBoards(stopIDs: $0) },
+            prioritizeWalks: { walking.prioritize(destinations: $0) }
+        )
+    }
 }
 
 @MainActor
@@ -71,7 +74,7 @@ final class TransitStore {
     }
     private var savedBoards: Set<String> = []
 
-    init(client: TransitClient = .live, persistence: TransitPersistence = .init(), now: @escaping () -> Date = { .now }) {
+    init(client: TransitClient, persistence: TransitPersistence = .init(), now: @escaping () -> Date = { .now }) {
         self.client = client
         self.persistence = persistence
         self.now = now
@@ -386,10 +389,10 @@ final class TransitStore {
         guard let center, let platform = group.nearestPlatform(to: center) else { return nil }
         return walk(for: platform, at: date)
     }
-    func setWalkingDemand(showsList: Bool, selectedStops: [NearbyStop]) {
+    func setWalkingDemand(showsList: Bool, selectedStops: [NearbyStop], startWalks: Bool = true) {
         showsHomeWalks = showsList
         selectedWalkStops = selectedStops
-        reconcileWalks()
+        reconcileWalks(startWalks: startWalks)
     }
 
     private func updateListedWalkStops() {
@@ -398,7 +401,7 @@ final class TransitStore {
         } ?? []
     }
 
-    private func reconcileWalks() {
+    private func reconcileWalks(startWalks: Bool = true) {
         let origin = walkingOrigin
         let priority = Set(selectedWalkStops.map(\.location))
         let candidates = selectedWalkStops + (showsHomeWalks ? listedWalkStops : [])
@@ -417,7 +420,7 @@ final class TransitStore {
             }
         }
         client.prioritizeWalks(priority)
-        guard let origin else { return }
+        guard startWalks, let origin else { return }
         for stop in stops where walkRequests[stop.id] == nil && walk(for: stop, at: now()) == nil {
             refreshWalk(for: stop, from: origin, prioritizing: priority.contains(stop.location))
         }

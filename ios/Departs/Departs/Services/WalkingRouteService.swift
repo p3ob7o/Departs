@@ -3,8 +3,6 @@ import os
 
 @MainActor
 final class WalkingRouteService {
-    static let shared = WalkingRouteService()
-
     private struct Endpoints: Hashable {
         let origin: Coordinate
         let destination: Coordinate
@@ -32,6 +30,7 @@ final class WalkingRouteService {
     private static let timeout: Duration = .seconds(12)
 
     private let start: Start
+    private let canStart: () -> Bool
     private let now: () -> Date
     private let sleep: (Duration) async throws -> Void
     private var routes: [Endpoints: (route: WalkingRoute, expiresAt: Date, insertion: UInt64)] = [:]
@@ -43,9 +42,10 @@ final class WalkingRouteService {
 
     init(now: @escaping () -> Date = { .now },
          sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
-         start: Start? = nil) {
+         canStart: @escaping () -> Bool = { true }, start: Start? = nil) {
         self.now = now
         self.sleep = sleep
+        self.canStart = canStart
         self.start = start ?? Self.startWalkingRoute
     }
 
@@ -55,6 +55,7 @@ final class WalkingRouteService {
 
     func route(from origin: Coordinate, to destination: Coordinate) async throws -> WalkingRoute {
         try Task.checkCancellation()
+        guard canStart() else { throw CancellationError() }
         let endpoints = Endpoints(origin: origin, destination: destination)
         let ticket = Ticket()
         let waiterID = UUID()
@@ -103,7 +104,7 @@ final class WalkingRouteService {
     }
 
     private func startQueuedRequests() {
-        while active < Self.concurrencyLimit, !queue.isEmpty {
+        while active < Self.concurrencyLimit, !queue.isEmpty, canStart() {
             let index = queue.firstIndex { priorityDestinations.contains($0.destination) } ?? queue.startIndex
             let endpoints = queue.remove(at: index)
             guard let id = requests[endpoints]?.id else { continue }
