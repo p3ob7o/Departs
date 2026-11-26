@@ -4,7 +4,13 @@ Installed releases through 1.3 (build 14) call `departs.vercel.app`. New release
 
 ## Ship a backend change
 
-Run the tests, lint and both builds. Check the deployed preview with a real batch before merging. Vercel deploys branch previews automatically and deploys merged `main` to its production host. Until the GitHub connection is enabled on Spacefast, separately publish each approved merged revision. Start in a clean checkout of the repository, with the authorized Spacefast deployment identity available.
+Run tests, lint and both builds. Pull requests get Vercel previews and a **Spacefast Builds** preview check. Verify a real departures batch on the preview before merging.
+
+Merging to `main` automatically deploys to Vercel and Spacefast. In **departs-api → Builds**, find the successful build for the merge commit and confirm its version is ready and live. On `api.departs.now`, check the root notice, nearby stops, a fresh departures batch, filtered per-line departures and a walking route. Both departures forms must return `Cache-Control: no-store`. Check the Vercel deployment for the same commit on `departs.vercel.app`.
+
+### Spacefast CLI fallback
+
+If the GitHub build fails or must be bypassed, publish the approved merged revision from a clean checkout using an authorized Spacefast identity.
 
 ```sh
 set -eu
@@ -32,18 +38,29 @@ publish --dry-run
 publish --wait
 ```
 
-Protect CLI output as a credential. Verify the receipt names the intended Space, the version is ready and live, and its commit matches the release. Check HTTPS, root text, validation and a successful transit batch on the custom domain. If custom-domain HTTPS is pending, verify the managed hostname supplied in the receipt and record the custom-domain check as pending. Inspect the response version and board timestamp. Also check the equivalent Vercel release. If an operation requires confirmation, stop for the owner.
+Protect CLI output as a credential. Verify the receipt’s Space, live version and commit, then repeat the production checks above. If confirmation is required, stop for the owner.
 
 ## Connect GitHub
 
-1. Sign in to the [Spacefast dashboard](https://my.spacefast.com/). Select the **Departs** team, open **departs-api-trial**, then **Builds → Connect GitHub → Connect repository**. GitHub installation discovery requires a signed-in user session. A valid Spacefast team API key alone cannot list installations.
-2. Select the GitHub installation and **p3ob7o/Departs**. If the repository is missing, choose **Add repositories**. On GitHub select the owning account, **Only select repositories → Departs**, then **Install** or **Save**. Return to the Spacefast picker and connect the repository.
-3. Set the production branch to `main`. In **Build settings**, use the repository root, install command `npm ci`, build command `npm run build:spacefast`, and output directory `.spacefast/worker`. The package also contains a Next.js build for Vercel, so check these explicit settings before starting a run. Keep the existing secrets on the Space as runtime bindings.
-4. Enable production auto-deploy for `main` and previews for other branches. The CLI’s connect, sync and build-now operations are separate. A connection by itself does not prove a build. Check **Runs** for any dashboard-triggered build. Queue a preview of the merged commit, compare the packed Functions artifact with the CLI dry run, then verify a production run of the same commit. Check the live version and repeat the rider requests. A later push to `main` should queue a production run without the CLI. [Spacefast Git deployments](https://spacefast.com/docs/git/)
+In the [Spacefast dashboard](https://my.spacefast.com/), select **Departs → departs-api → Builds → Connect GitHub** and choose **p3ob7o/Departs**. If the repository is missing, use **Add repositories** to authorize it on GitHub. Enter the build settings **before confirming**. Connecting the repository immediately queued a live build, even with empty settings.
+
+The connection uses `main` for production and enables branch previews. Its saved settings are below, with both presets unset. The build root is `spacefast/` because at the repository root Spacefast detects Next.js and requires its adapter report, even with the `static` override. The build command invokes the parent package’s bundler and stages its four Function entries in `dist/functions/`.
+
+```json
+{
+  "rootDirectory": "spacefast",
+  "installDirectory": ".",
+  "installCommand": "npm ci",
+  "buildCommand": "npm --prefix .. run build:spacefast && mkdir -p dist && cp -R ../.spacefast/worker/functions dist/",
+  "outputDirectory": "dist"
+}
+```
+
+On 26 November 2026, GitHub preview V18 matched live V17’s manifest, static file lists and routing summary. All five Vienna requests returned 200 on the preview, including a batch 0.299 seconds old and a walking route.
 
 ## Rollback and secrets
 
-On Spacefast, list retained ready versions with `npx -y spacefast@0.10.0 versions ls --space departs-api-trial --api-url https://api.spacefast.com`. Roll back to the chosen version with `npx -y spacefast@0.10.0 rollback vNUMBER --space departs-api-trial --api-url https://api.spacefast.com`. Coordinate any required confirmation with the owner. The live pointer moves, including the version's sealed bindings. On Vercel, select the known-good production deployment and use **Instant Rollback**. Reconcile the source before the next release. Verify both target host and API after either action. [Spacefast versions](https://spacefast.com/docs/versions/) · [Vercel rollback](https://vercel.com/docs/instant-rollback)
+On Spacefast, list retained ready versions with `npx -y spacefast@0.10.0 versions ls --space departs-api --api-url https://api.spacefast.com`. Roll back to the chosen version with `npx -y spacefast@0.10.0 rollback vNUMBER --space departs-api --api-url https://api.spacefast.com`. Coordinate any required confirmation with the owner. The live pointer moves, including the version's sealed bindings. On Vercel, select the known-good production deployment and use **Instant Rollback**. Reconcile the source before the next release. Verify both target host and API after either action. [Spacefast versions](https://spacefast.com/docs/versions/) · [Vercel rollback](https://vercel.com/docs/instant-rollback)
 
 `HERE_API_KEY` and `MAPBOX_SECRET_TOKEN` live in Vercel's server environment and in Spacefast's runtime secrets. Coordinate Spacefast writes as releases because each can create a new live version. Access and edge logs can contain client addresses, location queries and long-lived signed bundle URLs. Runtime errors can expose upstream credentials if they include provider URLs. Keep raw logs and receipts owner-readable outside Git. Share only aggregate or redacted observations.
 
@@ -53,7 +70,7 @@ An empty Spacefast binding sends an empty key to the provider. After a Space cha
 
 ## DNS and HTTPS
 
-The backend Space has a serving attachment for `api.departs.now`. The separate lander Space owns the apex attachment. With external DNS, install the API attachment’s required records at the authoritative provider. With Spacefast authoritative DNS, inspect the zone publication and ownership-proof state and the serving-record status for each attached hostname. Spacefast describes an empty manual-record list for names served from its DNS zone. Independently resolve both names, verify the certificate, and compare the API root and a transit request before distributing the app build. The existing managed hostname remains available. [Custom domains](https://spacefast.com/docs/domains/) · [Domain API](https://api.spacefast.com/openapi.json)
+The backend Space has a serving attachment for `api.departs.now`. The separate lander Space owns the apex attachment. With external DNS, install the API attachment’s required records at the authoritative provider. With Spacefast authoritative DNS, inspect the zone publication and ownership-proof state and the serving-record status for each attached hostname. Spacefast describes an empty manual-record list for names served from its DNS zone. Independently resolve both names, verify the certificate, and compare the API root and a transit request before distributing the app build. The managed hostname is `departs-api.space.fast`. [Custom domains](https://spacefast.com/docs/domains/) · [Domain API](https://api.spacefast.com/openapi.json)
 
 ## Check what a rider receives
 
