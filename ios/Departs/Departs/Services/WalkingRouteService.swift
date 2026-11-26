@@ -30,7 +30,7 @@ final class WalkingRouteService {
     private static let timeout: Duration = .seconds(12)
 
     private let start: Start
-    private let canStart: () -> Bool
+    private let isAuthorized: () -> Bool
     private let now: () -> Date
     private let sleep: (Duration) async throws -> Void
     private var routes: [Endpoints: (route: WalkingRoute, expiresAt: Date, insertion: UInt64)] = [:]
@@ -42,11 +42,30 @@ final class WalkingRouteService {
 
     init(now: @escaping () -> Date = { .now },
          sleep: @escaping (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
-         canStart: @escaping () -> Bool = { true }, start: Start? = nil) {
+         isAuthorized: @escaping () -> Bool = { true }, start: Start? = nil) {
         self.now = now
         self.sleep = sleep
-        self.canStart = canStart
+        self.isAuthorized = isAuthorized
         self.start = start ?? Self.startWalkingRoute
+    }
+
+    static func permitsWalking(_ status: CLAuthorizationStatus) -> Bool {
+        switch status {
+        case .authorizedAlways, .authorizedWhenInUse, .notDetermined: return true
+        case .denied, .restricted: return false
+        @unknown default: return false
+        }
+    }
+
+    // Every path that observes revocation releases both queued and active waiters.
+    func checkAuthorization() -> Bool {
+        guard isAuthorized() else {
+            for (endpoints, request) in requests {
+                resolve(endpoints, request, with: .failure(CancellationError()), cancel: true)
+            }
+            return false
+        }
+        return true
     }
 
     func prioritize(destinations: Set<Coordinate>) {
@@ -55,12 +74,15 @@ final class WalkingRouteService {
 
     func route(from origin: Coordinate, to destination: Coordinate) async throws -> WalkingRoute {
         try Task.checkCancellation()
-        guard canStart() else { throw CancellationError() }
         let endpoints = Endpoints(origin: origin, destination: destination)
         let ticket = Ticket()
         let waiterID = UUID()
         let route = try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<WalkingRoute, Error>) in
+                guard checkAuthorization() else {
+                    continuation.resume(throwing: CancellationError())
+                    return
+                }
                 // A replacement can arrive before the cancelled caller's MainActor cleanup.
                 removeCancelledWaiters()
                 routes = routes.filter { $0.value.expiresAt > now() }
@@ -84,6 +106,7 @@ final class WalkingRouteService {
                 self.startQueuedRequests()
             }
         }
+        guard checkAuthorization() else { throw CancellationError() }
         try Task.checkCancellation()
         return route
     }
@@ -104,7 +127,7 @@ final class WalkingRouteService {
     }
 
     private func startQueuedRequests() {
-        while active < Self.concurrencyLimit, !queue.isEmpty, canStart() {
+        while checkAuthorization(), active < Self.concurrencyLimit, !queue.isEmpty {
             let index = queue.firstIndex { priorityDestinations.contains($0.destination) } ?? queue.startIndex
             let endpoints = queue.remove(at: index)
             guard let id = requests[endpoints]?.id else { continue }
@@ -132,10 +155,10 @@ final class WalkingRouteService {
         removeCancelledWaiters()
         defer { startQueuedRequests() }
         guard let request = requests[endpoints], request.id == id else { return }
-        removeRequest(at: endpoints, request: request, cancel: cancel)
         let route = result.flatMap { data in
             Result { try Self.walkingRoute(polyline: data.polyline, duration: data.duration, distance: data.distance) }
         }
+        guard checkAuthorization() else { return }
         if case let .success(value) = route {
             let fetchedAt = now()
             routes = routes.filter { $0.value.expiresAt > fetchedAt }
@@ -146,8 +169,18 @@ final class WalkingRouteService {
             insertion += 1
             routes[endpoints] = (value, fetchedAt.addingTimeInterval(3_600), insertion)
         }
-        for (_, waiter) in request.waiters.values { waiter.resume(with: route) }
+        resolve(endpoints, request, with: route, cancel: cancel)
     }
+
+    private func resolve(_ endpoints: Endpoints, _ request: Request,
+                         with result: Result<WalkingRoute, Error>, cancel: Bool) {
+        removeRequest(at: endpoints, request: request, cancel: cancel)
+        for (_, waiter) in request.waiters.values { waiter.resume(with: result) }
+    }
+
+    #if DEBUG
+    var pendingRequestCount: Int { requests.count }
+    #endif
 
     private func removeRequest(at endpoints: Endpoints, request: Request, cancel: Bool) {
         requests[endpoints] = nil

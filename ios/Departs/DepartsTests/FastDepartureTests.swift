@@ -735,6 +735,145 @@ final class FastDepartureTests: XCTestCase {
         }
     }
 
+    @MainActor private func authorizationRace(
+        authorization: @escaping () -> CLAuthorizationStatus,
+        now: @escaping () -> Date,
+        onBatch: @escaping () -> Void = {},
+        onRoute: @escaping () -> Void = {},
+        waitForRefresh: @escaping () async throws -> Void = { try await Task.sleep(for: .seconds(30)) }
+    ) -> (session: TransitSession, service: WalkingRouteService, probe: WalkingProbe) {
+        let stops = walkingDemandStops(9)
+        let disk = persistence()
+        let probe = WalkingProbe()
+        let service = WalkingRouteService(now: now, isAuthorized: {
+            WalkingRouteService.permitsWalking(authorization())
+        }, start: probe.start)
+        var api = client()
+        api.stops = { _ in stops }
+        api.batch = { _ in
+            onBatch()
+            return self.walkingDemandBatch(stops, showing: Set(stops.map(\.id)), at: now())
+        }
+        api.directions = { origin, destination in
+            let route = try await service.route(from: origin, to: destination)
+            onRoute()
+            return route
+        }
+        api.checkWalkingAuthorization = { service.checkAuthorization() }
+        let date = now()
+        let batch = walkingDemandBatch(stops, showing: Set(stops.map(\.id)), at: date)
+        disk.saveNearby(.init(center: coordinate, stops: stops, checkedAt: date))
+        disk.saveHome(.make(stops: stops, origin: coordinate, pins: [], response: batch, checkedAt: date))
+        let store = TransitStore(client: api, persistence: disk, now: now)
+        return (TransitSession(store: store, authorizationStatus: authorization, waitForRefresh: waitForRefresh), service, probe)
+    }
+
+    @MainActor private func assertWalkingRequests(_ count: Int, session: TransitSession,
+                                                   service: WalkingRouteService,
+                                                   file: StaticString = #filePath, line: UInt = #line) async {
+        for _ in 0..<200 {
+            if session.store.pendingWalkCount == count && service.pendingRequestCount == count { break }
+            await Task.yield()
+        }
+        XCTAssertEqual(session.store.pendingWalkCount, service.pendingRequestCount, file: file, line: line)
+        XCTAssertEqual(service.pendingRequestCount, count, file: file, line: line)
+    }
+
+    @MainActor func testRevokedCompletionCannotPublishOrPopulateCacheInEitherCallbackOrder() async {
+        for notifyFirst in [false, true] {
+            var status = CLAuthorizationStatus.authorizedWhenInUse
+            let date = Date.now
+            let (session, service, probe) = authorizationRace(authorization: { status }, now: { date })
+            let window = UUID()
+            defer { session.updateWindow(window, active: false, showsList: false, selection: nil) }
+            session.updateWindow(window, active: true, showsList: true, selection: nil)
+            await assertWalkingRequests(9, session: session, service: service)
+            XCTAssertEqual(probe.started, 3)
+
+            status = .denied
+            if notifyFirst { session.receivedLocation() }
+            for index in 0..<3 { probe.complete(index) }
+            await assertWalkingRequests(0, session: session, service: service)
+            XCTAssertTrue(session.store.walks.isEmpty)
+            XCTAssertEqual(probe.started, 3)
+            XCTAssertEqual(probe.active, 0)
+            if !notifyFirst { session.receivedLocation() }
+
+            status = .authorizedWhenInUse
+            session.updateWindow(window, active: true, showsList: true, selection: nil)
+            await session.store.updateLocation(.init(coordinate: coordinate, capturedAt: date, accuracy: 10))
+            await assertWalkingRequests(9, session: session, service: service)
+            XCTAssertTrue(session.store.walks.isEmpty, "Revoked completions must miss the cache after re-grant")
+            XCTAssertEqual(probe.started, 6)
+        }
+    }
+
+    @MainActor func testStoreDiscardsSuccessIfAuthorizationChangesAfterServiceReturns() async {
+        var status = CLAuthorizationStatus.authorizedWhenInUse
+        let date = Date.now
+        let (session, service, probe) = authorizationRace(authorization: { status }, now: { date }, onRoute: {
+            status = .denied
+        })
+        let window = UUID()
+        defer { session.updateWindow(window, active: false, showsList: false, selection: nil) }
+        session.updateWindow(window, active: true, showsList: true, selection: nil)
+        await assertWalkingRequests(9, session: session, service: service)
+        probe.complete(0)
+        await assertWalkingRequests(0, session: session, service: service)
+        XCTAssertEqual(status, .denied)
+        XCTAssertTrue(session.store.walks.isEmpty)
+        XCTAssertEqual(probe.active, 0)
+    }
+
+    @MainActor func testProviderOnlyRestrictionClearsAllWalksAndNextClockRefreshRestartsThem() async {
+        var status = CLAuthorizationStatus.authorizedWhenInUse
+        var date = Date.now
+        var batches = 0
+        let clock = AsyncGate()
+        let waiting = expectation(description: "foreground clock waits after the first batch")
+        let nextBatch = expectation(description: "the next departure batch")
+        let (session, service, probe) = authorizationRace(authorization: { status }, now: { date }, onBatch: {
+            batches += 1
+            if batches == 2 { nextBatch.fulfill() }
+        }, waitForRefresh: {
+            if batches == 1 { waiting.fulfill() }
+            try await clock.wait()
+        })
+        let window = UUID()
+        defer {
+            session.updateWindow(window, active: false, showsList: false, selection: nil)
+            clock.resume()
+        }
+        session.updateWindow(window, active: true, showsList: true, selection: nil)
+        await fulfillment(of: [waiting], timeout: 2)
+        await assertWalkingRequests(9, session: session, service: service)
+        XCTAssertEqual(probe.started, 3)
+
+        status = .restricted
+        for index in 0..<3 { probe.complete(index) }
+        await assertWalkingRequests(0, session: session, service: service)
+        XCTAssertEqual(probe.started, 3)
+        XCTAssertEqual(probe.active, 0)
+        XCTAssertTrue(session.store.walks.isEmpty)
+        XCTAssertEqual(session.store.displayedOptions.count, 9)
+
+        // The session is still waiting on the clock. It never observes the
+        // restriction, and the active window is never replaced.
+        status = .authorizedWhenInUse
+        date += 31
+        clock.resume()
+        await fulfillment(of: [nextBatch], timeout: 2)
+        for offset in [0, 3, 6] {
+            await assertWalkingRequests(9 - offset, session: session, service: service)
+            XCTAssertEqual(probe.started, 6 + offset)
+            for index in (3 + offset)..<(6 + offset) { probe.complete(index) }
+        }
+        await assertWalkingRequests(0, session: session, service: service)
+        XCTAssertEqual(probe.active, 0)
+        XCTAssertEqual(probe.peak, 3)
+        XCTAssertEqual(session.store.walks.count, 9)
+    }
+
     func testCountdownUsesNowBelowAMinuteAndClockBeyondTheHour() {
         XCTAssertEqual(TimeFormatter.countdown(departure(0.99).time, now: instant), .init(text: "Now", spoken: "Now"))
         XCTAssertEqual(TimeFormatter.countdown(departure(1).time, now: instant), .init(text: "1 min", spoken: "In 1 min"))
@@ -1659,23 +1798,45 @@ final class WalkingRouteServiceTests: XCTestCase {
     @MainActor func testQueuedWalkDoesNotStartWhenProviderAuthorizationIsRevoked() async throws {
         var allowed = true
         let probe = WalkingProbe()
-        let service = WalkingRouteService(canStart: { allowed }, start: probe.start)
+        let service = WalkingRouteService(isAuthorized: { allowed }, start: probe.start)
         let active = expectation(description: "three active calculations")
         active.expectedFulfillmentCount = 3
+        let released = expectation(description: "every waiter fails")
+        released.expectedFulfillmentCount = 4
         probe.onStart = { _ in active.fulfill() }
         let routes = (0..<4).map { index in
             Task {
-                try await service.route(from: origin,
-                                        to: .init(lat: destination.lat, lon: destination.lon + Double(index) / 1000))
+                defer { released.fulfill() }
+                do {
+                    _ = try await service.route(from: origin,
+                                                to: .init(lat: destination.lat, lon: destination.lon + Double(index) / 1000))
+                    XCTFail("A revoked waiter must fail")
+                } catch {
+                    XCTAssertTrue(error is CancellationError)
+                }
             }
         }
         defer { for route in routes { route.cancel() } }
         await fulfillment(of: [active], timeout: 2)
+        for _ in 0..<20 { await Task.yield() }
+        XCTAssertEqual(service.pendingRequestCount, 4)
         allowed = false
         probe.onStart = nil
         probe.complete(0)
-        for _ in 0..<20 { await Task.yield() }
+        await fulfillment(of: [released], timeout: 2)
         XCTAssertEqual(probe.started, 3)
+        XCTAssertEqual(probe.active, 0)
+        XCTAssertEqual(service.pendingRequestCount, 0)
+
+        allowed = true
+        let restarted = expectation(description: "a new authorized request can use a slot")
+        probe.onStart = { _ in restarted.fulfill() }
+        let newRoute = Task { try await service.route(from: origin, to: destination) }
+        defer { newRoute.cancel() }
+        await fulfillment(of: [restarted], timeout: 2)
+        probe.complete(3)
+        _ = try await newRoute.value
+        XCTAssertEqual(service.pendingRequestCount, 0)
     }
 
     @MainActor func testCacheEvictionFollowsInsertionOrderAfterBackwardClockChange() async throws {

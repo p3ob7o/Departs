@@ -36,7 +36,7 @@ final class TransitSession {
          waitForRefresh: @escaping () async throws -> Void = { try await Task.sleep(for: .seconds(30)) }) {
         let authorization = authorizationStatus ?? { locationService.authorizationStatus }
         self.authorizationStatus = authorization
-        let liveClient = TransitClient.live { Self.allowsWalking(authorization()) }
+        let liveClient = TransitClient.live { WalkingRouteService.permitsWalking(authorization()) }
         #if DEBUG
         var client = liveClient
         if let fixture = ProcessInfo.processInfo.environment["DEPARTS_TEST_WALKING_ROUTES"] {
@@ -92,7 +92,7 @@ final class TransitSession {
     }
 
     func receivedLocation() {
-        if !Self.allowsWalking(authorizationStatus()) {
+        if !WalkingRouteService.permitsWalking(authorizationStatus()) {
             locationTask?.cancel()
             synchronizeWalkingDemand()
             return
@@ -123,18 +123,10 @@ final class TransitSession {
         }
     }
 
-    private static func allowsWalking(_ status: CLAuthorizationStatus) -> Bool {
-        switch status {
-        case .authorizedAlways, .authorizedWhenInUse, .notDetermined: return true
-        case .denied, .restricted: return false
-        @unknown default: return false
-        }
-    }
-
     @discardableResult
     private func synchronizeWalkingDemand(atForegroundEntry: Bool = false) -> Bool {
         let status = authorizationStatus()
-        guard Self.allowsWalking(status) else {
+        guard WalkingRouteService.permitsWalking(status) else {
             store.setWalkingDemand(showsList: false, selectedStops: [])
             store.clearArea()
             return false

@@ -8,14 +8,17 @@ struct TransitClient {
     var batch: ([String]) async throws -> BatchDepartures
     var prioritizeWalks: @MainActor (Set<Coordinate>) -> Void = { _ in }
 
-    @MainActor static func live(canStartWalk: @escaping () -> Bool) -> TransitClient {
-        let walking = WalkingRouteService(canStart: canStartWalk)
+    var checkWalkingAuthorization: @MainActor () -> Bool = { true }
+
+    @MainActor static func live(isWalkingAuthorized: @escaping () -> Bool) -> TransitClient {
+        let walking = WalkingRouteService(isAuthorized: isWalkingAuthorized)
         return TransitClient(
             stops: { try await APIService.shared.fetchNearbyStops(lat: $0.lat, lon: $0.lon) },
             departures: { try await APIService.shared.fetchDepartures(stopId: $0.stop.id, line: $0.line) },
             directions: { try await walking.route(from: $0, to: $1) },
             batch: { try await APIService.shared.fetchDepartureBoards(stopIDs: $0) },
-            prioritizeWalks: { walking.prioritize(destinations: $0) }
+            prioritizeWalks: { walking.prioritize(destinations: $0) },
+            checkWalkingAuthorization: { walking.checkAuthorization() }
         )
     }
 }
@@ -426,6 +429,10 @@ final class TransitStore {
         }
     }
 
+    #if DEBUG
+    var pendingWalkCount: Int { walkRequests.count }
+    #endif
+
     private func refreshWalk(for stop: NearbyStop, from origin: Coordinate, prioritizing: Bool) {
         let requestID = UUID()
         walkRequests[stop.id] = .init(origin: origin, destination: stop.location, id: requestID)
@@ -436,7 +443,8 @@ final class TransitStore {
             do {
                 try Task.checkCancellation()
                 let route = try await client.directions(origin, stop.location)
-                guard let self, !Task.isCancelled, self.walkRequests[stop.id]?.id == requestID,
+                guard client.checkWalkingAuthorization(),
+                      let self, !Task.isCancelled, self.walkRequests[stop.id]?.id == requestID,
                       let currentOrigin = self.walkingOrigin, origin.distance(to: currentOrigin) <= 40 else { return }
                 self.walks[stop.id] = .init(origin: origin, destination: stop.location, route: route, checkedAt: self.now())
             } catch { /* A walking failure never hides departure information. */ }
