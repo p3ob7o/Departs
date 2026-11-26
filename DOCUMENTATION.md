@@ -16,7 +16,7 @@ Fresh home times count from the provider timestamp, including CDN age. Failed or
 
 ## Backend contract
 
-Next.js route handlers proxy HERE and Mapbox using server credentials. Keep `https://departs.vercel.app` and the installed-build responses compatible.
+The backend proxies HERE and Mapbox using server credentials. Starting with 1.3 (15), the app calls `https://api.departs.now`. Builds through 1.3 (14) still call `https://departs.vercel.app`. Keep the API contract compatible on both hosts.
 
 | Endpoint | Query | Response |
 | --- | --- | --- |

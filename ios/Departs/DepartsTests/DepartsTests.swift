@@ -184,7 +184,7 @@ final class DepartsTests: XCTestCase {
         let url = try APIService.departuresURL(stopId: "stop/1?direction=A&B")
 
         XCTAssertEqual(url.scheme, "https")
-        XCTAssertEqual(url.host, "departs.vercel.app")
+        XCTAssertEqual(url.host, "api.departs.now")
         XCTAssertEqual(url.path, "/api/departures")
         XCTAssertEqual(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first?.value, "stop/1?direction=A&B")
     }
@@ -209,7 +209,7 @@ final class DepartsTests: XCTestCase {
         )
 
         XCTAssertEqual(url.absoluteString,
-                       "https://departs.vercel.app/api/departures?stopId=49031_783&lineName=U2&direction=S%2BU%20Pankow")
+                       "https://api.departs.now/api/departures?stopId=49031_783&lineName=U2&direction=S%2BU%20Pankow")
         XCTAssertEqual(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "direction" }?.value,
                        "S+U Pankow")
     }
@@ -264,4 +264,249 @@ final class DepartsTests: XCTestCase {
         XCTAssertEqual(TransportType.bus.displayName, "Bus")
         XCTAssertEqual(TransportType.rail.displayName, "Rail")
     }
+}
+
+final class APITransportTests: XCTestCase {
+    private let origin = Coordinate(lat: 48.20134, lon: 16.34941)
+    private let platform = Coordinate(lat: 48.2015, lon: 16.3491)
+    private let walkJSON = """
+        {"duration":120,"distance":140,"geometry":{"type":"LineString","coordinates":[[16.34941,48.20134],[16.3491,48.2015]]}}
+        """
+
+    func testHosted500And502UseTheSameFailureForEveryEndpoint() async throws {
+        let calls: [(APIService) async throws -> Void] = [
+            { _ = try await $0.fetchNearbyStops(lat: self.origin.lat, lon: self.origin.lon) },
+            { _ = try await $0.fetchDepartureBoards(stopIDs: ["fixture"]) },
+            { _ = try await $0.fetchDepartures(stopId: "fixture", line: .init(name: "U2", direction: "Pankow", type: .subway)) },
+            { _ = try await $0.fetchDirections(from: self.origin, to: self.platform) },
+        ]
+        let json = #"{"error":"Provider failed"}"#
+        let cases: [(status: Int, contentType: String, body: String)] = [
+            (500, "application/json", json),
+            (502, "application/json", json),
+            (500, "text/html", "<html>Internal Server Error</html>"),
+        ]
+        for response in cases {
+            let stub = APIResponseStub { _, _ in
+                .init(status: response.status, headers: ["Content-Type": response.contentType], body: response.body)
+            }
+            let label = "HTTP \(response.status) with \(response.contentType)"
+            let service = stub.service(waitForRetry: { _ in XCTFail("Unexpected retry for \(label)") })
+            for call in calls {
+                do {
+                    try await call(service)
+                    XCTFail("Expected \(label) to fail")
+                } catch APIError.requestFailed {
+                    // The store receives the same error from both hosts.
+                } catch {
+                    XCTFail("Unexpected error: \(error)")
+                }
+            }
+            XCTAssertEqual(stub.requestCount, 4)
+        }
+    }
+
+    func testRateLimitRetriesOnceWithHeaderOrDefaultDelayAndCanRecover() async throws {
+        let date = Date(timeIntervalSince1970: 1_706_017_680)
+        let cases: [(String?, TimeInterval)] = [
+            (nil, 2), ("1", 1), ("60", 5), ("-3", 2), ("not a date or number", 2),
+            ("Tue, 23 Jan 2024 13:47:57 GMT", 0),
+            ("Tue, 23 Jan 2024 13:48:03 GMT", 3),
+            ("Tue, 23 Jan 2024 13:49:00 GMT", 5),
+        ]
+        for (header, expectedDelay) in cases {
+            let stub = APIResponseStub { _, index in
+                if index == 1 { return .init(status: 429, headers: header.map { ["Retry-After": $0] } ?? [:], body: "<html>Busy</html>") }
+                return .init(status: 200, body: "[]")
+            }
+            let label = "Retry-After: \(header ?? "(missing)")"
+            let waited = expectation(description: label)
+            let service = stub.service(now: { date }) { delay in
+                XCTAssertEqual(delay, expectedDelay, label)
+                waited.fulfill()
+            }
+            let stops = try await service.fetchNearbyStops(lat: origin.lat, lon: origin.lon)
+            await fulfillment(of: [waited], timeout: 1)
+            XCTAssertTrue(stops.isEmpty)
+            XCTAssertEqual(stub.requestCount, 2)
+        }
+    }
+
+    func testRepeatedHTMLRateLimitIsATemporaryFailure() async throws {
+        let stub = APIResponseStub { _, _ in .init(status: 429, body: "<html>Busy</html>") }
+        let service = stub.service(waitForRetry: { delay in XCTAssertEqual(delay, 2) })
+        do {
+            _ = try await service.fetchDepartureBoards(stopIDs: ["fixture"])
+            XCTFail("Expected a temporary failure after one retry")
+        } catch APIError.requestFailed {
+            XCTAssertEqual(stub.requestCount, 2)
+        }
+    }
+
+    func testNearbyStopCacheWorksWithoutHTTPCachingFor24Hours() async throws {
+        let clock = APITestClock()
+        let stub = APIResponseStub { _, index in
+            .init(status: 200, headers: index == 1 ? [:] : ["Cache-Control": "private, no-store"], body: """
+                [{"id":"stop-\(index)","name":"Fixture","type":"bus","lines":[],"location":{"lat":48.2015,"lon":16.3491}}]
+                """)
+        }
+        let service = stub.service(now: { clock.now })
+        let first = try await service.fetchNearbyStops(lat: origin.lat, lon: origin.lon)
+        clock.advance(by: 86_399)
+        let relaunched = stub.service(now: { clock.now })
+        let stillFresh = try await relaunched.fetchNearbyStops(lat: origin.lat, lon: origin.lon)
+        XCTAssertEqual(stillFresh.first?.id, first.first?.id)
+        XCTAssertEqual(stub.requestCount, 1)
+        clock.advance(by: 1)
+        let expired = try await relaunched.fetchNearbyStops(lat: origin.lat, lon: origin.lon)
+        let spacefastCached = try await relaunched.fetchNearbyStops(lat: origin.lat, lon: origin.lon)
+        let otherLocation = try await relaunched.fetchNearbyStops(lat: platform.lat, lon: platform.lon)
+        XCTAssertEqual(expired.first?.id, "stop-2")
+        XCTAssertEqual(spacefastCached.first?.id, "stop-2")
+        XCTAssertEqual(otherLocation.first?.id, "stop-3")
+        XCTAssertEqual(stub.requestCount, 3)
+    }
+
+    func testWalkCacheExpiresAfterOneHourAndDeparturesStayFresh() async throws {
+        let clock = APITestClock()
+        let stub = APIResponseStub { [walkJSON] request, _ in
+            .init(status: 200, headers: ["Cache-Control": "private, no-store"],
+                  body: request.url?.path == "/api/directions" ? walkJSON : "[]")
+        }
+        let service = stub.service(now: { clock.now })
+        _ = try await service.fetchDirections(from: origin, to: platform)
+        clock.advance(by: 3_599)
+        _ = try await service.fetchDirections(from: origin, to: platform)
+        XCTAssertEqual(stub.requestCount, 1)
+        clock.advance(by: 1)
+        _ = try await service.fetchDirections(from: origin, to: platform)
+        let line = LineInfo(name: "U2", direction: "Pankow", type: .subway)
+        _ = try await service.fetchDepartures(stopId: "fixture", line: line)
+        _ = try await service.fetchDepartures(stopId: "fixture", line: line)
+        XCTAssertEqual(stub.requestCount, 4)
+    }
+
+    func testOverlappingRequestsUseAtMostFourSlotsAndReleaseThemOnError() async {
+        let stub = APIResponseStub { _, index in
+            .init(status: index == 1 ? 500 : 200, body: "[]", delay: 0.15)
+        }
+        let service = stub.service()
+        let failures = await withTaskGroup(of: Bool.self, returning: Int.self) { group in
+            for index in 0..<9 {
+                group.addTask {
+                    do {
+                        _ = try await service.fetchNearbyStops(lat: 48.2, lon: Double(index))
+                        return false
+                    } catch {
+                        return true
+                    }
+                }
+            }
+            return await group.reduce(0) { $0 + ($1 ? 1 : 0) }
+        }
+        XCTAssertEqual(failures, 1)
+        XCTAssertEqual(stub.requestCount, 9)
+        XCTAssertEqual(stub.peakRequests, 4)
+    }
+}
+
+private final class APITestClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var date = Date()
+    var now: Date { lock.withLock { date } }
+    func advance(by seconds: TimeInterval) { lock.withLock { date.addTimeInterval(seconds) } }
+}
+
+private final class APIResponseStub: @unchecked Sendable {
+    struct Reply {
+        let status: Int
+        var headers: [String: String] = [:]
+        let body: String
+        var delay: TimeInterval = 0
+    }
+
+    private let lock = NSLock()
+    private var count = 0
+    private var active = 0
+    private var peak = 0
+    private let respond: (URLRequest, Int) -> Reply
+    private let baseURL = URL(string: "https://\(UUID().uuidString.lowercased()).example.invalid")!
+    private let session: URLSession
+
+    init(respond: @escaping (URLRequest, Int) -> Reply) {
+        self.respond = respond
+        let config = URLSessionConfiguration.ephemeral
+        config.urlCache = URLCache(memoryCapacity: 1_000_000, diskCapacity: 0)
+        config.protocolClasses = [StubAPIURLProtocol.self]
+        session = URLSession(configuration: config)
+    }
+
+    func service(now: @escaping @Sendable () -> Date = { .now },
+                 waitForRetry: @escaping @Sendable (TimeInterval) async throws -> Void = { _ in }) -> APIService {
+        StubAPIURLProtocol.register(self, for: baseURL.host!)
+        return APIService(session: session, baseURL: baseURL, now: now, waitForRetry: waitForRetry)
+    }
+
+    deinit {
+        StubAPIURLProtocol.unregister(baseURL.host!)
+        session.invalidateAndCancel()
+    }
+
+    var requestCount: Int { lock.withLock { count } }
+    var peakRequests: Int { lock.withLock { peak } }
+
+    func started(_ request: URLRequest) -> Reply {
+        let index = lock.withLock {
+            count += 1
+            active += 1
+            peak = max(peak, active)
+            return count
+        }
+        return respond(request, index)
+    }
+
+    func finished() { lock.withLock { active -= 1 } }
+}
+
+private final class StubAPIURLProtocol: URLProtocol {
+    private final class WeakStub {
+        weak var value: APIResponseStub?
+        init(_ value: APIResponseStub) { self.value = value }
+    }
+
+    private static let lock = NSLock()
+    private static var stubs: [String: WeakStub] = [:]
+
+    static func register(_ stub: APIResponseStub, for host: String) {
+        lock.withLock { stubs[host] = WeakStub(stub) }
+    }
+    static func unregister(_ host: String) {
+        _ = lock.withLock { stubs.removeValue(forKey: host) }
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        guard let url = request.url, let host = url.host,
+              let stub = Self.lock.withLock({ Self.stubs[host]?.value }) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.resourceUnavailable))
+            return
+        }
+        let reply = stub.started(request)
+        let complete = {
+            stub.finished()
+            let response = HTTPURLResponse(url: url, statusCode: reply.status, httpVersion: "HTTP/1.1", headerFields: reply.headers)!
+            self.client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+            self.client?.urlProtocol(self, didLoad: Data(reply.body.utf8))
+            self.client?.urlProtocolDidFinishLoading(self)
+        }
+        if reply.delay > 0 {
+            DispatchQueue.global().asyncAfter(deadline: .now() + reply.delay, execute: DispatchWorkItem(block: complete))
+        } else {
+            complete()
+        }
+    }
+
+    override func stopLoading() {}
 }

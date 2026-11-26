@@ -381,7 +381,7 @@ final class FastDepartureTests: XCTestCase {
 
     func testBatchURLPreservesHostAndEncodesIdentifiers() throws {
         let url = try APIService.batchDeparturesURL(stopIDs: ["one: a", "two/b"])
-        XCTAssertEqual(url.host, "departs.vercel.app")
+        XCTAssertEqual(url.host, "api.departs.now")
         XCTAssertEqual(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems, [.init(name: "stopIds", value: "one: a,two/b")])
         XCTAssertThrowsError(try APIService.batchDeparturesURL(stopIDs: []))
         XCTAssertThrowsError(try APIService.batchDeparturesURL(stopIDs: (0..<51).map(String.init)))
@@ -1103,7 +1103,7 @@ final class FastDepartureTests: XCTestCase {
 
     func testNearbyURLAlwaysAsksForFourHundredMetres() throws {
         let url = try APIService.nearbyStopsURL(lat: 48.2, lon: 16.3)
-        XCTAssertEqual(url.host, "departs.vercel.app")
+        XCTAssertEqual(url.host, "api.departs.now")
         XCTAssertEqual(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first { $0.name == "radius" }?.value, "400")
         XCTAssertEqual(TransitStore.radius, 400)
     }

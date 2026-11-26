@@ -24,7 +24,7 @@ Open `ios/Departs/Departs.xcodeproj` in Xcode and select the Departs scheme. Bui
 xcodebuild -project ios/Departs/Departs.xcodeproj -scheme Departs -destination 'platform=iOS Simulator,name=iPhone 17 Pro' test
 ```
 
-`APIService` calls `https://departs.vercel.app/api/`. In a Debug scheme, set `DEPARTS_API_BASE_URL=http://localhost:3000` to test a local backend; release builds ignore this environment override. API keys stay on the server.
+Starting with 1.3 (15), `APIService` calls `https://api.departs.now/api/`. Builds through 1.3 (14) still call `https://departs.vercel.app/api/`. Both hosts use the same API contract. In a Debug scheme, set `DEPARTS_API_BASE_URL=http://localhost:3000` to test a local backend. Release builds ignore this environment override. API keys stay on the server.
 
 The scheme runs unit tests and UI tests. UI tests serve their own local transit fixtures, simulate location, and use isolated preferences; they do not require provider keys. Screenshots are attached to the Xcode test report. See [native behavior and verification](docs/ios-fast-answers.md) for cache, refresh, Shortcuts, and release details.
 
