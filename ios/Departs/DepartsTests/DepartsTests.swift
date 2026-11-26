@@ -219,7 +219,6 @@ final class DepartsTests: XCTestCase {
             try APIService.departuresURL(stopId: "a+b", line: LineInfo(name: "S+1", direction: "S+U X", type: .rail)),
             try APIService.batchDeparturesURL(stopIDs: ["a+b", "c"]),
             try APIService.nearbyStopsURL(lat: 52.5219, lon: 13.4132),
-            try APIService.directionsURL(from: Coordinate(lat: 52.5219, lon: 13.4132), to: Coordinate(lat: 52.52, lon: 13.41)),
         ]
         for url in urls {
             XCTAssertFalse(url.absoluteString.contains("+"), url.absoluteString)
@@ -269,16 +268,12 @@ final class DepartsTests: XCTestCase {
 final class APITransportTests: XCTestCase {
     private let origin = Coordinate(lat: 48.20134, lon: 16.34941)
     private let platform = Coordinate(lat: 48.2015, lon: 16.3491)
-    private let walkJSON = """
-        {"duration":120,"distance":140,"geometry":{"type":"LineString","coordinates":[[16.34941,48.20134],[16.3491,48.2015]]}}
-        """
 
     func testHosted500And502UseTheSameFailureForEveryEndpoint() async throws {
         let calls: [(APIService) async throws -> Void] = [
             { _ = try await $0.fetchNearbyStops(lat: self.origin.lat, lon: self.origin.lon) },
             { _ = try await $0.fetchDepartureBoards(stopIDs: ["fixture"]) },
             { _ = try await $0.fetchDepartures(stopId: "fixture", line: .init(name: "U2", direction: "Pankow", type: .subway)) },
-            { _ = try await $0.fetchDirections(from: self.origin, to: self.platform) },
         ]
         let json = #"{"error":"Provider failed"}"#
         let cases: [(status: Int, contentType: String, body: String)] = [
@@ -302,7 +297,7 @@ final class APITransportTests: XCTestCase {
                     XCTFail("Unexpected error: \(error)")
                 }
             }
-            XCTAssertEqual(stub.requestCount, 4)
+            XCTAssertEqual(stub.requestCount, 3)
         }
     }
 
@@ -367,23 +362,13 @@ final class APITransportTests: XCTestCase {
         XCTAssertEqual(stub.requestCount, 3)
     }
 
-    func testWalkCacheExpiresAfterOneHourAndDeparturesStayFresh() async throws {
-        let clock = APITestClock()
-        let stub = APIResponseStub { [walkJSON] request, _ in
-            .init(status: 200, headers: ["Cache-Control": "private, no-store"],
-                  body: request.url?.path == "/api/directions" ? walkJSON : "[]")
-        }
-        let service = stub.service(now: { clock.now })
-        _ = try await service.fetchDirections(from: origin, to: platform)
-        clock.advance(by: 3_599)
-        _ = try await service.fetchDirections(from: origin, to: platform)
-        XCTAssertEqual(stub.requestCount, 1)
-        clock.advance(by: 1)
-        _ = try await service.fetchDirections(from: origin, to: platform)
+    func testConsecutiveDepartureRequestsStayFresh() async throws {
+        let stub = APIResponseStub { _, _ in .init(status: 200, body: "[]") }
+        let service = stub.service()
         let line = LineInfo(name: "U2", direction: "Pankow", type: .subway)
         _ = try await service.fetchDepartures(stopId: "fixture", line: line)
         _ = try await service.fetchDepartures(stopId: "fixture", line: line)
-        XCTAssertEqual(stub.requestCount, 4)
+        XCTAssertEqual(stub.requestCount, 2)
     }
 
     func testOverlappingRequestsUseAtMostFourSlotsAndReleaseThemOnError() async {

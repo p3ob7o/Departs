@@ -1,4 +1,5 @@
 import SwiftUI
+import CoreLocation
 
 @main
 struct DepartsApp: App {
@@ -18,6 +19,8 @@ struct DepartsApp: App {
 final class TransitSession {
     let store: TransitStore
     let locationService: LocationService
+    private let authorizationStatus: () -> CLAuthorizationStatus
+    private let waitForRefresh: () async throws -> Void
     private var windows: [UUID: WindowDemand] = [:]
     @ObservationIgnored private var refreshTask: Task<Void, Never>?
     @ObservationIgnored private var locationTask: Task<Void, Never>?
@@ -28,14 +31,37 @@ final class TransitSession {
         var selection: StopLineSelection?
     }
 
-    init(store: TransitStore? = nil, locationService: LocationService = LocationService()) {
-        self.store = store ?? TransitStore()
+    init(store: TransitStore? = nil, locationService: LocationService = LocationService(),
+         authorizationStatus: (() -> CLAuthorizationStatus)? = nil,
+         waitForRefresh: @escaping () async throws -> Void = { try await Task.sleep(for: .seconds(30)) }) {
+        let authorization = authorizationStatus ?? { locationService.authorizationStatus }
+        self.authorizationStatus = authorization
+        let liveClient = TransitClient.live { WalkingRouteService.permitsWalking(authorization()) }
+        #if DEBUG
+        var client = liveClient
+        if let fixture = ProcessInfo.processInfo.environment["DEPARTS_TEST_WALKING_ROUTES"] {
+            client.directions = { origin, destination in
+                guard fixture == "straight" else { throw CancellationError() }
+                let distance = origin.distance(to: destination)
+                return WalkingRoute(
+                    geometry: .init(type: "LineString", coordinates: [[origin.lon, origin.lat], [destination.lon, destination.lat]]),
+                    duration: max(45, distance / 1.3), distance: distance
+                )
+            }
+        }
+        #else
+        let client = liveClient
+        #endif
+        self.store = store ?? TransitStore(client: client)
         self.locationService = locationService
+        self.waitForRefresh = waitForRefresh
+        self.store.setWalkingDemand(showsList: false, selectedStops: [])
     }
 
     func updateWindow(_ id: UUID, active: Bool, showsList: Bool, selection: StopLineSelection?) {
         let enteredForeground = active && windows[id] == nil
         windows[id] = active ? WindowDemand(showsList: showsList, selection: selection) : nil
+        synchronizeWalkingDemand(atForegroundEntry: true)
         if windows.isEmpty {
             refreshTask?.cancel()
             refreshTask = nil
@@ -60,15 +86,15 @@ final class TransitSession {
                     self.locationService.requestLocation()
                 }
                 await self.refreshVisibleAnswers()
-                do { try await Task.sleep(for: .seconds(30)) } catch { return }
+                do { try await self.waitForRefresh() } catch { return }
             }
         }
     }
 
     func receivedLocation() {
-        if locationService.state == .denied {
+        if !WalkingRouteService.permitsWalking(authorizationStatus()) {
             locationTask?.cancel()
-            store.clearArea()
+            synchronizeWalkingDemand()
             return
         }
         guard !windows.isEmpty, let fix = locationService.fix,
@@ -81,12 +107,11 @@ final class TransitSession {
     func refreshVisibleAnswers() async {
         let demands = Array(windows.values)
         guard !demands.isEmpty else { return }
-        // Before anything is requested: with location off there is no area.
-        if locationService.state == .denied { store.clearArea() }
+        let allowsWalking = synchronizeWalkingDemand()
         var seen = Set<String>()
         let selections = demands.compactMap(\.selection).filter { seen.insert($0.id).inserted }
         let showsList = demands.contains { $0.showsList }
-        let fix = locationService.fix ?? store.location
+        let fix = allowsWalking ? (locationService.fix ?? store.location) : nil
         if let fix, fix.isUsable(at: .now) {
             await store.updateLocation(fix, showing: showsList ? nil : selections.first)
         } else if showsList {
@@ -96,6 +121,22 @@ final class TransitSession {
             guard !Task.isCancelled else { return }
             await store.refreshSelection(selection)
         }
+    }
+
+    @discardableResult
+    private func synchronizeWalkingDemand(atForegroundEntry: Bool = false) -> Bool {
+        let status = authorizationStatus()
+        guard WalkingRouteService.permitsWalking(status) else {
+            store.setWalkingDemand(showsList: false, selectedStops: [])
+            store.clearArea()
+            return false
+        }
+        // Before the prompt is answered, keep the existing refresh-triggered
+        // behavior without starting walks just because the window activated.
+        store.setWalkingDemand(showsList: windows.values.contains(where: \.showsList),
+                               selectedStops: windows.values.compactMap { $0.selection?.stop },
+                               startWalks: atForegroundEntry && status != .notDetermined)
+        return true
     }
 
     func locate() {

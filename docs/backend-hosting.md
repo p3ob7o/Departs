@@ -57,7 +57,7 @@ The departures Function sets `Cache-Control: no-store` on batch, single-stop, fi
 
 List ready versions with `npx -y spacefast@0.10.0 versions ls --space departs-api --api-url https://api.spacefast.com`. With owner approval, restore the chosen version with `npx -y spacefast@0.10.0 rollback vNUMBER --space departs-api --api-url https://api.spacefast.com`. Verify the live version and repeat the rider checks. Reconcile the source before the next release. [Spacefast versions](https://spacefast.com/docs/versions/)
 
-Spacefast seals the runtime bindings `HERE_API_KEY` and `MAPBOX_SECRET_TOKEN` with each version. A variable write can change the live version. After any Space change, check that both names are present and verify a transit request and a walk. An empty binding sends an empty key to the provider. Calling an API entry without its runtime context throws before it can return JSON.
+Spacefast seals the runtime bindings `HERE_API_KEY` and `MAPBOX_SECRET_TOKEN` with each version. The app now requests walking routes from MapKit on the device. Keep `/api/directions` and `MAPBOX_SECRET_TOKEN` for TestFlight 1.3 (15) until a newer build replaces it. A variable write can change the live version. After any Space change, check that both names are present and verify a transit request and a walk. An empty binding sends an empty key to the provider. Calling an API entry without its runtime context throws before it can return JSON.
 
 Access and edge logs may include client addresses, location queries and long-lived signed bundle URLs. Upstream URLs can carry provider credentials. Keep raw logs and receipts owner-readable outside Git. Share only redacted observations.
 
@@ -67,4 +67,4 @@ The backend Space has the serving attachment for `api.departs.now`. The separate
 
 ## Retire Vercel
 
-Vercel documents automatic promotion of the most recent successful production build. We therefore expect a later failed build to leave the last good deployment serving. To stop automatic Vercel checks on future PRs, the owner opens the project's **Settings → Git → Connected Git Repository → Disconnect**. If GitHub requires that check to merge, remove it from the branch rules as well. We expect existing deployments to remain online after Git disconnection. The Git settings guide documents disconnection only. To take the old endpoint offline, pause the project (returns 503) or explicitly delete it. Deletion also removes deployments, domains, variables and project settings. [Vercel production promotion](https://vercel.com/docs/deployment-checks) · [Disconnect Git](https://vercel.com/docs/project-configuration/git-settings) · [Pause or delete a project](https://vercel.com/docs/projects/managing-projects)
+The Vercel project was deleted on 26 November 2026. There is no project left to disconnect, pause, or delete.

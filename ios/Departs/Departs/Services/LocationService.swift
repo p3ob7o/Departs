@@ -15,6 +15,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     private(set) var state: State = .idle
     private(set) var fix: LocationFix?
     private let manager = CLLocationManager()
+    var authorizationStatus: CLAuthorizationStatus { manager.authorizationStatus }
     private var timeout: Task<Void, Never>?
 
     override init() {
@@ -26,7 +27,7 @@ final class LocationService: NSObject, CLLocationManagerDelegate {
     func requestLocation() {
         if case .requesting = state { return }
         state = .requesting
-        let status = manager.authorizationStatus
+        let status = authorizationStatus
         if status == .notDetermined {
             manager.requestWhenInUseAuthorization()
         } else if status == .denied || status == .restricted {

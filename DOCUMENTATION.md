@@ -8,15 +8,15 @@ Departs shows available transport nearby in a native iPhone and iPad app requiri
 
 `DepartsApp` owns one `TransitSession`, shared store, location service and refresh clock. Each `ContentView` owns a navigation stack and sheets. iPhone uses a portrait stack. Departs offers one resizable iPad window in all orientations, stacking the map above the list in tall or narrow windows and dividing wide landscape windows equally. At accessibility sizes a stacked map scrolls with the list and a split map stays beside it. The Duo layout remains deferred. On 24 November 2026 the owner chose one window on iPad for now (O27). The one-window setting also applies to the iPhone Duo, and supporting several windows needs another decision. Mac and Vision Pro availability and required capabilities still need the owner’s decision.
 
-Home restores a published snapshot, fetches nearby platforms and sends their IDs in one departure batch. Selection uses returned departures within 60 minutes, physical-stop distance and stable service identities. Membership and boards publish together, after interaction ends. Ticks and failures never reorder rows. Partial results retain existing membership. One walking route per listed physical stop runs independently of departures, at most three requests at once.
+Home restores a published snapshot, fetches nearby platforms and sends their IDs in one departure batch. Selection uses returned departures within 60 minutes, physical-stop distance and stable service identities. Membership and boards publish together, after interaction ends. Ticks and failures never reorder rows. Partial results retain existing membership. The app asks MapKit on the device for one walking route per listed physical stop. Home and line share a limit of three active calculations across refreshes. Identical requests share one calculation. Active calculations time out after 12 seconds. Active and queued walks cancel when the origin is superseded, the platform is no longer shown, or the last window becomes inactive. Walking demand returns with the foreground windows. Selected platforms go ahead of queued home walks. Walking runs independently of the departure clock. The store reuses a walk to the same platform for ten minutes within 40 metres of its origin. The MapKit service keeps up to 32 exact origin and destination pairs for one hour in the app session and evicts by insertion order.
 
-The line screen starts with home's two times, then fetches four for its exact platform and direction. A home refresh cannot overwrite a four-time board or mark a failed line request fresh. The route is visible immediately, and a system toolbar button opens Apple Maps walking mode. Pins, App Shortcuts and `departs://pin` links preserve their stored identities.
+The line screen starts with home's two times, then fetches four for its exact platform and direction. A home refresh cannot overwrite a four-time board or mark a failed line request fresh. The map and endpoints appear first. The route line appears when a walking route arrives, and the walk button below the map at standard text sizes opens Google Maps or Apple Maps by the rider’s choice. Pins, App Shortcuts and `departs://pin` links preserve their stored identities.
 
 Fresh home times count from the provider timestamp, including CDN age. Failed or restored data shows clock times. Foreground refresh runs every 30 seconds with a 25-second recency throttle; explicit refresh bypasses it. See [native behavior](docs/ios-fast-answers.md) for the full rules and recovery states.
 
 ## Backend contract
 
-The backend proxies HERE and Mapbox using server credentials. Starting with 1.3 (15), the app calls `https://api.departs.now`. Four entries in `spacefast/functions/` serve the root and three API paths.
+The app uses `https://api.departs.now` for HERE stops and departures. Four entries in `spacefast/functions/` serve the root and three API paths. The backend keeps `/api/directions` and `MAPBOX_SECRET_TOKEN` for TestFlight 1.3 (15) until a newer build replaces it.
 
 | Endpoint | Query | Response |
 | --- | --- | --- |
@@ -24,11 +24,11 @@ The backend proxies HERE and Mapbox using server credentials. Starting with 1.3 
 | `/api/departures` | `stopId`, optional paired `lineName`, `direction` | Up to four departure records. Both filters match exactly, except that a `+` and a space count as the same character: installed builds send a raw `+`, which the query parser reads as a space. A departure without a line, or with a provider name or direction that is not a string, never matches |
 | `/api/departures` | `stopId`, `groupBy=line` | Compatible grouped response with `groups` and `complete` |
 | `/api/departures` | `stopIds=a,b,c`, 1–50 IDs | `{fetchedAt, boards: [{stopId, groups}], missing}`; two departures per transport, 50 per platform |
-| `/api/directions` | `from=lat,lon`, `to=lat,lon` | First walking route `{geometry, duration, distance}`, in seconds/metres |
+| `/api/directions` (legacy) | `from=lat,lon`, `to=lat,lon` | First walking route `{geometry, duration, distance}`, in seconds/metres |
 
 The batch handler sends one provider request and retries once on network/5xx failure. On final failure it returns 502, which Spacefast has delivered as 500. Legacy calls keep their 500 failure contract. Logging contains only a fixed error class and optional numeric status, never the credential-bearing URL. `fetchedAt` is captured before the successful attempt; upstream `no-store` prevents a new timestamp wrapping a cached provider body.
 
-HTTP cache lifetimes are 24 hours for stops and one hour for walks. All departures responses carry `Cache-Control: no-store`. They do not trigger native refreshes. Home has no fallback to an older backend. The provider can omit boards or cap away lines, and scheduled data does not imply realtime coverage.
+HTTP cache lifetimes are 24 hours for stops and one hour for legacy walking responses. All departures responses carry `Cache-Control: no-store`. They do not trigger native refreshes. Home has no fallback to an older backend. The provider can omit boards or cap away lines, and scheduled data does not imply realtime coverage.
 
 The API root (`GET /`) returns a plain-text notice about the retired browser app without provider calls.
 
@@ -36,7 +36,7 @@ The API root (`GET /`) returns a plain-text notice about the retired browser app
 
 Use [AGENTS.md](AGENTS.md) for commands and simulator rules. Vitest/MSW intercept external providers; native XCTest uses a small derived Vienna sample and a local fixture server. Live backend checks require provider credentials on the deployment, not embedded in the app.
 
-Debug builds accept API, preferences and location-accuracy test overrides. `NSAllowsLocalNetworking` is included only by the Debug Info.plist preprocessor definition. Release contains no such overrides and loads production directly. Previews using `PreviewData` stay inside `#if DEBUG`.
+Debug builds accept API, preferences, location-accuracy and walking-route test overrides. `NSAllowsLocalNetworking` is included only by the Debug Info.plist preprocessor definition. Release contains no such overrides and loads production directly. Previews using `PreviewData` stay inside `#if DEBUG`.
 
 Run native suites with the runtime pinned and derived data outside the repository. Complete first boot before testing. Dark appearance requires the iOS 26.2 simulator. The German pseudolocalization script copies and expands the catalog outside Git; it reuses that destination's derived data. No German localization ships.
 
