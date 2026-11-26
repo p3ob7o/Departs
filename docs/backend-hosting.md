@@ -16,6 +16,8 @@ The [project config](../sf.jsonc) specifies repository root `.`, install directo
 - [ ] Run the five rider checks below on `api.departs.now`.
 - [ ] After the next approved docs-only push to `main`, verify that the automatic push build ran for that SHA and produced or reused a ready version. This establishes that the previous directory filter is gone.
 
+The removal PR’s automatic preview used the saved `spacefast/` root and its copy-to-`dist` command even with `sf.jsonc` present. Committing the recipe alone does not switch the GitHub connection. Set it explicitly in the checklist above.
+
 ### Manual build fallback
 
 If the automatic release fails or must be bypassed, set `release_sha` to the full approved merge SHA. Keep the receipt owner-readable.
@@ -48,3 +50,7 @@ Access and edge logs may include client addresses, location queries and long-liv
 ## DNS and HTTPS
 
 The backend Space has the serving attachment for `api.departs.now`. The separate lander Space owns the apex. Check the serving record and certificate for the API hostname when changing domains and verify the root and a transit request before distributing an app build. [Custom domains](https://spacefast.com/docs/domains/)
+
+## Retire Vercel
+
+A failed build leaves the last successful production deployment serving. To stop automatic Vercel checks on future PRs, the owner opens the project's **Settings → Git → Connected Git Repository → Disconnect**. If GitHub requires that check to merge, remove it from the branch rules as well. Disconnecting Git leaves existing deployments online. To take the old endpoint offline, pause the project (returns 503) or explicitly delete it. Deletion also removes deployments, domains, variables and project settings. [Vercel production promotion](https://vercel.com/docs/deployment-checks) · [Disconnect Git](https://vercel.com/docs/project-configuration/git-settings) · [Pause or delete a project](https://vercel.com/docs/projects/managing-projects)
