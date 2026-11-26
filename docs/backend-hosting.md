@@ -6,7 +6,30 @@ Installed releases through 1.3 (build 14) call `departs.vercel.app`. New release
 
 Run tests, lint and both builds. Pull requests get Vercel previews and a **Spacefast Builds** preview check. Verify a real departures batch on the preview before merging.
 
-Merging to `main` automatically deploys to Vercel and Spacefast. In **departs-api → Builds**, find the successful build for the merge commit and confirm its version is ready and live. On `api.departs.now`, check the root notice, nearby stops, a fresh departures batch, filtered per-line departures and a walking route. Both departures forms must return `Cache-Control: no-store`. Check the Vercel deployment for the same commit on `departs.vercel.app`.
+Vercel deploys merges to `main`. Spacefast production auto-deploy is on, but its push filter checks for changes under the configured build root, `spacefast/`. In **departs-api → Builds**, find the push build for the full merge SHA. A `skipped` build’s event gives the reason. A successful pull-request preview can exist for the same changes even when the push build skips. [Spacefast build statuses](https://spacefast.com/docs/frameworks/)
+
+- **Change under `spacefast/`.** Check that the build succeeded and its source commit equals the merge SHA. Confirm that the version it produced or reused is live.
+- **Skipped backend change.** If the merge changes shared handlers in `app/lib/`, dependencies in `package.json` or the lockfile, or another build input outside `spacefast/`, start an approved manual GitHub production build pinned to the merge SHA as shown below. These changes alone do not trigger a push build.
+- **Documentation-only change.** A skip is expected. No backend release is needed.
+
+### Manual GitHub build after a skip
+
+Use the **full SHA of the approved merge**. Capture CLI output in an owner-readable file because receipts can contain signed links.
+
+```sh
+: "${release_sha:?Set release_sha to the full approved merge SHA}"
+umask 077
+receipt=$(mktemp)
+npx -y spacefast@0.10.0 git build --space departs-api \
+  --ref main --branch main --commit "$release_sha" --target production --wait \
+  --api-url https://api.spacefast.com >"$receipt" 2>&1
+```
+
+If Spacefast returns `422 source_commit_not_saved`, its saved branch cannot yet supply that SHA. Wait for the source to catch up and retry with the same SHA if the release is still current. Keep the pin on every attempt. If sync remains blocked, use the clean-checkout fallback below. In **Builds**, verify the build’s source SHA, successful status and produced or reused version against the live channel. A reused version can carry an earlier source SHA.
+
+Check the root notice, nearby stops, a fresh batch, filtered per-line departures and a walking route on `api.departs.now`. Both departures forms must return `Cache-Control: no-store`. Verify Vercel serves the merge on `departs.vercel.app`.
+
+The first live GitHub build on 26 November 2026 was manual. The docs-only merge `208f73c` was skipped. Two minutes later its SHA was still unavailable to a pinned request. An unpinned `main` build selected the previous commit, `d68ef5c`, and went live at 12:11:29 CET. Only documentation differed. This is why the manual release command pins the commit.
 
 ### Spacefast CLI fallback
 
@@ -15,7 +38,9 @@ If the GitHub build fails or must be bypassed, publish the approved merged revis
 ```sh
 set -eu
 git fetch origin main
-git switch --detach origin/main
+: "${release_sha:?Set release_sha to the full approved merge SHA}"
+git merge-base --is-ancestor "$release_sha" origin/main
+git switch --detach "$release_sha"
 test -z "$(git status --porcelain)"
 npm ci
 npm run test:run
