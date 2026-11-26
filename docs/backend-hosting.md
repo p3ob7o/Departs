@@ -4,7 +4,13 @@ Installed releases through 1.3 (build 14) call `departs.vercel.app`. New release
 
 ## Ship a backend change
 
-Run the tests, lint and both builds. Check the deployed preview with a real batch before merging. Vercel deploys branch previews automatically and deploys merged `main` to its production host. Spacefast is connected to GitHub with production auto-deploy off. Use the CLI procedure below for each approved merged revision. Start in a clean checkout of the repository, with the authorized Spacefast deployment identity available.
+Run tests, lint and both builds. Pull requests get Vercel previews and a **Spacefast Builds** preview check. Verify a real departures batch on the preview before merging.
+
+Merging to `main` automatically deploys to Vercel and Spacefast. In **departs-api → Builds**, find the successful build for the merge commit and confirm its version is ready and live. On `api.departs.now`, check the root notice, nearby stops, a fresh departures batch, filtered per-line departures and a walking route. Both departures forms must return `Cache-Control: no-store`. Check the Vercel deployment for the same commit on `departs.vercel.app`.
+
+### Spacefast CLI fallback
+
+If the GitHub build fails or must be bypassed, publish the approved merged revision from a clean checkout using an authorized Spacefast identity.
 
 ```sh
 set -eu
@@ -32,14 +38,13 @@ publish --dry-run
 publish --wait
 ```
 
-Protect CLI output as a credential. Verify the receipt names the intended Space, the version is ready and live, and its commit matches the release. Check HTTPS, root text, validation and a successful transit batch on the custom domain. If custom-domain HTTPS is pending, verify the managed hostname supplied in the receipt and record the custom-domain check as pending. Inspect the response version and board timestamp. Also check the equivalent Vercel release. If an operation requires confirmation, stop for the owner.
+Protect CLI output as a credential. Verify the receipt’s Space, live version and commit, then repeat the production checks above. If confirmation is required, stop for the owner.
 
 ## Connect GitHub
 
-1. In the [Spacefast dashboard](https://my.spacefast.com/), select the **Departs** team and **departs-api → Builds → Connect GitHub → Connect repository**. GitHub installation discovery requires a signed-in user session.
-2. Select **p3ob7o/Departs**. If it is missing, choose **Add repositories**, authorize only **Departs** on GitHub, then return to the picker.
-3. Enter build settings **before confirming the connection**. Connecting this repository immediately queued a live build with empty settings, which was cancelled before it produced a version. The connection uses production branch `main`, production auto-deploy off and branch previews on. Its saved root is the repository root. At that root the build emits the Function files but Spacefast requires a Next.js adapter report. The same failure occurred with a per-build `frameworkPreset` of `static`.
-4. For a GitHub preview, use the repository build API with the full commit on `main`, `target: {"channel": null, "preview": true}` and the per-run settings below. Verify the target on the queued build. The build runs in `spacefast/`, outside the package that declares Next.js. It invokes the existing bundler in the parent package, then copies its four entries into the selected root’s output directory. The saved connection settings still need a separate owner decision before automatic previews use this recipe. [Spacefast Git deployments](https://spacefast.com/docs/git/) · [Build API](https://api.spacefast.com/openapi.json)
+In the [Spacefast dashboard](https://my.spacefast.com/), select **Departs → departs-api → Builds → Connect GitHub** and choose **p3ob7o/Departs**. If the repository is missing, use **Add repositories** to authorize it on GitHub. Enter the build settings **before confirming**. Connecting the repository immediately queued a live build, even with empty settings.
+
+The connection uses `main` for production and enables branch previews. Its saved settings are below, with both presets unset. The build root is `spacefast/` because at the repository root Spacefast detects Next.js and requires its adapter report, even with the `static` override. The build command invokes the parent package’s bundler and stages its four Function entries in `dist/functions/`.
 
 ```json
 {
@@ -51,7 +56,7 @@ Protect CLI output as a credential. Verify the receipt names the intended Space,
 }
 ```
 
-On 26 November 2026 this recipe built GitHub `main` at `d68ef5c` as unpromoted V18. Its manifest hash, empty static file lists and routing summary matched live V17. On V18’s version hostname, a direct, paced preview session received five HTTP 200 responses: the root notice, 17 Vienna stops, 17 departure boards, four filtered departures and a walking route. Both provider bindings worked. All responses carried `private, no-store`, and the batch was 0.299 seconds old at receipt. The API exposes the worker bundle digest for the live runtime. A separate preview worker digest was unavailable for comparison.
+On 26 November 2026, GitHub preview V18 matched live V17’s manifest, static file lists and routing summary. All five Vienna requests returned 200 on the preview, including a batch 0.299 seconds old and a walking route.
 
 ## Rollback and secrets
 
