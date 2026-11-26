@@ -29,7 +29,22 @@ final class TransitSession {
     }
 
     init(store: TransitStore? = nil, locationService: LocationService = LocationService()) {
+        #if DEBUG
+        var client = TransitClient.live
+        if let fixture = ProcessInfo.processInfo.environment["DEPARTS_TEST_WALKING_ROUTES"] {
+            client.directions = { origin, destination in
+                guard fixture == "straight" else { throw CancellationError() }
+                let distance = origin.distance(to: destination)
+                return WalkingRoute(
+                    geometry: .init(type: "LineString", coordinates: [[origin.lon, origin.lat], [destination.lon, destination.lat]]),
+                    duration: max(45, distance / 1.3), distance: distance
+                )
+            }
+        }
+        self.store = store ?? TransitStore(client: client)
+        #else
         self.store = store ?? TransitStore()
+        #endif
         self.locationService = locationService
     }
 

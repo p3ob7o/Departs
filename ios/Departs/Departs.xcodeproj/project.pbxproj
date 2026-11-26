@@ -17,6 +17,7 @@
 		F1000008 /* WalkingRoute.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000008 /* WalkingRoute.swift */; };
 		F1000009 /* APIService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000009 /* APIService.swift */; };
 		F100000A /* LocationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000A /* LocationService.swift */; };
+		F1000032 /* WalkingRouteService.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1000032 /* WalkingRouteService.swift */; };
 		F100000D /* NearbyStopsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000D /* NearbyStopsView.swift */; };
 		F100000E /* DepartureDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000E /* DepartureDetailView.swift */; };
 		F100000F /* StopRowView.swift in Sources */ = {isa = PBXBuildFile; fileRef = E100000F /* StopRowView.swift */; };
@@ -61,6 +62,7 @@
 		E1000008 /* WalkingRoute.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalkingRoute.swift; sourceTree = "<group>"; };
 		E1000009 /* APIService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIService.swift; sourceTree = "<group>"; };
 		E100000A /* LocationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocationService.swift; sourceTree = "<group>"; };
+		E1000032 /* WalkingRouteService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalkingRouteService.swift; sourceTree = "<group>"; };
 		E100000D /* NearbyStopsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NearbyStopsView.swift; sourceTree = "<group>"; };
 		E100000E /* DepartureDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DepartureDetailView.swift; sourceTree = "<group>"; };
 		E100000F /* StopRowView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StopRowView.swift; sourceTree = "<group>"; };
@@ -155,6 +157,7 @@
 				E1000021 /* TransitPersistence.swift */,
 				E1000009 /* APIService.swift */,
 				E100000A /* LocationService.swift */,
+				E1000032 /* WalkingRouteService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -346,6 +349,7 @@
 				F1000008 /* WalkingRoute.swift in Sources */,
 				F1000009 /* APIService.swift in Sources */,
 				F100000A /* LocationService.swift in Sources */,
+				F1000032 /* WalkingRouteService.swift in Sources */,
 				F100000D /* NearbyStopsView.swift in Sources */,
 				F100000E /* DepartureDetailView.swift in Sources */,
 				F100000F /* StopRowView.swift in Sources */,

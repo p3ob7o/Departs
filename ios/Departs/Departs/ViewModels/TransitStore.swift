@@ -10,7 +10,7 @@ struct TransitClient {
     static let live = TransitClient(
         stops: { try await APIService.shared.fetchNearbyStops(lat: $0.lat, lon: $0.lon) },
         departures: { try await APIService.shared.fetchDepartures(stopId: $0.stop.id, line: $0.line) },
-        directions: { try await APIService.shared.fetchDirections(from: $0, to: $1) },
+        directions: { try await WalkingRouteService.shared.route(from: $0, to: $1) },
         batch: { try await APIService.shared.fetchDepartureBoards(stopIDs: $0) }
     )
 }

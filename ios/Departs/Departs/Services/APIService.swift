@@ -106,8 +106,7 @@ actor APIService {
         }
         let (data, response) = try await load(request)
         let value = try decode(data)
-        // Remember validated stops and walks on the device for their original
-        // lifetimes, even when the hosting layer disables HTTP caching.
+        // Keep validated stops on the device even when the hosting layer disables HTTP caching.
         cache?.storeCachedResponse(CachedURLResponse(
             response: response, data: data, userInfo: [expirationKey: now().addingTimeInterval(lifetime)],
             storagePolicy: .allowed
@@ -133,17 +132,6 @@ actor APIService {
         let response = try decoder.decode(BatchDepartures.self, from: bytes)
         guard TimeFormatter.parseISO(response.fetchedAt) != nil else { throw APIError.requestFailed }
         return response
-    }
-
-    func fetchDirections(from: Coordinate, to: Coordinate) async throws -> WalkingRoute {
-        let url = try Self.directionsURL(from: from, to: to)
-        return try await cachedValue(at: url, lifetime: 3_600) { data in
-            let route = try decoder.decode(WalkingRoute.self, from: data)
-            guard route.duration.isFinite, route.duration >= 0, route.distance.isFinite, route.distance >= 0,
-                  route.geometry.type == "LineString", route.geometry.coordinates.count >= 2,
-                  route.geometry.clCoordinates.count == route.geometry.coordinates.count else { throw APIError.requestFailed }
-            return route
-        }
     }
 
     static func nearbyStopsURL(lat: Double, lon: Double) throws -> URL {
@@ -175,16 +163,6 @@ actor APIService {
         return try makeURL(path: "/api/departures", queryItems: [
             URLQueryItem(name: "stopIds", value: stopIDs.joined(separator: ","))
         ])
-    }
-
-    static func directionsURL(from: Coordinate, to: Coordinate) throws -> URL {
-        try makeURL(
-            path: "/api/directions",
-            queryItems: [
-                URLQueryItem(name: "from", value: "\(from.lat),\(from.lon)"),
-                URLQueryItem(name: "to", value: "\(to.lat),\(to.lon)"),
-            ]
-        )
     }
 
     private static func makeURL(path: String, queryItems: [URLQueryItem]) throws -> URL {

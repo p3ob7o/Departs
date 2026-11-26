@@ -57,7 +57,7 @@ The departures Function sets `Cache-Control: no-store` on batch, single-stop, fi
 
 List ready versions with `npx -y spacefast@0.10.0 versions ls --space departs-api --api-url https://api.spacefast.com`. With owner approval, restore the chosen version with `npx -y spacefast@0.10.0 rollback vNUMBER --space departs-api --api-url https://api.spacefast.com`. Verify the live version and repeat the rider checks. Reconcile the source before the next release. [Spacefast versions](https://spacefast.com/docs/versions/)
 
-Spacefast seals the runtime bindings `HERE_API_KEY` and `MAPBOX_SECRET_TOKEN` with each version. A variable write can change the live version. After any Space change, check that both names are present and verify a transit request and a walk. An empty binding sends an empty key to the provider. Calling an API entry without its runtime context throws before it can return JSON.
+Spacefast seals the runtime bindings `HERE_API_KEY` and `MAPBOX_SECRET_TOKEN` with each version. The app now requests walking routes from MapKit on the device. Keep `/api/directions` and `MAPBOX_SECRET_TOKEN` for TestFlight 1.3 (15) until a newer build replaces it. A variable write can change the live version. After any Space change, check that both names are present and verify a transit request and a walk. An empty binding sends an empty key to the provider. Calling an API entry without its runtime context throws before it can return JSON.
 
 Access and edge logs may include client addresses, location queries and long-lived signed bundle URLs. Upstream URLs can carry provider credentials. Keep raw logs and receipts owner-readable outside Git. Share only redacted observations.
 

@@ -16,6 +16,7 @@ final class DepartsUITests: XCTestCase {
         wait(for: [ready], timeout: 5)
         app = XCUIApplication()
         app.launchEnvironment["DEPARTS_API_BASE_URL"] = server.baseURL
+        app.launchEnvironment["DEPARTS_TEST_WALKING_ROUTES"] = "straight"
         app.launchEnvironment["DEPARTS_DEFAULTS_SUITE"] = "departs-ui-\(UUID().uuidString)"
         app.launchArguments = ["-AppleLanguages", "(en)", "-AppleLocale", "en_US"]
         XCUIDevice.shared.orientation = .portrait
@@ -54,7 +55,6 @@ final class DepartsUITests: XCTestCase {
         app.launchEnvironment["DEPARTS_TEST_GOOGLE_MAPS"] = "1"
         launch()
         waitForRows()
-        waitUntil { self.server.walkCount == 4 }
         assertStacked(homeMap, nearbyList)
         capture("iPad portrait home")
         XCUIDevice.shared.orientation = .landscapeLeft
@@ -175,7 +175,6 @@ final class DepartsUITests: XCTestCase {
     func testHomeSampleSquareMapDensityAndOneBatchPerRefresh() {
         launch()
         waitForRows()
-        waitUntil { self.server.walkCount == 4 }
         let frame = homeMap.frame
         XCTAssertEqual(app.navigationBars.count, 0, "Home has no bar: no title and no location button")
         XCTAssertFalse(app.buttons["locate"].exists)
@@ -204,7 +203,7 @@ final class DepartsUITests: XCTestCase {
         XCTAssertEqual(server.radii, [400])
         XCTAssertEqual(server.batchCount, 1)
         XCTAssertEqual(server.individualCount, 0)
-        XCTAssertEqual(server.walkCount, 4)
+        XCTAssertEqual(server.legacyWalkCount, 0)
         XCTAssertFalse(app.buttons["refresh-list"].exists)
         XCTAssertFalse(app.staticTexts["board-status"].exists)
         XCTAssertFalse(app.buttons["pin-hint"].exists)
@@ -213,7 +212,7 @@ final class DepartsUITests: XCTestCase {
         pullToRefresh()
         waitUntil { self.server.batchCount == before + 1 }
         XCTAssertEqual(server.radii, [400])
-        XCTAssertEqual(server.walkCount, 4)
+        XCTAssertEqual(server.legacyWalkCount, 0)
     }
 
     func testFirstLaunchShowsFindingThenRowsWithoutStatus() {
@@ -519,7 +518,6 @@ final class DepartsUITests: XCTestCase {
         launch(); waitForRows()
         let label = mapLabel("Subway U3")
         XCTAssertTrue(label.waitForExistence(timeout: 8))
-        waitUntil { self.server.walkCount == 4 }
         let home = label.frame
         homeMap.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.3))
             .press(forDuration: 0.1, thenDragTo: homeMap.coordinate(withNormalizedOffset: CGVector(dx: 0.2, dy: 0.7)),
@@ -550,7 +548,6 @@ final class DepartsUITests: XCTestCase {
 
     func testHomeMapFollowsASmallMoveWithoutLoadingStops() {
         launch(); waitForRows()
-        waitUntil { self.server.walkCount == 4 }
         let label = mapLabel("Bus 48A")
         XCTAssertTrue(label.waitForExistence(timeout: 8))
         let before = label.frame, services = rowServices(), stops = server.radii.count
@@ -571,7 +568,6 @@ final class DepartsUITests: XCTestCase {
         server.useExtraStops(extraStops)
         launch()
         waitForRows()
-        waitUntil { self.server.walkCount == 4 + extraStops }
     }
 
     func testStopNameLeavesWithItsLastLine() {
@@ -1037,7 +1033,6 @@ final class DepartsUITests: XCTestCase {
 
     func testStopLineRunsUnderTheButtonsOnOneLine() {
         launch(); waitForRows()
-        waitUntil { self.server.walkCount == 4 }
         rows.matching(NSPredicate(format: "label CONTAINS 'Bus 48A'")).firstMatch.tap()
         waitUntil { self.lineRows.count == 4 }
         let summary = app.staticTexts["detail-stop-name"], walk = app.buttons["walking-directions"], pin = app.buttons["pin-route"]
@@ -1282,7 +1277,7 @@ final class DepartsUITests: XCTestCase {
     }
 
     func testLineWithoutWalkingRouteStillShowsBothEndpoints() {
-        server.setDirectionsFailed(true)
+        app.launchEnvironment["DEPARTS_TEST_WALKING_ROUTES"] = "unavailable"
         launch(); waitForRows(); rows.firstMatch.tap()
         waitUntil { self.lineRows.count == 4 }
         XCTAssertEqual(app.staticTexts["detail-stop-name"].label, "Siebensterngasse")
@@ -1614,7 +1609,6 @@ private final class TransitFixtureServer {
     private let queue = DispatchQueue(label: "departs.ui-fixtures")
     private var offline = false
     private var stopsFailed = false
-    private var directionsFailed = false
     private var emptyStops = false
     private var noDepartures = false
     private var changedServices = false
@@ -1625,7 +1619,7 @@ private final class TransitFixtureServer {
     private var requestedCenters: [(Double, Double)] = []
     private var batches = 0
     private var individuals = 0
-    private var walks = 0
+    private var legacyWalks = 0
     private var firstBoardAt: Date?
     private var lineMinutes: [Double]?
     private var longDestination = false
@@ -1648,12 +1642,11 @@ private final class TransitFixtureServer {
     var baseURL: String { "http://127.0.0.1:\(listener.port!.rawValue)" }
     var batchCount: Int { queue.sync { batches } }
     var individualCount: Int { queue.sync { individuals } }
-    var walkCount: Int { queue.sync { walks } }
+    var legacyWalkCount: Int { queue.sync { legacyWalks } }
     var radii: [Int] { queue.sync { requestedRadii } }
     var centers: [(Double, Double)] { queue.sync { requestedCenters } }
     func setOffline(_ value: Bool) { queue.sync { offline = value } }
     func setStopsFailed(_ value: Bool) { queue.sync { stopsFailed = value } }
-    func setDirectionsFailed(_ value: Bool) { queue.sync { directionsFailed = value } }
     func setEmptyStops(_ value: Bool) { queue.sync { emptyStops = value } }
     func setNoDepartures(_ value: Bool) { queue.sync { noDepartures = value } }
     func setMissing(_ ids: Set<String>) { queue.sync { missing = ids } }
@@ -1720,7 +1713,6 @@ private final class TransitFixtureServer {
             let payload = self.response(to: url)
             let body = try! JSONSerialization.data(withJSONObject: payload)
             let failed = self.offline || self.stopsFailed && url.path == "/api/stops/nearby"
-                || self.directionsFailed && url.path == "/api/directions"
             let status = failed ? "503 Service Unavailable" : "200 OK"
             var response = Data("HTTP/1.1 \(status)\r\nContent-Type: application/json\r\nCache-Control: no-store\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n".utf8)
             response.append(body)
@@ -1797,12 +1789,8 @@ private final class TransitFixtureServer {
             if let lineMinutes { service.minutes = lineMinutes }
             return TransitSample.departures(service, at: firstBoardAt!, count: 4)
         case "/api/directions":
-            walks += 1
-            let from = value("from")!.split(separator: ",").map { Double($0)! }
-            let to = value("to")!.split(separator: ",").map { Double($0)! }
-            let distance = CLLocation(latitude: from[0], longitude: from[1]).distance(from: CLLocation(latitude: to[0], longitude: to[1]))
-            return ["duration": max(45, distance / 1.3), "distance": distance,
-                    "geometry": ["type": "LineString", "coordinates": [[from[1], from[0]], [to[1], to[0]]]]]
+            legacyWalks += 1
+            fallthrough
         default: return ["error": "Unexpected fixture URL"]
         }
     }

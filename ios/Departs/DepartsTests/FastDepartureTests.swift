@@ -171,6 +171,49 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertEqual(store.groups.map { $0.active.count }, [4, 1, 1, 2])
     }
 
+    @MainActor func testDetailUsesInjectedWalkingRoute() async {
+        let platform = stop()
+        let selection = StopLineSelection(stop: platform, line: line, lineIndex: 0)
+        let expectedRoute = route()
+        var api = client()
+        var requests = 0
+        api.directions = { origin, destination in
+            requests += 1
+            XCTAssertEqual(origin, self.coordinate)
+            XCTAssertEqual(destination, platform.location)
+            return expectedRoute
+        }
+
+        let store = makeStore(api)
+        await store.updateLocation(fix, showing: selection)
+        await store.refreshSelection(selection, force: true)
+
+        XCTAssertEqual(requests, 1)
+        XCTAssertEqual(store.walk(for: platform, at: instant)?.route, expectedRoute)
+        XCTAssertEqual(store.boards[selection.id]?.departures.map(\.time), [departure(7).time, departure(12).time])
+    }
+
+    @MainActor func testWalkingErrorsLeaveDeparturesFresh() async {
+        let platform = stop()
+        let selection = StopLineSelection(stop: platform, line: line, lineIndex: 0)
+        let errors: [Error] = [MKError(.loadingThrottled), MKError(.directionsNotFound), CancellationError()]
+        for error in errors {
+            var api = client()
+            var requests = 0
+            api.directions = { _, _ in requests += 1; throw error }
+            let store = makeStore(api)
+
+            await store.updateLocation(fix, showing: selection)
+            await store.refreshSelection(selection, force: true)
+
+            XCTAssertEqual(requests, 2, "A failed walk can be requested again")
+            XCTAssertNil(store.walk(for: platform, at: instant))
+            XCTAssertEqual(store.boards[selection.id]?.departures.map(\.time), [departure(7).time, departure(12).time])
+            XCTAssertTrue(store.isBoardFresh(for: selection, at: instant))
+            XCTAssertNil(store.departuresError)
+        }
+    }
+
     @MainActor func testFailedBatchKeepsEveryRowAndTimeButUsesClockWithoutFanout() async throws {
         var api = try sampleClient(), failed = false, individualCalls = 0
         let response = try sampleBatch()
@@ -1108,4 +1151,71 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertEqual(TransitStore.radius, 400)
     }
 
+}
+
+final class WalkingRouteServiceTests: XCTestCase {
+    private let origin = Coordinate(lat: 48.20134, lon: 16.34941)
+    private let destination = Coordinate(lat: 48.202, lon: 16.35)
+
+    private func polyline(_ coordinates: [Coordinate]) -> MKPolyline {
+        MKPolyline(coordinates: coordinates.map(\.clLocationCoordinate2D), count: coordinates.count)
+    }
+
+    @MainActor func testWalkingRequestMapsPolylineAndMetrics() async throws {
+        let corner = Coordinate(lat: origin.lat, lon: destination.lon)
+        let polyline = polyline([origin, corner, destination])
+        let service = WalkingRouteService(calculate: { request in
+            XCTAssertEqual(request.transportType, .walking)
+            XCTAssertFalse(request.requestsAlternateRoutes)
+            XCTAssertEqual(request.source?.location.coordinate.latitude, self.origin.lat)
+            XCTAssertEqual(request.source?.location.coordinate.longitude, self.origin.lon)
+            XCTAssertEqual(request.destination?.location.coordinate.latitude, self.destination.lat)
+            XCTAssertEqual(request.destination?.location.coordinate.longitude, self.destination.lon)
+            return (polyline, 195, 234)
+        })
+
+        let route = try await service.route(from: origin, to: destination)
+        XCTAssertEqual(route.duration, 195)
+        XCTAssertEqual(route.distance, 234)
+        XCTAssertEqual(route.geometry.type, "LineString")
+        XCTAssertEqual(route.geometry.coordinates.count, 3)
+        for (point, expected) in zip(route.geometry.coordinates, [origin, corner, destination]) {
+            XCTAssertEqual(point[0], expected.lon, accuracy: 1e-8)
+            XCTAssertEqual(point[1], expected.lat, accuracy: 1e-8)
+        }
+    }
+
+    @MainActor func testRejectsInvalidMetricsAndShortPolyline() throws {
+        let valid = polyline([origin, destination])
+        let short = polyline([origin])
+        let invalid: [WalkingRouteService.RouteData] = [
+            (valid, .nan, 1), (valid, .infinity, 1), (valid, -1, 1),
+            (valid, 1, .nan), (valid, 1, .infinity), (valid, 1, -1), (short, 1, 1),
+        ]
+        for (polyline, duration, distance) in invalid {
+            XCTAssertThrowsError(try WalkingRouteService.walkingRoute(polyline: polyline, duration: duration, distance: distance))
+        }
+        XCTAssertNoThrow(try WalkingRouteService.walkingRoute(polyline: valid, duration: 0, distance: 0))
+    }
+
+    @MainActor func testReusesOnlyExactEndpointsForOneHour() async throws {
+        var date = Date(timeIntervalSince1970: 1_800_000_000)
+        var requests = 0
+        let polyline = polyline([origin, destination])
+        let service = WalkingRouteService(now: { date }) { _ in
+            requests += 1
+            return (polyline, Double(requests), 234)
+        }
+
+        let initial = try await service.route(from: origin, to: destination)
+        _ = try await service.route(from: origin, to: origin)
+        _ = try await service.route(from: destination, to: destination)
+        date += 3_599
+        let cached = try await service.route(from: origin, to: destination)
+        XCTAssertEqual(cached, initial)
+        XCTAssertEqual(requests, 3)
+        date += 1
+        let expired = try await service.route(from: origin, to: destination)
+        XCTAssertEqual(expired.duration, 4)
+    }
 }
