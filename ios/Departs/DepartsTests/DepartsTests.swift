@@ -277,6 +277,16 @@ final class DepartsTests: XCTestCase {
         XCTAssertEqual(URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?.first?.value, "stop/1?direction=A&B")
     }
 
+    func testDestinationTitleCaseHandlesProviderCasingAndPreservesSeparators() {
+        let expected = "Wien Hütteldorf, ÖBB/RER – S+U, U.S. Embassy"
+        for direction in [expected.lowercased(), expected.uppercased(), expected, "wIeN hüTteldorf, Öbb/rEr – s+u, u.s. eMbassy"] {
+            XCTAssertEqual(LineInfo.titleCaseDestination(direction), expected)
+        }
+        XCTAssertEqual(LineInfo.titleCaseDestination("u.s.embassy"), "U.S.Embassy")
+        XCTAssertEqual(LineInfo.titleCaseDestination("東京 / محطة  42"), "東京 / محطة  42")
+        XCTAssertEqual(LineInfo.titleCaseDestination(""), "")
+    }
+
     func testDepartureURLIncludesSelectedLineAndDirection() throws {
         let url = try APIService.departuresURL(
             stopId: "stop/1?platform=A&B",

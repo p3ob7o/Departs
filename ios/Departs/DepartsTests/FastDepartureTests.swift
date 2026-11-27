@@ -1088,8 +1088,8 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertTrue(store.boardErrors.contains(selection.id))
     }
     @MainActor func testDisplayOnlyPrefixUsesThreeDistinctSharedDirections() {
-        let directions = ["Paris Nord", "Paris Sud", "Paris Est"]
-        let north = LineInfo(name: "RER", direction: "Paris Nord", type: .rail)
+        let directions = ["PARIS NORD", "PARIS SUD", "PARIS EST"]
+        let north = LineInfo(name: "RER", direction: directions[0], type: .rail)
         XCTAssertEqual(NearbyStopsView.displayDirection(north, among: directions), "Nord")
         XCTAssertEqual(NearbyStopsView.displayDirection(north, among: Array(directions.prefix(2))), "Paris Nord")
         XCTAssertEqual(NearbyStopsView.displayDirection(north, among: directions + ["Lyon Centre"]), "Paris Nord")
@@ -1110,7 +1110,7 @@ final class FastDepartureTests: XCTestCase {
             (.subway, "King's Cross St. Pancras Underground Station", "King's Cross St. Pancras"),
             (.subway, "  Heathrow Terminal 4 underground station  ", "Heathrow Terminal 4"),
             (.subway, "Underground Station", "Underground Station"),
-            (.subway, "Waterloo Underground Station via Bank", "Waterloo Underground Station via Bank"),
+            (.subway, "Waterloo Underground Station via Bank", "Waterloo Underground Station Via Bank"),
             (.subway, "Golders Green Station", "Golders Green Station"),
             (.subway, "  渋谷  ", "  渋谷  "),
             (.subway, "", ""),
@@ -1137,6 +1137,17 @@ final class FastDepartureTests: XCTestCase {
         XCTAssertEqual(shortcut.id, pin.id)
         XCTAssertEqual(shortcut.title, "Bakerloo → Elephant & Castle")
         XCTAssertEqual(MapDirections.spoken(line), "Subway Bakerloo toward Elephant & Castle")
+    }
+
+    func testShortcutDestinationUsesTitleCaseWithTheRawPinID() {
+        let raw = "WIEN SKODAGASSE"
+        let stop = NearbyStop(id: "312", name: "Siebensterngasse", type: .bus,
+                              lines: [], location: .init(lat: 48.2, lon: 16.3), distance: nil)
+        let selection = StopLineSelection(stop: stop, line: LineInfo(name: "13A", direction: raw, type: .bus), lineIndex: 0)
+        let entity = PinnedRouteEntity(selection)
+        XCTAssertEqual(entity.title, "13A → Wien Skodagasse")
+        XCTAssertEqual(entity.id, selection.id)
+        XCTAssertTrue(entity.id.contains(raw))
     }
 
     func testBoardExcludesExpiredAndInvalidTimesAndSortsUpcoming() {
@@ -1731,7 +1742,7 @@ final class FastDepartureTests: XCTestCase {
         let long = size(["Kaiserebersdorf, Zinnergasse über Hauptbahnhof und Simmering", "Ottakring"])
         XCTAssertEqual(long.width, MapDirections.widthLimit, accuracy: 0.5, "A long direction stops at the limit")
         XCTAssertGreaterThan(long.height, short.height, "and wraps instead")
-        XCTAssertEqual(MapDirections.spoken(LineInfo(name: "46", direction: "Wien Dornbach", type: .tram)), "Tram 46 toward Wien Dornbach",
+        XCTAssertEqual(MapDirections.spoken(LineInfo(name: "46", direction: "WIEN DORNBACH", type: .tram)), "Tram 46 toward Wien Dornbach",
                        "Spoken without a time, like what is shown")
     }
 

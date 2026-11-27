@@ -1366,7 +1366,7 @@ final class DepartsUITests: XCTestCase {
         launch(); waitForRows(); rows.firstMatch.tap()
         let title = app.staticTexts["detail-direction"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
-        XCTAssertEqual(title.label, "13A Wien Kaiserebersdorf, Zinnergasse über Hauptbahnhof und Simmering")
+        XCTAssertEqual(title.label, "13A Wien Kaiserebersdorf, Zinnergasse Über Hauptbahnhof Und Simmering")
         if !isPad { XCTAssertGreaterThan(title.frame.height, 30) }
         XCTAssertLessThanOrEqual(title.frame.maxX, app.frame.maxX)
         capture("Line long destination")
@@ -1374,7 +1374,10 @@ final class DepartsUITests: XCTestCase {
 
     func testLineWithAPlusInItsDestinationShowsDepartures() {
         server.usePlusDestination()
-        launch(); waitForRows(); rows.firstMatch.tap()
+        launch(); waitForRows()
+        let row = rows.matching(NSPredicate(format: "label CONTAINS 'S+U Pankow'")).firstMatch
+        XCTAssertTrue(row.exists)
+        row.tap()
         let title = app.staticTexts["detail-direction"]
         XCTAssertTrue(title.waitForExistence(timeout: 5))
         XCTAssertTrue(title.label.hasSuffix(" S+U Pankow"), title.label)
@@ -1710,7 +1713,7 @@ private final class TransitFixtureServer {
     private var longDestination = false
     private var plusDestination = false
     private var londonDestination = false
-    private let londonHeadsign = "Elephant & Castle Underground Station"
+    private let londonHeadsign = "ELEPHANT & CASTLE UNDERGROUND STATION"
     private var antimeridianStop = false
     private var events: [String] = []
     private var nextConnectionID = 0
@@ -1854,7 +1857,7 @@ private final class TransitFixtureServer {
                     if londonDestination {
                         line = ["name": "Bakerloo", "direction": londonHeadsign, "type": "subway"]
                     } else {
-                        line["direction"] = plusDestination ? "S+U Pankow"
+                        line["direction"] = plusDestination ? "s+u PANKOW"
                             : "Wien Kaiserebersdorf, Zinnergasse über Hauptbahnhof und Simmering"
                     }
                     groups[0]["line"] = line
@@ -1883,7 +1886,7 @@ private final class TransitFixtureServer {
                 // match exactly: a plus the app leaves raw selects nothing.
                 let direction = url.percentEncodedQueryItems?.first { $0.name == "direction" }?.value?
                     .replacingOccurrences(of: "+", with: " ").removingPercentEncoding
-                if direction != "S+U Pankow" { return [] as [Any] }
+                if direction != "s+u PANKOW" { return [] as [Any] }
             }
             let id = value("stopId")?.replacingOccurrences(of: "77704_", with: "") ?? "312"
             var service = TransitSample.services[id]?.first { $0.name == value("lineName") && $0.line["direction"] as? String == value("direction") }

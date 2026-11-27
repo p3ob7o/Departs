@@ -7,8 +7,29 @@ struct LineInfo: Codable, Identifiable, Hashable {
 
     var id: String { "\(name)::\(direction)" }
 
+    /// Rider-facing text. Provider spelling remains in `direction` for identity and requests.
+    var displayDirection: String { Self.titleCaseDestination(shortenedDirection) }
+
+    private static let destinationAcronyms: Set<String> = [
+        "BART", "BWI", "CDG", "CTA", "DCA", "DLR", "EWR", "JFK", "LAX", "LGA",
+        "LIRR", "MARTA", "MCO", "MDW", "MIA", "MRT", "NYC", "OAK", "ORD", "PATH",
+        "RER", "SFO", "SNCF", "TGV", "TTC", "UCLA", "UIC", "USC", "VRE", "WTC", "ÖBB"
+    ]
+
+    static func titleCaseDestination(_ destination: String) -> String {
+        destination.replacing(#/(?:\p{L}\.)+\p{L}(?![\p{L}\p{M}\p{N}])|[\p{L}\p{M}\p{N}]+(?:['’][\p{L}\p{M}]+)*/#) { match in
+            let word = match.output
+            let uppercase = word.uppercased()
+            // Dotted initials and known acronyms can be identified even in a lowercase feed.
+            if word.contains(".") || destinationAcronyms.contains(uppercase) {
+                return uppercase
+            }
+            return word.capitalized
+        }
+    }
+
     /// Shortens the provider's London subway headsign for display.
-    var displayDirection: String {
+    var shortenedDirection: String {
         guard type == .subway else { return direction }
         let trimmed = direction.trimmingCharacters(in: .whitespacesAndNewlines)
         guard let suffix = trimmed.range(of: " Underground Station", options: [.caseInsensitive, .backwards, .anchored]) else {

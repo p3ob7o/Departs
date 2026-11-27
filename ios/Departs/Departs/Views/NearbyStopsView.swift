@@ -360,11 +360,11 @@ struct NearbyStopsView: View {
     }
 
     static func displayDirection(_ line: LineInfo, among directions: [String]) -> String {
-        let display = line.displayDirection
+        let display = line.shortenedDirection
         let unique = Set(directions)
         guard unique.count >= 3, let prefix = line.direction.split(separator: " ").first,
               display.hasPrefix("\(prefix) "), display.count > prefix.count + 1,
-              unique.allSatisfy({ $0.hasPrefix("\(prefix) ") && $0.count > prefix.count + 1 }) else { return display }
-        return String(display.dropFirst(prefix.count + 1))
+              unique.allSatisfy({ $0.hasPrefix("\(prefix) ") && $0.count > prefix.count + 1 }) else { return line.displayDirection }
+        return LineInfo.titleCaseDestination(String(display.dropFirst(prefix.count + 1)))
     }
 }
