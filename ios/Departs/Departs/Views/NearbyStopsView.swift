@@ -273,7 +273,7 @@ struct NearbyStopsView: View {
 
     /// A direction as the list shows it.
     private func displayDirection(_ selection: StopLineSelection) -> String {
-        Self.displayDirection(selection.line.direction, among: store.displayedOptions.map { $0.line.direction })
+        Self.displayDirection(selection.line, among: store.displayedOptions.map { $0.line.direction })
     }
 
     @ViewBuilder private func states(at date: Date) -> some View {
@@ -359,10 +359,12 @@ struct NearbyStopsView: View {
         }
     }
 
-    static func displayDirection(_ direction: String, among directions: [String]) -> String {
+    static func displayDirection(_ line: LineInfo, among directions: [String]) -> String {
+        let display = line.shortenedDirection
         let unique = Set(directions)
-        guard unique.count >= 3, let prefix = direction.split(separator: " ").first,
-              unique.allSatisfy({ $0.hasPrefix("\(prefix) ") && $0.count > prefix.count + 1 }) else { return LineInfo.titleCaseDestination(direction) }
-        return LineInfo.titleCaseDestination(String(direction.dropFirst(prefix.count + 1)))
+        guard unique.count >= 3, let prefix = line.direction.split(separator: " ").first,
+              display.hasPrefix("\(prefix) "), display.count > prefix.count + 1,
+              unique.allSatisfy({ $0.hasPrefix("\(prefix) ") && $0.count > prefix.count + 1 }) else { return line.displayDirection }
+        return LineInfo.titleCaseDestination(String(display.dropFirst(prefix.count + 1)))
     }
 }

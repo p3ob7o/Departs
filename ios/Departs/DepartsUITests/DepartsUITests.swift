@@ -1385,6 +1385,19 @@ final class DepartsUITests: XCTestCase {
         XCTAssertFalse(app.staticTexts["line-empty"].exists)
     }
 
+    func testSubwayDestinationShortensOnHomeAndLineButStillFindsDepartures() {
+        server.useLondonDestination()
+        launch(); waitForRows()
+        let row = rows.matching(NSPredicate(format: "label CONTAINS %@", "Elephant & Castle")).firstMatch
+        XCTAssertTrue(row.waitForExistence(timeout: 5))
+        XCTAssertFalse(row.label.contains("Underground Station"), row.label)
+        row.tap()
+        let title = app.staticTexts["detail-direction"]
+        XCTAssertTrue(title.waitForExistence(timeout: 5))
+        XCTAssertEqual(title.label, "Bakerloo Elephant & Castle")
+        waitUntil { self.server.individualCount == 1 && self.lineRows.count == 4 }
+    }
+
     func testUSMeasurementPreferenceUsesFeetInWalkingSummary() {
         app.launchArguments += ["-AppleMeasurementUnits", "Inches", "-AppleMetricUnits", "NO"]
         launch(); waitForRows(); rows.firstMatch.tap()
@@ -1699,6 +1712,8 @@ private final class TransitFixtureServer {
     private var lineMinutes: [Double]?
     private var longDestination = false
     private var plusDestination = false
+    private var londonDestination = false
+    private let londonHeadsign = "ELEPHANT & CASTLE UNDERGROUND STATION"
     private var antimeridianStop = false
     private var events: [String] = []
     private var nextConnectionID = 0
@@ -1730,6 +1745,7 @@ private final class TransitFixtureServer {
     func setLineMinutes(_ values: [Double]) { queue.sync { lineMinutes = values } }
     func useLongDestination() { queue.sync { longDestination = true } }
     func usePlusDestination() { queue.sync { plusDestination = true } }
+    func useLondonDestination() { queue.sync { londonDestination = true } }
     func useAntimeridianStop() { queue.sync { antimeridianStop = true } }
     private var extraStops = 0
     func useExtraStops(_ count: Int) { queue.sync { extraStops = count } }
@@ -1834,12 +1850,16 @@ private final class TransitFixtureServer {
             if value("stopIds") != nil {
                 batches += 1
                 var batch = TransitSample.batch(at: firstBoardAt!, missing: missing, empty: noDepartures, changed: changedServices)
-                if longDestination || plusDestination {
+                if longDestination || plusDestination || londonDestination {
                     var boards = batch["boards"] as! [[String: Any]]
                     var groups = boards[0]["groups"] as! [[String: Any]]
                     var line = groups[0]["line"] as! [String: Any]
-                    line["direction"] = plusDestination ? "s+u PANKOW"
-                        : "Wien Kaiserebersdorf, Zinnergasse über Hauptbahnhof und Simmering"
+                    if londonDestination {
+                        line = ["name": "Bakerloo", "direction": londonHeadsign, "type": "subway"]
+                    } else {
+                        line["direction"] = plusDestination ? "s+u PANKOW"
+                            : "Wien Kaiserebersdorf, Zinnergasse über Hauptbahnhof und Simmering"
+                    }
                     groups[0]["line"] = line
                     boards[0]["groups"] = groups
                     batch["boards"] = boards
@@ -1858,6 +1878,9 @@ private final class TransitFixtureServer {
                 return batch
             }
             individuals += 1
+            if londonDestination, value("lineName") != "Bakerloo" || value("direction") != londonHeadsign {
+                return [] as [Any]
+            }
             if plusDestination {
                 // Read the query as a server does, where a raw "+" is a space, and
                 // match exactly: a plus the app leaves raw selects nothing.

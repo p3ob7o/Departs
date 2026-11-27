@@ -8,7 +8,7 @@ struct LineInfo: Codable, Identifiable, Hashable {
     var id: String { "\(name)::\(direction)" }
 
     /// Rider-facing text. Provider spelling remains in `direction` for identity and requests.
-    var displayDirection: String { Self.titleCaseDestination(direction) }
+    var displayDirection: String { Self.titleCaseDestination(shortenedDirection) }
 
     private static let destinationAcronyms: Set<String> = [
         "BART", "BWI", "CDG", "CTA", "DCA", "DLR", "EWR", "JFK", "LAX", "LGA",
@@ -26,6 +26,16 @@ struct LineInfo: Codable, Identifiable, Hashable {
             }
             return word.capitalized
         }
+    }
+
+    /// Shortens the provider's London subway headsign for display.
+    var shortenedDirection: String {
+        guard type == .subway else { return direction }
+        let trimmed = direction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let suffix = trimmed.range(of: " Underground Station", options: [.caseInsensitive, .backwards, .anchored]) else {
+            return direction
+        }
+        return trimmed[..<suffix.lowerBound].trimmingCharacters(in: .whitespaces)
     }
 
     /// What the app shows for the line: its number and letter identifier only.

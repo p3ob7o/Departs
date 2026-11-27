@@ -49,7 +49,7 @@ struct StopRowView: View {
         .contextMenu { pinAction }
     }
     private var spokenAnswer: String {
-        let service = selection.line.direction.isEmpty
+        let service = selection.line.displayDirection.isEmpty
             ? "\(selection.line.type.displayName) \(selection.line.shortName)"
             : String(localized: "\(selection.line.type.displayName) \(selection.line.shortName) toward \(selection.line.displayDirection)")
         return String(localized: "\(service). \(content.spokenAnswer). From \(selection.stop.name).")
@@ -174,7 +174,7 @@ struct MapDirections: View {
     }
 
     static func spoken(_ line: LineInfo) -> String {
-        line.direction.isEmpty
+        line.displayDirection.isEmpty
             ? "\(line.type.displayName) \(line.shortName)"
             : String(localized: "\(line.type.displayName) \(line.shortName) toward \(line.displayDirection)")
     }
