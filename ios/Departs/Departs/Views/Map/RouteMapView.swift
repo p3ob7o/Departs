@@ -13,11 +13,10 @@ struct RouteMapView: UIViewRepresentable {
 
     func makeUIView(context: Context) -> MapContainerView {
         let map = MKMapView()
-        map.isScrollEnabled = true
-        map.isZoomEnabled = true
+        map.isScrollEnabled = false
+        map.isZoomEnabled = false
         map.isRotateEnabled = false
         map.isPitchEnabled = false
-        map.showsUserLocation = true
         map.preferredConfiguration = MKStandardMapConfiguration(emphasisStyle: .muted)
         map.delegate = context.coordinator
         return MapContainerView(mapView: map)
@@ -30,28 +29,31 @@ struct RouteMapView: UIViewRepresentable {
         context.coordinator.stopName = stop.name
         context.coordinator.lineName = line?.shortName ?? stop.lines.first?.shortName ?? stop.type.label
         context.coordinator.originLabel = originIsCurrentLocation ? String(localized: "Walking start") : String(localized: "Last location")
-        let routeCoordinates = walkingRoute?.geometry.clCoordinates ?? []
+        let coordinates = MapCoordinates(platform: stop.location.clLocationCoordinate2D, origin: userCoordinate,
+                                         route: walkingRoute?.geometry.clCoordinates ?? [])
         let stopAnnotationKey = "\(stop.id)|\(stop.location.lat)|\(stop.location.lon)|\(context.coordinator.lineName)"
 
         if context.coordinator.stopAnnotationKey != stopAnnotationKey {
             let existing = map.annotations.compactMap { $0 as? PinAnnotation }.filter { $0.kind == .stop }
             map.removeAnnotations(existing)
 
-            let stopPin = PinAnnotation(
-                coordinate: stop.location.clLocationCoordinate2D,
-                kind: .stop
-            )
-            map.addAnnotation(stopPin)
+            if let platform = coordinates.platform {
+                map.addAnnotation(PinAnnotation(coordinate: platform, kind: .stop))
+            }
             context.coordinator.stopAnnotationKey = stopAnnotationKey
         }
 
-        let originKey = userCoordinate.map { "\($0.latitude)|\($0.longitude)|\(originIsCurrentLocation)" } ?? "none"
+        let originKey = coordinates.origin.map { "\($0.latitude)|\($0.longitude)|\(originIsCurrentLocation)" } ?? "none"
         if context.coordinator.originKey != originKey {
             map.removeAnnotations(map.annotations.compactMap { $0 as? PinAnnotation }.filter { $0.kind == .user })
-            if let userCoordinate { map.addAnnotation(PinAnnotation(coordinate: userCoordinate, kind: .user)) }
+            if let origin = coordinates.origin {
+                map.addAnnotation(PinAnnotation(coordinate: origin, kind: .user))
+            }
+            map.showsUserLocation = coordinates.origin != nil
             context.coordinator.originKey = originKey
         }
 
+        let routeCoordinates = coordinates.route
         let routeKey = Self.routeKey(for: routeCoordinates)
         if context.coordinator.routeKey != routeKey {
             map.removeOverlays(map.overlays)
@@ -62,35 +64,72 @@ struct RouteMapView: UIViewRepresentable {
             context.coordinator.routeKey = routeKey
         }
 
-        // Fit region to the stop, the origin and the route, whichever exist.
-        var lats = [stop.location.lat] + (userCoordinate.map { [$0.latitude] } ?? [])
-        var lons = [stop.location.lon] + (userCoordinate.map { [$0.longitude] } ?? [])
-        for coord in routeCoordinates {
-            lats.append(coord.latitude)
-            lons.append(coord.longitude)
-        }
-        let center = CLLocationCoordinate2D(
-            latitude: (lats.min()! + lats.max()!) / 2,
-            longitude: (lons.min()! + lons.max()!) / 2
-        )
-        // 1° lat ≈ 111km; min span ~150m = 0.00135°. Add 60% padding.
-        let latSpan = max((lats.max()! - lats.min()!) * 1.6, 0.00135)
-        let lonSpan = max((lons.max()! - lons.min()!) * 1.6, 0.002)
-        let region = MKCoordinateRegion(
-            center: center,
-            span: MKCoordinateSpan(latitudeDelta: latSpan, longitudeDelta: lonSpan)
-        )
-
-        let origin = userCoordinate.map { "\($0.latitude),\($0.longitude)" } ?? "none"
-        let regionKey = "\(origin)|\(stop.location.lat),\(stop.location.lon)|\(routeKey)"
+        let regionKey = "\(originKey)|\(stop.location.lat),\(stop.location.lon)|\(routeKey)"
         if context.coordinator.regionKey != regionKey {
             context.coordinator.regionKey = regionKey
+            let region = coordinates.fittedRegion
             container.fittedRegion = region
             container.targetRegion = region
-            if map.bounds.size.width > 0 {
+            if let region, map.bounds.width > 0, map.bounds.height > 0 {
                 container.targetRegion = nil
                 map.setRegion(region, animated: false)
             }
+        }
+    }
+
+    struct MapCoordinates {
+        let platform: CLLocationCoordinate2D?
+        let origin: CLLocationCoordinate2D?
+        let route: [CLLocationCoordinate2D]
+
+        init(platform: CLLocationCoordinate2D, origin: CLLocationCoordinate2D?, route: [CLLocationCoordinate2D]) {
+            func isValid(_ point: CLLocationCoordinate2D) -> Bool {
+                Coordinate(lat: point.latitude, lon: point.longitude).isValid
+            }
+            let validPlatform = isValid(platform) ? platform : nil
+            self.platform = validPlatform
+            self.origin = origin.flatMap { start in
+                guard isValid(start) else { return nil }
+                if let validPlatform {
+                    let stop = Coordinate(lat: validPlatform.latitude, lon: validPlatform.longitude)
+                    let rider = Coordinate(lat: start.latitude, lon: start.longitude)
+                    // For a distant pin, show the platform at the usual stop scale.
+                    guard rider.distance(to: stop) < TransitStore.maximumWalkingDistance else { return nil }
+                }
+                return start
+            }
+            self.route = validPlatform != nil && self.origin != nil && route.allSatisfy(isValid)
+                ? route : []
+        }
+
+        var fittedRegion: MKCoordinateRegion? {
+            let points = [platform, origin].compactMap { $0 } + route
+            guard let first = points.first else { return nil }
+            var south = first.latitude, north = first.latitude
+            for point in points.dropFirst() {
+                south = min(south, point.latitude)
+                north = max(north, point.latitude)
+            }
+
+            // Take the complement of the largest gap on the longitude circle.
+            let longitudes = points.map(\.longitude).sorted()
+            var west = longitudes[0]
+            var largestGap = west + 360 - longitudes[longitudes.count - 1]
+            for (left, right) in zip(longitudes, longitudes.dropFirst()) where right - left > largestGap {
+                largestGap = right - left
+                west = right
+            }
+            let width = 360 - largestGap
+            let midpoint = west + width / 2
+
+            // Keep 60% padding and the usual minimum span. Move the latitude
+            // centre inward near a pole so the padded edges remain valid.
+            let height = min(max((north - south) * 1.6, 0.00135), 180)
+            let latitudeLimit = 90 - height / 2
+            let center = CLLocationCoordinate2D(latitude: min(max((south + north) / 2, -latitudeLimit), latitudeLimit),
+                                                 longitude: midpoint > 180 ? midpoint - 360 : midpoint)
+            let span = MKCoordinateSpan(latitudeDelta: height, longitudeDelta: min(max(width * 1.6, 0.002), 360))
+            return MKCoordinateRegion(center: center, span: span)
         }
     }
 
@@ -100,7 +139,7 @@ struct RouteMapView: UIViewRepresentable {
 
     // MARK: - Container view
 
-    /// Wraps MKMapView to apply deferred zoom in layoutSubviews,
+    /// Wraps MKMapView to apply deferred framing in layoutSubviews,
     /// which is guaranteed to fire when the frame becomes valid
     /// (unlike delegate callbacks during NavigationStack transitions).
     final class MapContainerView: UIView {
@@ -116,15 +155,14 @@ struct RouteMapView: UIViewRepresentable {
 
         required init?(coder: NSCoder) { fatalError() }
 
-        /// Under the status bar the map is shown and takes no touch, as on home
-        /// (A26). The map below pans and zooms (A17).
+        /// Under the status bar the map is shown and takes no touch, as on home (A26).
         override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
             point.y < safeAreaInsets.top ? nil : super.hitTest(point, with: event)
         }
 
         override func layoutSubviews() {
             super.layoutSubviews()
-            if traitCollection.userInterfaceIdiom == .pad, mapView.bounds.size != bounds.size {
+            if mapView.bounds.size != bounds.size {
                 targetRegion = fittedRegion
             }
             mapView.frame = bounds

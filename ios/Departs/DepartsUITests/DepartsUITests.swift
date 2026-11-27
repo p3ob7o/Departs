@@ -67,6 +67,7 @@ final class DepartsUITests: XCTestCase {
             XCTAssertGreaterThanOrEqual(control.frame.minX, app.frame.midX)
             XCTAssertLessThanOrEqual(control.frame.maxY, lineList.frame.minY)
         }
+        assertLineMapIgnoresDragAndPinch()
         capture("iPad landscape line")
         app.buttons["pin-route"].tap()
         XCTAssertTrue(app.buttons["unpin-route"].exists)
@@ -803,6 +804,47 @@ final class DepartsUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["detail-stop-name"].label, "Siebensterngasse")
     }
 
+    func testLineMapOpensDistantSavedPinFromLink() {
+        XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 35.68, longitude: 139.76))
+        launch(); waitForRows()
+        rows.matching(NSPredicate(format: "label CONTAINS 'Wien Skodagasse'")).firstMatch.swipeLeft()
+        app.buttons["pin-route"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Pinned"].waitForExistence(timeout: 5))
+
+        app.terminate()
+        server.setEmptyStops(true)
+        XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 37.77, longitude: -122.42))
+        app.launch()
+        waitUntil(timeout: 12) { self.server.centers.last.map { abs($0.1 - (-122.42)) < 0.0002 } == true }
+
+        let id = ["77704_312", "bus", "13A", "Wien Skodagasse"].map { "\($0.utf8.count):\($0)" }.joined()
+        var link = URLComponents(string: "departs://pin")!
+        link.queryItems = [.init(name: "id", value: id)]
+        app.open(link.url!)
+        XCTAssertTrue(app.buttons["unpin-route"].waitForExistence(timeout: 5))
+        waitUntil { self.lineRows.count == 4 }
+        let platform = app.descendants(matching: .any)["route-platform"]
+        XCTAssertTrue(platform.waitForExistence(timeout: 5))
+        XCTAssertTrue(lineMap.frame.contains(platform.frame))
+        XCTAssertFalse(app.descendants(matching: .any)["route-origin"].exists)
+    }
+
+    func testLineMapShowsShortWalkAcrossAntimeridian() {
+        server.useAntimeridianStop()
+        XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 0, longitude: 179.99991))
+        launch(); waitForRows(); rows.firstMatch.tap()
+        waitUntil { self.app.staticTexts["detail-stop-name"].label.contains("·") && self.lineRows.count == 4 }
+
+        let platform = app.descendants(matching: .any)["route-platform"]
+        let start = app.descendants(matching: .any)["route-origin"]
+        XCTAssertTrue(platform.waitForExistence(timeout: 5))
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        XCTAssertTrue(lineMap.frame.contains(platform.frame))
+        XCTAssertTrue(lineMap.frame.contains(start.frame))
+        XCTAssertGreaterThan(platform.frame.midX - start.frame.midX, 5, "The route crosses the seam eastward at a local scale")
+        capture("Antimeridian walk")
+    }
+
     func testAccessibilityMapScrollsAwayAndRowsRemainReadable() {
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         launch(); waitForRows()
@@ -880,6 +922,39 @@ final class DepartsUITests: XCTestCase {
         XCTAssertTrue(lineList.frame.contains(lineRows.element(boundBy: 3).frame))
     }
 
+    func testLineMapIgnoresDragAndPinch() {
+        launch(); waitForRows(); rows.firstMatch.tap()
+        assertLineMapIgnoresDragAndPinch()
+        capture("Locked line map")
+    }
+
+    private func assertLineMapIgnoresDragAndPinch() {
+        waitUntil { self.app.staticTexts["detail-stop-name"].label.contains("·") && self.lineRows.count == 4 }
+        let pins = ["route-platform", "route-origin"].map { app.descendants(matching: .any)[$0] }
+        for pin in pins { XCTAssertTrue(pin.waitForExistence(timeout: 5)) }
+
+        // Pin positions reflect the visible map region without a test hook.
+        let beforeDrag = pins.map(\.frame)
+        lineMap.coordinate(withNormalizedOffset: CGVector(dx: 0.4, dy: 0.4))
+            .press(forDuration: 0.1, thenDragTo: lineMap.coordinate(withNormalizedOffset: CGVector(dx: 0.6, dy: 0.5)),
+                   withVelocity: .slow, thenHoldForDuration: 0.3)
+        assertMapPins(pins, stayedAt: beforeDrag, after: "drag")
+
+        let beforePinch = pins.map(\.frame)
+        lineMap.pinch(withScale: 1.75, velocity: 1)
+        assertMapPins(pins, stayedAt: beforePinch, after: "pinch")
+    }
+
+    private func assertMapPins(_ pins: [XCUIElement], stayedAt frames: [CGRect], after gesture: String,
+                               file: StaticString = #filePath, line: UInt = #line) {
+        for (pin, before) in zip(pins, frames) {
+            XCTAssertTrue(pin.exists, "\(pin.identifier) after \(gesture)", file: file, line: line)
+            let after = pin.frame
+            XCTAssertEqual(after.midX, before.midX, accuracy: 1, "\(pin.identifier) after \(gesture)", file: file, line: line)
+            XCTAssertEqual(after.midY, before.midY, accuracy: 1, "\(pin.identifier) after \(gesture)", file: file, line: line)
+        }
+    }
+
     func testLineCountdownsShareOneRightAlignedColumn() {
         launch(); waitForRows(); rows.firstMatch.tap()
         waitUntil { self.lineRows.count == 4 }
@@ -935,18 +1010,14 @@ final class DepartsUITests: XCTestCase {
             if lineMap.exists { back.tap(); XCTAssertTrue(lineMap.waitForNonExistence(timeout: 5)) }
         }
         print("SWIPES \(heights)")
-        // A pan on the map still pans and stays, also one that starts 30 pt
-        // from the left edge.
+        // Away from the left edge a drag leaves both the map and navigation in place.
         open()
         let platform = app.descendants(matching: .any)["route-platform"]
-        for startX in [width * 0.4, 30] {
-            let before = platform.frame
-            drag(fromX: startX, to: startX + width * 0.4, y: lineMap.frame.midY, velocity: 300)
-            let moved = expectation(for: NSPredicate { _, _ in platform.exists && platform.frame.midX > before.midX + 60 }, evaluatedWith: nil)
-            wait(for: [moved], timeout: 5)
-            print("PAN from x=\(Int(startX)): \(before.midX) -> \(platform.frame.midX)")
-            XCTAssertTrue(lineMap.exists, "A pan from x = \(Int(startX)) stays on the line screen")
-        }
+        XCTAssertTrue(platform.waitForExistence(timeout: 5))
+        let before = platform.frame
+        drag(fromX: 30, to: 30 + width * 0.4, y: lineMap.frame.midY, velocity: 300)
+        XCTAssertTrue(lineMap.exists, "A drag from 30 pt in stays on the line screen")
+        assertMapPins([platform], stayedAt: [before], after: "drag starting near the edge")
         back.tap()
         XCTAssertTrue(lineMap.waitForNonExistence(timeout: 5))
         // On home there is nothing to go back to: the swipe changes nothing,
@@ -1142,9 +1213,10 @@ final class DepartsUITests: XCTestCase {
         XCTAssertTrue(app.buttons["walking-directions"].exists)
         let initial = lineMap.frame.minY
         capture("Line accessibility map")
-        let listOrigin = lineList.coordinate(withNormalizedOffset: .zero)
-        listOrigin.withOffset(CGVector(dx: 180, dy: lineMap.frame.maxY + 50 - lineList.frame.minY))
-            .press(forDuration: 0.05, thenDragTo: listOrigin.withOffset(CGVector(dx: 180, dy: 80)), withVelocity: .slow, thenHoldForDuration: 0.2)
+        let mapOrigin = lineMap.coordinate(withNormalizedOffset: .zero)
+        mapOrigin.withOffset(CGVector(dx: 180, dy: lineMap.frame.height * 0.8))
+            .press(forDuration: 0.05, thenDragTo: mapOrigin.withOffset(CGVector(dx: 180, dy: 60)),
+                   withVelocity: .slow, thenHoldForDuration: 0.2)
         XCTAssertTrue(!lineMap.exists || lineMap.frame.minY < initial - 30)
         XCTAssertEqual(app.staticTexts["detail-direction"].label, "13A Wien Skodagasse")
         XCTAssertTrue(lineRows.firstMatch.waitForExistence(timeout: 5))
@@ -1624,6 +1696,7 @@ private final class TransitFixtureServer {
     private var lineMinutes: [Double]?
     private var longDestination = false
     private var plusDestination = false
+    private var antimeridianStop = false
     private var events: [String] = []
     private var nextConnectionID = 0
 
@@ -1654,6 +1727,7 @@ private final class TransitFixtureServer {
     func setLineMinutes(_ values: [Double]) { queue.sync { lineMinutes = values } }
     func useLongDestination() { queue.sync { longDestination = true } }
     func usePlusDestination() { queue.sync { plusDestination = true } }
+    func useAntimeridianStop() { queue.sync { antimeridianStop = true } }
     private var extraStops = 0
     func useExtraStops(_ count: Int) { queue.sync { extraStops = count } }
     private var extraPlatforms: [(String, String, Double, Double)] {
@@ -1736,6 +1810,11 @@ private final class TransitFixtureServer {
             let lat = Double(value("lat") ?? "0")!, lon = Double(value("lon") ?? "0")!
             requestedCenters.append((lat, lon))
             if emptyStops { return [] as [Any] }
+            if antimeridianStop {
+                var stop = TransitSample.stops[0]
+                stop["location"] = ["lat": 0.0, "lon": -179.99991]
+                return [stop]
+            }
             let extras: [[String: Any]] = extraPlatforms.enumerated().map { i, platform in
                 ["id": "77704_\(platform.0)", "name": platform.1, "type": "bus",
                  "location": ["lat": platform.2 + lat - 48.20134, "lon": platform.3 + lon - 16.34941],

@@ -1545,7 +1545,7 @@ final class FastDepartureTests: XCTestCase {
         let strip = map.safeAreaInsets.top
         XCTAssertGreaterThanOrEqual(strip, 30, "The line map lies under the status bar")
         XCTAssertNil(map.hitTest(CGPoint(x: 160, y: strip - 1), with: nil), "Nothing under the status bar can be touched (A26)")
-        XCTAssertNotNil(map.hitTest(CGPoint(x: 160, y: strip + 1), with: nil), "The square pans and zooms as before (A17)")
+        XCTAssertNotNil(map.hitTest(CGPoint(x: 160, y: strip + 1), with: nil), "The map below the strip still accepts taps")
     }
 
     func testAMapBadgeStandsForItsLineInEveryDirection() {

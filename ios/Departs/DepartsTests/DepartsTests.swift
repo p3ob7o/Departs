@@ -1,8 +1,96 @@
 import UIKit
 import XCTest
+import MapKit
 @testable import Departs
 
 final class DepartsTests: XCTestCase {
+    func testLineMapFitsPlatformOriginAndRouteAsTheyChange() throws {
+        let platform = CLLocationCoordinate2D(latitude: 48.20, longitude: 16.35)
+        let origin = CLLocationCoordinate2D(latitude: 48.20, longitude: 16.34)
+        let bend = CLLocationCoordinate2D(latitude: 48.21, longitude: 16.36)
+        let movedOrigin = CLLocationCoordinate2D(latitude: 48.19, longitude: 16.34)
+        let otherPlatform = CLLocationCoordinate2D(latitude: 48.20, longitude: 16.37)
+
+        func fit(_ stop: CLLocationCoordinate2D, _ start: CLLocationCoordinate2D?,
+                 _ route: [CLLocationCoordinate2D] = []) throws -> MKCoordinateRegion {
+            try XCTUnwrap(RouteMapView.MapCoordinates(platform: stop, origin: start, route: route).fittedRegion)
+        }
+        let stopOnly = try fit(platform, nil)
+        XCTAssertEqual(stopOnly.center.latitude, platform.latitude, accuracy: 0.000001)
+        XCTAssertEqual(stopOnly.center.longitude, platform.longitude, accuracy: 0.000001)
+        XCTAssertEqual(stopOnly.span.latitudeDelta, 0.00135, accuracy: 0.000001)
+        XCTAssertEqual(stopOnly.span.longitudeDelta, 0.002, accuracy: 0.000001)
+
+        let endpoints = try fit(platform, origin)
+        XCTAssertEqual(endpoints.center.longitude, 16.345, accuracy: 0.000001)
+        XCTAssertEqual(endpoints.span.longitudeDelta, 0.016, accuracy: 0.000001)
+
+        // The route can arrive later and extend outside the bounds of its endpoints.
+        let route = [origin, bend, platform]
+        let routed = try fit(platform, origin, route)
+        XCTAssertEqual(routed.center.latitude, 48.205, accuracy: 0.000001)
+        XCTAssertEqual(routed.center.longitude, 16.35, accuracy: 0.000001)
+        XCTAssertEqual(routed.span.latitudeDelta, 0.016, accuracy: 0.000001)
+        XCTAssertEqual(routed.span.longitudeDelta, 0.032, accuracy: 0.000001)
+
+        let moved = try fit(platform, movedOrigin, route)
+        XCTAssertEqual(moved.center.latitude, 48.20, accuracy: 0.000001)
+        XCTAssertEqual(moved.span.latitudeDelta, 0.032, accuracy: 0.000001)
+
+        let changedPlatform = try fit(otherPlatform, movedOrigin)
+        XCTAssertEqual(changedPlatform.center.longitude, 16.355, accuracy: 0.000001)
+        XCTAssertEqual(changedPlatform.span.longitudeDelta, 0.048, accuracy: 0.000001)
+    }
+
+    func testLineMapUsesShortLongitudeIntervalAcrossAntimeridian() throws {
+        let stop = CLLocationCoordinate2D(latitude: 0, longitude: -179.99991)
+        let start = CLLocationCoordinate2D(latitude: 0, longitude: 179.99991)
+        let bend = CLLocationCoordinate2D(latitude: 0.001, longitude: 179.998)
+        let points = RouteMapView.MapCoordinates(platform: stop, origin: start, route: [start, bend, stop])
+        let region = try XCTUnwrap(points.fittedRegion)
+        XCTAssertNotNil(points.origin)
+        XCTAssertEqual(region.center.longitude, 179.999045, accuracy: 0.000001)
+        XCTAssertEqual(region.span.longitudeDelta, 0.003344, accuracy: 0.000001)
+    }
+
+    func testLineMapFallsBackForDistantAndInvalidCoordinates() throws {
+        let stop = CLLocationCoordinate2D(latitude: 0, longitude: 0)
+        let antipode = CLLocationCoordinate2D(latitude: 0, longitude: 180)
+        let invalid = CLLocationCoordinate2D(latitude: .nan, longitude: .infinity)
+        for start in [antipode, invalid] {
+            let points = RouteMapView.MapCoordinates(platform: stop, origin: start, route: [start, stop])
+            let region = try XCTUnwrap(points.fittedRegion)
+            XCTAssertNil(points.origin)
+            XCTAssertTrue(points.route.isEmpty)
+            XCTAssertEqual(region.center.longitude, 0, accuracy: 0.000001)
+            XCTAssertEqual(region.span.longitudeDelta, 0.002, accuracy: 0.000001)
+        }
+        let invalidRoute = RouteMapView.MapCoordinates(platform: stop, origin: stop, route: [stop, invalid])
+        XCTAssertNotNil(invalidRoute.origin)
+        XCTAssertTrue(invalidRoute.route.isEmpty)
+        XCTAssertNil(RouteMapView.MapCoordinates(platform: invalid, origin: invalid, route: []).fittedRegion)
+    }
+
+    @MainActor func testLineMapBoundsAreAcceptedByMapKit() throws {
+        let map = MKMapView(frame: CGRect(x: 0, y: 0, width: 402, height: 402))
+        let north = CLLocationCoordinate2D(latitude: 90, longitude: 180)
+        let south = CLLocationCoordinate2D(latitude: -90, longitude: -180)
+        let corners = [-180.0, -90, 0, 90].map { CLLocationCoordinate2D(latitude: 0, longitude: $0) }
+        let regions = [
+            RouteMapView.MapCoordinates(platform: north, origin: north, route: []),
+            RouteMapView.MapCoordinates(platform: south, origin: south, route: []),
+            RouteMapView.MapCoordinates(platform: north, origin: north, route: [north, south] + corners)
+        ]
+        for points in regions {
+            let region = try XCTUnwrap(points.fittedRegion)
+            XCTAssertTrue(CLLocationCoordinate2DIsValid(region.center))
+            XCTAssertTrue((0.00135...180).contains(region.span.latitudeDelta))
+            XCTAssertTrue((0.002...360).contains(region.span.longitudeDelta))
+            XCTAssertLessThanOrEqual(abs(region.center.latitude) + region.span.latitudeDelta / 2, 90)
+            map.setRegion(region, animated: false)
+        }
+    }
+
     @MainActor func testAppSupportsOneWindow() {
         XCTAssertFalse(UIApplication.shared.supportsMultipleScenes)
     }
