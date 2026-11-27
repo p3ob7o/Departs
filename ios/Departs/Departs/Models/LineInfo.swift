@@ -7,6 +7,27 @@ struct LineInfo: Codable, Identifiable, Hashable {
 
     var id: String { "\(name)::\(direction)" }
 
+    /// Rider-facing text. Provider spelling remains in `direction` for identity and requests.
+    var displayDirection: String { Self.titleCaseDestination(direction) }
+
+    private static let destinationAcronyms: Set<String> = [
+        "BART", "BWI", "CDG", "CTA", "DCA", "DLR", "EWR", "JFK", "LAX", "LGA",
+        "LIRR", "MARTA", "MCO", "MDW", "MIA", "MRT", "NYC", "OAK", "ORD", "PATH",
+        "RER", "SFO", "SNCF", "TGV", "TTC", "UCLA", "UIC", "USC", "VRE", "WTC", "ÖBB"
+    ]
+
+    static func titleCaseDestination(_ destination: String) -> String {
+        destination.replacing(#/(?:\p{L}\.)+\p{L}(?![\p{L}\p{M}\p{N}])|[\p{L}\p{M}\p{N}]+(?:['’][\p{L}\p{M}]+)*/#) { match in
+            let word = match.output
+            let uppercase = word.uppercased()
+            // Dotted initials and known acronyms can be identified even in a lowercase feed.
+            if word.contains(".") || destinationAcronyms.contains(uppercase) {
+                return uppercase
+            }
+            return word.capitalized
+        }
+    }
+
     /// What the app shows for the line: its number and letter identifier only.
     /// A provider can put an operator or brand in front, as in "FlixBus N70";
     /// the badge reads "N70". Pins, links and requests keep `name`.

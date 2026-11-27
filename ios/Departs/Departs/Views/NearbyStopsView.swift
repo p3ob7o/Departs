@@ -338,7 +338,7 @@ struct NearbyStopsView: View {
         StopRowView(selection: selection, board: store.home.boards[selection.id],
                     fresh: store.isHomeBoardFresh(for: selection, at: date), pinned: store.isPinned(selection), now: date,
                     onOpen: { onSelect(selection) }, onPin: { store.togglePin(selection) },
-                    direction: Self.displayDirection(selection.line.direction, among: store.displayedOptions.map { $0.line.direction }), showStop: showStop,
+                    direction: displayDirection(selection), showStop: showStop,
                     badgeWidth: textSize.isAccessibilitySize ? nil : badgeColumn)
             .listRowInsets(.vertical, 0).listRowInsets(.horizontal, 16)
     }
@@ -362,7 +362,7 @@ struct NearbyStopsView: View {
     static func displayDirection(_ direction: String, among directions: [String]) -> String {
         let unique = Set(directions)
         guard unique.count >= 3, let prefix = direction.split(separator: " ").first,
-              unique.allSatisfy({ $0.hasPrefix("\(prefix) ") && $0.count > prefix.count + 1 }) else { return direction }
-        return String(direction.dropFirst(prefix.count + 1))
+              unique.allSatisfy({ $0.hasPrefix("\(prefix) ") && $0.count > prefix.count + 1 }) else { return LineInfo.titleCaseDestination(direction) }
+        return LineInfo.titleCaseDestination(String(direction.dropFirst(prefix.count + 1)))
     }
 }

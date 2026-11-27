@@ -27,7 +27,7 @@ struct StopRowView: View {
                         .frame(minWidth: badgeWidth, alignment: .leading)
                         .accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 2) {
-                        Text(direction ?? selection.line.direction).font(.subheadline)
+                        Text(direction ?? selection.line.displayDirection).font(.subheadline)
                             .lineLimit(textSize.isAccessibilitySize ? nil : 2)
                             .fixedSize(horizontal: false, vertical: true)
                         if showStop { Text(selection.stop.name).font(.caption) }
@@ -51,7 +51,7 @@ struct StopRowView: View {
     private var spokenAnswer: String {
         let service = selection.line.direction.isEmpty
             ? "\(selection.line.type.displayName) \(selection.line.shortName)"
-            : String(localized: "\(selection.line.type.displayName) \(selection.line.shortName) toward \(selection.line.direction)")
+            : String(localized: "\(selection.line.type.displayName) \(selection.line.shortName) toward \(selection.line.displayDirection)")
         return String(localized: "\(service). \(content.spokenAnswer). From \(selection.stop.name).")
     }
     private var pinAction: some View {
@@ -176,7 +176,7 @@ struct MapDirections: View {
     static func spoken(_ line: LineInfo) -> String {
         line.direction.isEmpty
             ? "\(line.type.displayName) \(line.shortName)"
-            : String(localized: "\(line.type.displayName) \(line.shortName) toward \(line.direction)")
+            : String(localized: "\(line.type.displayName) \(line.shortName) toward \(line.displayDirection)")
     }
 }
 

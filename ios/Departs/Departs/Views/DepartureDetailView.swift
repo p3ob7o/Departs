@@ -12,7 +12,7 @@ struct DepartureDetailView: View {
     /// right-aligned in one column: the 4 of "4 min" above the 0 of "10 min".
     @State private var countdownColumn: CGFloat?
 
-    private var title: String { "\(selection.line.shortName) \(selection.line.direction)" }
+    private var title: String { "\(selection.line.shortName) \(selection.line.displayDirection)" }
 
     var body: some View {
         GeometryReader { geometry in
