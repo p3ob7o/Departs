@@ -804,6 +804,47 @@ final class DepartsUITests: XCTestCase {
         XCTAssertEqual(app.staticTexts["detail-stop-name"].label, "Siebensterngasse")
     }
 
+    func testLineMapOpensDistantSavedPinFromLink() {
+        XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 35.68, longitude: 139.76))
+        launch(); waitForRows()
+        rows.matching(NSPredicate(format: "label CONTAINS 'Wien Skodagasse'")).firstMatch.swipeLeft()
+        app.buttons["pin-route"].firstMatch.tap()
+        XCTAssertTrue(app.staticTexts["Pinned"].waitForExistence(timeout: 5))
+
+        app.terminate()
+        server.setEmptyStops(true)
+        XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 37.77, longitude: -122.42))
+        app.launch()
+        waitUntil(timeout: 12) { self.server.centers.last.map { abs($0.1 - (-122.42)) < 0.0002 } == true }
+
+        let id = ["77704_312", "bus", "13A", "Wien Skodagasse"].map { "\($0.utf8.count):\($0)" }.joined()
+        var link = URLComponents(string: "departs://pin")!
+        link.queryItems = [.init(name: "id", value: id)]
+        app.open(link.url!)
+        XCTAssertTrue(app.buttons["unpin-route"].waitForExistence(timeout: 5))
+        waitUntil { self.lineRows.count == 4 }
+        let platform = app.descendants(matching: .any)["route-platform"]
+        XCTAssertTrue(platform.waitForExistence(timeout: 5))
+        XCTAssertTrue(lineMap.frame.contains(platform.frame))
+        XCTAssertFalse(app.descendants(matching: .any)["route-origin"].exists)
+    }
+
+    func testLineMapShowsShortWalkAcrossAntimeridian() {
+        server.useAntimeridianStop()
+        XCUIDevice.shared.location = XCUILocation(location: CLLocation(latitude: 0, longitude: 179.99991))
+        launch(); waitForRows(); rows.firstMatch.tap()
+        waitUntil { self.app.staticTexts["detail-stop-name"].label.contains("·") && self.lineRows.count == 4 }
+
+        let platform = app.descendants(matching: .any)["route-platform"]
+        let start = app.descendants(matching: .any)["route-origin"]
+        XCTAssertTrue(platform.waitForExistence(timeout: 5))
+        XCTAssertTrue(start.waitForExistence(timeout: 5))
+        XCTAssertTrue(lineMap.frame.contains(platform.frame))
+        XCTAssertTrue(lineMap.frame.contains(start.frame))
+        XCTAssertGreaterThan(platform.frame.midX - start.frame.midX, 5, "The route crosses the seam eastward at a local scale")
+        capture("Antimeridian walk")
+    }
+
     func testAccessibilityMapScrollsAwayAndRowsRemainReadable() {
         app.launchArguments += ["-UIPreferredContentSizeCategoryName", "UICTContentSizeCategoryAccessibilityXXXL"]
         launch(); waitForRows()
@@ -1655,6 +1696,7 @@ private final class TransitFixtureServer {
     private var lineMinutes: [Double]?
     private var longDestination = false
     private var plusDestination = false
+    private var antimeridianStop = false
     private var events: [String] = []
     private var nextConnectionID = 0
 
@@ -1685,6 +1727,7 @@ private final class TransitFixtureServer {
     func setLineMinutes(_ values: [Double]) { queue.sync { lineMinutes = values } }
     func useLongDestination() { queue.sync { longDestination = true } }
     func usePlusDestination() { queue.sync { plusDestination = true } }
+    func useAntimeridianStop() { queue.sync { antimeridianStop = true } }
     private var extraStops = 0
     func useExtraStops(_ count: Int) { queue.sync { extraStops = count } }
     private var extraPlatforms: [(String, String, Double, Double)] {
@@ -1767,6 +1810,11 @@ private final class TransitFixtureServer {
             let lat = Double(value("lat") ?? "0")!, lon = Double(value("lon") ?? "0")!
             requestedCenters.append((lat, lon))
             if emptyStops { return [] as [Any] }
+            if antimeridianStop {
+                var stop = TransitSample.stops[0]
+                stop["location"] = ["lat": 0.0, "lon": -179.99991]
+                return [stop]
+            }
             let extras: [[String: Any]] = extraPlatforms.enumerated().map { i, platform in
                 ["id": "77704_\(platform.0)", "name": platform.1, "type": "bus",
                  "location": ["lat": platform.2 + lat - 48.20134, "lon": platform.3 + lon - 16.34941],

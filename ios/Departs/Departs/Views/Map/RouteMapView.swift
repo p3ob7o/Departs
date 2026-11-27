@@ -17,7 +17,6 @@ struct RouteMapView: UIViewRepresentable {
         map.isZoomEnabled = false
         map.isRotateEnabled = false
         map.isPitchEnabled = false
-        map.showsUserLocation = true
         map.preferredConfiguration = MKStandardMapConfiguration(emphasisStyle: .muted)
         map.delegate = context.coordinator
         return MapContainerView(mapView: map)
@@ -30,28 +29,31 @@ struct RouteMapView: UIViewRepresentable {
         context.coordinator.stopName = stop.name
         context.coordinator.lineName = line?.shortName ?? stop.lines.first?.shortName ?? stop.type.label
         context.coordinator.originLabel = originIsCurrentLocation ? String(localized: "Walking start") : String(localized: "Last location")
-        let routeCoordinates = walkingRoute?.geometry.clCoordinates ?? []
+        let coordinates = MapCoordinates(platform: stop.location.clLocationCoordinate2D, origin: userCoordinate,
+                                         route: walkingRoute?.geometry.clCoordinates ?? [])
         let stopAnnotationKey = "\(stop.id)|\(stop.location.lat)|\(stop.location.lon)|\(context.coordinator.lineName)"
 
         if context.coordinator.stopAnnotationKey != stopAnnotationKey {
             let existing = map.annotations.compactMap { $0 as? PinAnnotation }.filter { $0.kind == .stop }
             map.removeAnnotations(existing)
 
-            let stopPin = PinAnnotation(
-                coordinate: stop.location.clLocationCoordinate2D,
-                kind: .stop
-            )
-            map.addAnnotation(stopPin)
+            if let platform = coordinates.platform {
+                map.addAnnotation(PinAnnotation(coordinate: platform, kind: .stop))
+            }
             context.coordinator.stopAnnotationKey = stopAnnotationKey
         }
 
-        let originKey = userCoordinate.map { "\($0.latitude)|\($0.longitude)|\(originIsCurrentLocation)" } ?? "none"
+        let originKey = coordinates.origin.map { "\($0.latitude)|\($0.longitude)|\(originIsCurrentLocation)" } ?? "none"
         if context.coordinator.originKey != originKey {
             map.removeAnnotations(map.annotations.compactMap { $0 as? PinAnnotation }.filter { $0.kind == .user })
-            if let userCoordinate { map.addAnnotation(PinAnnotation(coordinate: userCoordinate, kind: .user)) }
+            if let origin = coordinates.origin {
+                map.addAnnotation(PinAnnotation(coordinate: origin, kind: .user))
+            }
+            map.showsUserLocation = coordinates.origin != nil
             context.coordinator.originKey = originKey
         }
 
+        let routeCoordinates = coordinates.route
         let routeKey = Self.routeKey(for: routeCoordinates)
         if context.coordinator.routeKey != routeKey {
             map.removeOverlays(map.overlays)
@@ -62,37 +64,73 @@ struct RouteMapView: UIViewRepresentable {
             context.coordinator.routeKey = routeKey
         }
 
-        let origin = userCoordinate.map { "\($0.latitude),\($0.longitude)" } ?? "none"
-        let regionKey = "\(origin)|\(stop.location.lat),\(stop.location.lon)|\(routeKey)"
+        let regionKey = "\(originKey)|\(stop.location.lat),\(stop.location.lon)|\(routeKey)"
         if context.coordinator.regionKey != regionKey {
             context.coordinator.regionKey = regionKey
-            let region = Self.fittedRegion(stop: stop.location.clLocationCoordinate2D,
-                                           origin: userCoordinate, route: routeCoordinates)
+            let region = coordinates.fittedRegion
             container.fittedRegion = region
             container.targetRegion = region
-            if map.bounds.width > 0, map.bounds.height > 0 {
+            if let region, map.bounds.width > 0, map.bounds.height > 0 {
                 container.targetRegion = nil
                 map.setRegion(region, animated: false)
             }
         }
     }
 
-    static func fittedRegion(stop: CLLocationCoordinate2D, origin: CLLocationCoordinate2D?,
-                             route: [CLLocationCoordinate2D]) -> MKCoordinateRegion {
-        var south = stop.latitude, north = stop.latitude
-        var west = stop.longitude, east = stop.longitude
-        for coordinate in (origin.map { [$0] } ?? []) + route {
-            south = min(south, coordinate.latitude)
-            north = max(north, coordinate.latitude)
-            west = min(west, coordinate.longitude)
-            east = max(east, coordinate.longitude)
+    struct MapCoordinates {
+        let platform: CLLocationCoordinate2D?
+        let origin: CLLocationCoordinate2D?
+        let route: [CLLocationCoordinate2D]
+
+        init(platform: CLLocationCoordinate2D, origin: CLLocationCoordinate2D?, route: [CLLocationCoordinate2D]) {
+            func isValid(_ point: CLLocationCoordinate2D) -> Bool {
+                Coordinate(lat: point.latitude, lon: point.longitude).isValid
+            }
+            let validPlatform = isValid(platform) ? platform : nil
+            self.platform = validPlatform
+            self.origin = origin.flatMap { start in
+                guard isValid(start) else { return nil }
+                if let validPlatform {
+                    let stop = Coordinate(lat: validPlatform.latitude, lon: validPlatform.longitude)
+                    let rider = Coordinate(lat: start.latitude, lon: start.longitude)
+                    // For a distant pin, show the platform at the usual stop scale.
+                    guard rider.distance(to: stop) < TransitStore.maximumWalkingDistance else { return nil }
+                }
+                return start
+            }
+            self.route = validPlatform != nil && self.origin != nil && route.allSatisfy(isValid)
+                ? route : []
         }
-        return MKCoordinateRegion(
-            center: CLLocationCoordinate2D(latitude: (south + north) / 2, longitude: (west + east) / 2),
-            // Add 60% padding and keep a minimum span of about 150 m.
-            span: MKCoordinateSpan(latitudeDelta: max((north - south) * 1.6, 0.00135),
-                                   longitudeDelta: max((east - west) * 1.6, 0.002))
-        )
+
+        var fittedRegion: MKCoordinateRegion? {
+            let points = [platform, origin].compactMap { $0 } + route
+            guard let first = points.first else { return nil }
+            var south = first.latitude, north = first.latitude
+            for point in points.dropFirst() {
+                south = min(south, point.latitude)
+                north = max(north, point.latitude)
+            }
+
+            // Take the complement of the largest gap on the longitude circle.
+            let longitudes = points.map(\.longitude).sorted()
+            var west = longitudes[0]
+            var largestGap = west + 360 - longitudes[longitudes.count - 1]
+            for (left, right) in zip(longitudes, longitudes.dropFirst()) where right - left > largestGap {
+                largestGap = right - left
+                west = right
+            }
+            let width = 360 - largestGap
+            let midpoint = west + width / 2
+
+            // Keep 60% padding and the usual minimum span. Move the latitude
+            // centre inward near a pole so the padded edges remain valid.
+            let height = min(max((north - south) * 1.6, 0.00135), 180)
+            let latitudeLimit = 90 - height / 2
+            let center = CLLocationCoordinate2D(latitude: min(max((south + north) / 2, -latitudeLimit), latitudeLimit),
+                                                 longitude: midpoint > 180 ? midpoint - 360 : midpoint)
+            let span = MKCoordinateSpan(latitudeDelta: height, longitudeDelta: min(max(width * 1.6, 0.002), 360))
+            return MKCoordinateRegion(center: center, span: span)
+        }
     }
 
     func makeCoordinator() -> Coordinator {

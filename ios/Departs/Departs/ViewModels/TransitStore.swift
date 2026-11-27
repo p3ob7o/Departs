@@ -31,6 +31,8 @@ final class TransitStore {
     nonisolated static let refreshInterval: TimeInterval = 25
     /// Departs looks this far around the rider, in metres, and nowhere else.
     nonisolated static let radius = 400
+    /// Straight-line limit in metres for requesting a walking route.
+    nonisolated static let maximumWalkingDistance: Double = 5_000
     /// Straight-line distance in metres for pins outside the nearby stops.
     private static let distantPinRadius: Double = 50_000
 
@@ -410,7 +412,8 @@ final class TransitStore {
         let candidates = selectedWalkStops + (showsHomeWalks ? listedWalkStops : [])
         var wanted: [String: Coordinate] = [:]
         let stops = candidates.filter { stop in
-            guard let origin, origin.distance(to: stop.location) < 5000, wanted[stop.id] == nil else { return false }
+            guard let origin, origin.distance(to: stop.location) < Self.maximumWalkingDistance,
+                  wanted[stop.id] == nil else { return false }
             wanted[stop.id] = stop.location
             return true
         }
