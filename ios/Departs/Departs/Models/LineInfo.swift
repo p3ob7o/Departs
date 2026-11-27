@@ -7,6 +7,16 @@ struct LineInfo: Codable, Identifiable, Hashable {
 
     var id: String { "\(name)::\(direction)" }
 
+    /// Shortens the provider's London subway headsign for display.
+    var displayDirection: String {
+        guard type == .subway else { return direction }
+        let trimmed = direction.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let suffix = trimmed.range(of: " Underground Station", options: [.caseInsensitive, .backwards, .anchored]) else {
+            return direction
+        }
+        return trimmed[..<suffix.lowerBound].trimmingCharacters(in: .whitespaces)
+    }
+
     /// What the app shows for the line: its number and letter identifier only.
     /// A provider can put an operator or brand in front, as in "FlixBus N70";
     /// the badge reads "N70". Pins, links and requests keep `name`.

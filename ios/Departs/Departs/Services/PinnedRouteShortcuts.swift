@@ -26,7 +26,7 @@ struct PinnedRouteEntity: AppEntity {
 
     init(_ selection: StopLineSelection) {
         id = selection.id
-        title = "\(selection.line.shortName) → \(selection.line.direction)"
+        title = "\(selection.line.shortName) → \(selection.line.displayDirection)"
         stopName = selection.stop.name
     }
 }
