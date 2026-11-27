@@ -63,6 +63,66 @@ final class FastDepartureTests: XCTestCase {
         .init(id: id, name: id, type: .bus, lines: [],
               location: .init(lat: coordinate.lat + meters / 111_200, lon: coordinate.lon), distance: nil)
     }
+    @MainActor func testDenseAreaBatchesInnerPlatformsAndKeepsOuterPin() async {
+        let inner = [platform("one", meters: 30), platform("two", meters: 80),
+                     platform("three", meters: 140), platform("four", meters: 199)]
+        let outer = platform("outer", meters: 201)
+        let pinStop = platform("pin", meters: 399)
+        let excluded = platform("excluded", meters: 401)
+        let pinnedLine = service("90", "Pinned destination")
+        let pin = StopLineSelection(stop: pinStop, line: pinnedLine, lineIndex: 0)
+        let disk = persistence()
+        disk.savePins([pin])
+        let fetchedAt = instant.ISO8601Format()
+        let responseBoards = inner.map { returned($0, [service($0.id, "Centre")]) } +
+            [returned(outer, [service("91", "Outer destination")]),
+             returned(pinStop, [pinnedLine, service("92", "Other destination")])]
+        var requested: [String] = []
+        var api = client()
+        api.stops = { _ in inner + [outer, pinStop, excluded] }
+        api.batch = { ids in
+            requested = ids
+            return .init(fetchedAt: fetchedAt, boards: responseBoards.filter { ids.contains($0.stopId) }, missing: [])
+        }
+        let store = makeStore(api, persistence: disk)
+
+        await store.loadArea(coordinate)
+
+        XCTAssertEqual(requested, inner.map(\.id) + [pinStop.id])
+        XCTAssertEqual(store.groups.map(\.id), inner.map(\.id))
+        XCTAssertEqual(store.nearbyPins, [pin])
+        XCTAssertTrue(store.distantPins.isEmpty)
+        XCTAssertEqual(store.home.boards[pin.id]?.departures.count, 2)
+
+        store.togglePin(pin)
+        XCTAssertEqual(store.groups.map(\.id), inner.map(\.id))
+        await store.refreshAnswers(force: true)
+        XCTAssertEqual(requested, inner.map(\.id))
+        XCTAssertTrue(store.nearbyPins.isEmpty)
+    }
+
+    @MainActor func testThreePhysicalStopsKeepTheFullRadiusEvenWithExtraPlatforms() async {
+        let first = platform("one", meters: 30)
+        let secondPlatform = NearbyStop(id: "one-b", name: first.name, type: first.type,
+                                        lines: [], location: platform("other", meters: 50).location, distance: nil)
+        let stops = [first, secondPlatform, platform("two", meters: 80),
+                     platform("three", meters: 140), platform("outer", meters: 201)]
+        let fetchedAt = instant.ISO8601Format()
+        let responseBoards = stops.map { returned($0, []) }
+        var requested: [String] = []
+        var api = client()
+        api.stops = { _ in stops }
+        api.batch = { ids in
+            requested = ids
+            return .init(fetchedAt: fetchedAt, boards: responseBoards, missing: [])
+        }
+        let store = makeStore(api)
+
+        await store.loadArea(coordinate)
+
+        XCTAssertEqual(requested, stops.map(\.id))
+    }
+
     private func returned(_ stop: NearbyStop, _ services: [LineInfo]) -> BatchDepartures.Board {
         .init(stopId: stop.id, groups: services.map { .init(line: $0, departures: [departure(3), departure(9)]) })
     }

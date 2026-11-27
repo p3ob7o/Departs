@@ -1,5 +1,9 @@
 # Two screens: map and list
 
+The [adaptive nearby radius](../ios-fast-answers.md#nearby-radius) supersedes the
+fixed radius in O10 for automatic home rows. The 400 m discovery request and
+nearby pin rules still apply.
+
 | | |
 | --- | --- |
 | Status | Approved on 16 November 2026, including O1–O9 and A1–A9. Implementation and final evidence: [Phase 3 validation](ios-two-screens-phase-3-validation.md). Amended the same evening by O10–O12: see [Amendment: around you only](#amendment-around-you-only). Amended again on 17 and 18 November by O13–O17: see [Second amendment: the map at the top](#second-amendment-the-map-at-the-top). Amended on 18 November by O18: see [Third amendment: the map under the status bar](#third-amendment-the-map-under-the-status-bar). Amended on 19 November by O19: see [Fourth amendment: a tap on a map label](#fourth-amendment-a-tap-on-a-map-label). Amended later on 19 November by O20–O23: see [Fifth amendment: the line screen's controls under its map](#fifth-amendment-the-line-screens-controls-under-its-map). Amended on 22 November 2026 by O24: see [Sixth amendment: pins in the current city](#sixth-amendment-pins-in-the-current-city). O25 and O26 extend both screens to iPad in the [seventh amendment](#seventh-amendment-ipad-windows), and O27 keeps iPad to one window for now, decided on 24 November 2026. Amended on 27 November by O28 in the [eighth amendment](#eighth-amendment-lock-the-line-map). |
