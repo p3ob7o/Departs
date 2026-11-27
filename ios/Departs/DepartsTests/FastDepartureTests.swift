@@ -1029,9 +1029,54 @@ final class FastDepartureTests: XCTestCase {
     }
     @MainActor func testDisplayOnlyPrefixUsesThreeDistinctSharedDirections() {
         let directions = ["Paris Nord", "Paris Sud", "Paris Est"]
-        XCTAssertEqual(NearbyStopsView.displayDirection("Paris Nord", among: directions), "Nord")
-        XCTAssertEqual(NearbyStopsView.displayDirection("Paris Nord", among: Array(directions.prefix(2))), "Paris Nord")
-        XCTAssertEqual(NearbyStopsView.displayDirection("Paris Nord", among: directions + ["Lyon Centre"]), "Paris Nord")
+        let north = LineInfo(name: "RER", direction: "Paris Nord", type: .rail)
+        XCTAssertEqual(NearbyStopsView.displayDirection(north, among: directions), "Nord")
+        XCTAssertEqual(NearbyStopsView.displayDirection(north, among: Array(directions.prefix(2))), "Paris Nord")
+        XCTAssertEqual(NearbyStopsView.displayDirection(north, among: directions + ["Lyon Centre"]), "Paris Nord")
+    }
+
+    @MainActor func testSubwaySuffixCleanupComposesWithSharedPrefix() {
+        let directions = ["London Waterloo Underground Station", "London Bridge Underground Station", "London Underground Station"]
+        let waterloo = LineInfo(name: "Tube", direction: directions[0], type: .subway)
+        let london = LineInfo(name: "Tube", direction: directions[2], type: .subway)
+        XCTAssertEqual(NearbyStopsView.displayDirection(waterloo, among: directions), "Waterloo")
+        XCTAssertEqual(NearbyStopsView.displayDirection(london, among: directions), "London")
+    }
+
+    func testSubwayDestinationSuffixPreservesNamesAndQualifiers() {
+        let cases: [(TransportType, String, String)] = [
+            (.subway, "Elephant & Castle Underground Station", "Elephant & Castle"),
+            (.subway, "Queen's Park UNDERGROUND STATION", "Queen's Park"),
+            (.subway, "King's Cross St. Pancras Underground Station", "King's Cross St. Pancras"),
+            (.subway, "  Heathrow Terminal 4 underground station  ", "Heathrow Terminal 4"),
+            (.subway, "Underground Station", "Underground Station"),
+            (.subway, "Waterloo Underground Station via Bank", "Waterloo Underground Station via Bank"),
+            (.subway, "Golders Green Station", "Golders Green Station"),
+            (.subway, "  渋谷  ", "  渋谷  "),
+            (.subway, "", ""),
+            (.bus, "Waterloo Underground Station", "Waterloo Underground Station"),
+            (.bus, "Oxford Circus Station / Margaret Street", "Oxford Circus Station / Margaret Street")
+        ]
+        for (type, raw, display) in cases {
+            XCTAssertEqual(LineInfo(name: "line", direction: raw, type: type).displayDirection, display, raw)
+        }
+    }
+
+    @MainActor func testShortenedDestinationKeepsExactRequestAndSavedPinIdentity() throws {
+        let raw = "Elephant & Castle Underground Station"
+        let line = LineInfo(name: "Bakerloo", direction: raw, type: .subway)
+        let pin = stop(lines: [line]).lineSelections[0]
+        let url = try APIService.departuresURL(stopId: pin.stop.id, line: line)
+        let query = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems
+        XCTAssertEqual(query?.first { $0.name == "direction" }?.value, raw)
+        XCTAssertEqual(line.id, "Bakerloo::\(raw)")
+        let disk = persistence()
+        disk.savePins([pin])
+        XCTAssertEqual(disk.loadPins(), [pin])
+        let shortcut = PinnedRouteEntity(pin)
+        XCTAssertEqual(shortcut.id, pin.id)
+        XCTAssertEqual(shortcut.title, "Bakerloo → Elephant & Castle")
+        XCTAssertEqual(MapDirections.spoken(line), "Subway Bakerloo toward Elephant & Castle")
     }
 
     func testBoardExcludesExpiredAndInvalidTimesAndSortsUpcoming() {
