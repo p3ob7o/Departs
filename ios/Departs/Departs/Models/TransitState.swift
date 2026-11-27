@@ -72,17 +72,18 @@ struct HomeSnapshot: Codable {
     }
 
     static func make(stops: [NearbyStop], origin: Coordinate, pins: [StopLineSelection],
-                     response: BatchDepartures, checkedAt: Date) -> HomeSnapshot {
+                     response: BatchDepartures, checkedAt: Date, automaticStopIDs: Set<String>? = nil) -> HomeSnapshot {
         let received = Dictionary(response.boards.map { ($0.stopId, $0) }, uniquingKeysWith: { first, _ in first })
-        let missing = Set(stops.map(\.id)).subtracting(received.keys).union(response.missing)
         let localIDs = Set(stops.map(\.id))
+        let missing = localIDs.subtracting(received.keys).union(localIDs.intersection(response.missing))
+        let automaticStops = stops.filter { automaticStopIDs?.contains($0.id) ?? true }
         var pinnedIdentities: Set<ServiceIdentity> = []
         let nearbyPins = pins.filter { localIDs.contains($0.stop.id) && pinnedIdentities.insert($0.line.serviceIdentity).inserted }
         let pinnedServices = Set(nearbyPins.map { $0.line.serviceIdentity })
         var result = HomeSnapshot(pins: nearbyPins, missing: missing, checkedAt: checkedAt)
         var chosen: [LineIdentity: Set<String>] = [:]
         var usedSecondStop: Set<LineIdentity> = []
-        for var group in physicalStops(stops, from: origin) {
+        for var group in physicalStops(automaticStops, from: origin) {
             var candidates: [StopLineSelection] = []
             var candidateIndex: [ServiceIdentity: Int] = [:]
             // Retain provider order, choosing the nearest eligible platform
@@ -123,7 +124,10 @@ struct HomeSnapshot: Codable {
             if !group.active.isEmpty || group.hasMissingBoard { result.groups.append(group) }
         }
         for pin in nearbyPins where !missing.contains(pin.stop.id) && result.boards[pin.id] == nil {
-            result.boards[pin.id] = .init(departures: [], checkedAt: checkedAt)
+            let departures = received[pin.stop.id]?.groups.first {
+                $0.line.serviceIdentity == pin.line.serviceIdentity
+            }?.departures ?? []
+            result.boards[pin.id] = .init(departures: departures, checkedAt: checkedAt)
         }
         return result
     }

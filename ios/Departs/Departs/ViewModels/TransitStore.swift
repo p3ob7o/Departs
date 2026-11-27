@@ -29,8 +29,10 @@ final class TransitStore {
     typealias StopGroup = HomeStopGroup
     nonisolated static let runningHorizon: TimeInterval = 60 * 60
     nonisolated static let refreshInterval: TimeInterval = 25
-    /// Departs looks this far around the rider, in metres, and nowhere else.
+    /// Maximum search radius in metres, also used for nearby pins.
     nonisolated static let radius = 400
+    private static let denseRadius: Double = 200
+    private static let denseStopCount = 4
     /// Straight-line limit in metres for requesting a walking route.
     nonisolated static let maximumWalkingDistance: Double = 5_000
     /// Straight-line distance in metres for pins outside the nearby stops.
@@ -62,6 +64,8 @@ final class TransitStore {
     @ObservationIgnored private var batchID: UUID?
     @ObservationIgnored private var lastBatchAttempt: Date?
     @ObservationIgnored private var lastResponse: BatchDepartures?
+    /// The 200 m platform IDs in a dense area. Nil means the full 400 m.
+    @ObservationIgnored private var denseStopIDs: Set<String>?
     @ObservationIgnored private var pendingHome: HomeSnapshot?
     @ObservationIgnored private var interactingPresentations: Set<String> = []
     @ObservationIgnored private var detailChecks: [String: Date] = [:]
@@ -89,6 +93,7 @@ final class TransitStore {
         if let saved = persistence.loadNearby(), saved.center.isValid {
             center = saved.center
             stops = saved.stops
+            denseStopIDs = Self.denseStopIDs(in: stops, around: saved.center)
             stopsCheckedAt = saved.checkedAt
             if let savedHome = persistence.loadHome(), savedHome.checkedAt?.isRecent(at: now(), within: 86_400) == true,
                Set(savedHome.selections.map { $0.stop.id }).isSubset(of: Set(stops.map(\.id))) {
@@ -111,6 +116,18 @@ final class TransitStore {
                 && center.distance(to: $0.stop.location) <= Self.distantPinRadius
         }
     }
+    private static func denseStopIDs(in stops: [NearbyStop], around center: Coordinate) -> Set<String>? {
+        let closeStops = stops.filter { $0.location.distance(to: center) <= denseRadius }
+        guard HomeSnapshot.physicalStops(closeStops, from: center).count >= denseStopCount else { return nil }
+        return Set(closeStops.map(\.id))
+    }
+
+    private var departureStops: [NearbyStop] {
+        guard let denseStopIDs else { return stops }
+        let pinnedStopIDs = Set(pins.map { $0.stop.id })
+        return stops.filter { denseStopIDs.contains($0.id) || pinnedStopIDs.contains($0.id) }
+    }
+
     var displayedOptions: [StopLineSelection] { home.selections }
     var mapGroups: [StopGroup] {
         guard let center else { return [] }
@@ -160,9 +177,11 @@ final class TransitStore {
         else { pins.append(selection) }
         persistence.savePins(pins)
         if let response = lastResponse, let center, let date = TimeFormatter.parseISO(response.fetchedAt) {
-            var snapshot = HomeSnapshot.make(stops: stops, origin: center, pins: pins, response: response, checkedAt: date)
+            let eligibleStops = departureStops
+            var snapshot = HomeSnapshot.make(stops: eligibleStops, origin: center, pins: pins,
+                                             response: response, checkedAt: date, automaticStopIDs: denseStopIDs)
             let current = pendingHome ?? home
-            snapshot.missing = current.missing
+            snapshot.missing.formUnion(current.missing.intersection(eligibleStops.map(\.id)))
             snapshot.boards.merge(current.boards) { _, current in current }
             publish(snapshot)
         } else {
@@ -175,7 +194,8 @@ final class TransitStore {
                 }
             } else if !isPinned(selection) {
                 snapshot.pins.removeAll { $0.id == selection.id }
-                if snapshot.boards[selection.id]?.hasDepartureWithinHorizon == true, let center {
+                if denseStopIDs?.contains(selection.stop.id) ?? true,
+                   snapshot.boards[selection.id]?.hasDepartureWithinHorizon == true, let center {
                     if let index = snapshot.groups.firstIndex(where: { $0.stops.contains { $0.id == selection.stop.id } }) {
                         snapshot.groups[index].active.append(selection)
                     } else if var group = HomeSnapshot.physicalStops(stops, from: center)
@@ -223,12 +243,19 @@ final class TransitStore {
             defer { if revision == self.areaRevision { self.isLoadingStops = false; self.areaTask = nil } }
             do {
                 let response = try await self.client.stops(newCenter)
+                // Finish a batch for the old stop set before replacing its inputs.
+                await self.batchTask?.value
                 guard revision == self.areaRevision, !Task.isCancelled else { return }
+                let oldIDs = self.stops.map(\.id)
+                let oldDenseIDs = self.denseStopIDs
                 var seen: Set<String> = []
                 self.stops = Array(response.filter {
                     $0.location.isValid && $0.location.distance(to: newCenter) <= Double(Self.radius)
                         && seen.insert($0.id).inserted
                 }.prefix(50))
+                self.denseStopIDs = Self.denseStopIDs(in: self.stops, around: newCenter)
+                let scopeChanged = oldDenseIDs != self.denseStopIDs || oldIDs != self.stops.map(\.id)
+                if scopeChanged { self.lastResponse = nil }
                 self.stopsCheckedAt = self.now()
                 if self.stops.isEmpty {
                     self.home = .init()
@@ -240,7 +267,7 @@ final class TransitStore {
                 }
                 self.persistence.saveNearby(.init(center: newCenter, stops: self.stops, checkedAt: self.now()))
                 self.isLoadingStops = false
-                await self.refreshAnswers(force: forceRefresh || changed)
+                await self.refreshAnswers(force: forceRefresh || changed || scopeChanged)
             } catch {
                 guard revision == self.areaRevision, !Self.cancelled(error) else { return }
                 if changed || self.stopsCheckedAt == nil {
@@ -282,6 +309,7 @@ final class TransitStore {
         pendingHome = nil
         home = .init()
         stops = []
+        denseStopIDs = nil
         stopsCheckedAt = nil
         departuresError = nil
         homeRestored = false
@@ -292,7 +320,7 @@ final class TransitStore {
         guard let center, !stops.isEmpty else { return }
         if let batchTask { await batchTask.value; return }
         if !force, lastBatchAttempt?.isRecent(at: now(), within: Self.refreshInterval) == true { return }
-        let revision = areaRevision, requestID = UUID(), requestedStops = stops
+        let revision = areaRevision, requestID = UUID(), requestedStops = departureStops
         batchID = requestID
         lastBatchAttempt = now()
         let task = Task { [weak self] in
@@ -304,8 +332,8 @@ final class TransitStore {
                 let response = try await self.client.batch(requestedStops.map(\.id))
                 guard revision == self.areaRevision, !Task.isCancelled else { return }
                 guard let fetchedAt = TimeFormatter.parseISO(response.fetchedAt) else { throw APIError.requestFailed }
-                var snapshot = HomeSnapshot.make(stops: requestedStops, origin: center, pins: self.pins,
-                                                 response: response, checkedAt: fetchedAt)
+                var snapshot = HomeSnapshot.make(stops: self.departureStops, origin: center, pins: self.pins,
+                                                 response: response, checkedAt: fetchedAt, automaticStopIDs: self.denseStopIDs)
                 let previous = self.pendingHome ?? self.home
                 if !snapshot.missing.isEmpty, previous.checkedAt != nil {
                     // Partial results update known times, never promote or move

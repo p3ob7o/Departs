@@ -4,7 +4,7 @@
 
 On 16 November 2026 the owner defined Departs as two screens showing which transport is available around you. Each screen has a square map above a short list. Home shows nearby lines leaving within an hour, once per destination at the nearest qualifying stop. A row opens the line's walking map and next four departures. The [approved plan](plans/ios-two-screens.md) specifies the exact selection rules, states and acceptance gates.
 
-Later that day the owner made it stricter: "This app is minimalistic and opinionated. It looks in a 400m radius, period." The wider search and place search are gone. With location off, the app shows pinned routes only.
+Later that day the owner made it stricter: "This app is minimalistic and opinionated. It looks in a 400m radius, period." The wider search and place search are gone. Home now uses a [200 m radius where stops are dense](ios-fast-answers.md#nearby-radius) and 400 m elsewhere. With location off, the app shows pinned routes only.
 
 The owner retired the browser client on 15 November. iOS is the sole product client. Spacefast serves it at `api.departs.now`. The owner retired the legacy Vercel host without forwarding. Historical web designs stay in `docs/archive/web/`.
 

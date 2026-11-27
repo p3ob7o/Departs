@@ -1,10 +1,10 @@
 # Native fast answers
 
-Departs shows which transport is available around you: within 400 metres of where you are, and nowhere else. The [two-screen plan](plans/ios-two-screens.md), approved on 16 November 2026, replaces the former advice cards, idle disclosures and map sheets. Its [amendment](plans/ios-two-screens.md#amendment-around-you-only) of the same day removed place search and the wider search. Its [second amendment](plans/ios-two-screens.md#second-amendment-the-map-at-the-top), of 17 and 18 November, removed home's bar and corrected the list. Its [fifth](plans/ios-two-screens.md#fifth-amendment-the-line-screens-controls-under-its-map), of 19 November, moved the line screen's controls under its map, added the choice of map app and hid the ring. On iPhone both screens have a square map above a short list, in portrait. On iPad the app runs in one resizable window in all orientations under the [seventh amendment](plans/ios-two-screens.md#seventh-amendment-ipad-windows). The app requires iOS 26.
+Departs shows which transport is available within 400 metres of where you are, or within 200 metres where stops are dense. The [two-screen plan](plans/ios-two-screens.md), approved on 16 November 2026, replaces the former advice cards, idle disclosures and map sheets. Its [amendment](plans/ios-two-screens.md#amendment-around-you-only) of the same day removed place search and the wider search. Its [second amendment](plans/ios-two-screens.md#second-amendment-the-map-at-the-top), of 17 and 18 November, removed home's bar and corrected the list. Its [fifth](plans/ios-two-screens.md#fifth-amendment-the-line-screens-controls-under-its-map), of 19 November, moved the line screen's controls under its map, added the choice of map app and hid the ring. On iPhone both screens have a square map above a short list, in portrait. On iPad the app runs in one resizable window in all orientations under the [seventh amendment](plans/ios-two-screens.md#seventh-amendment-ipad-windows). The app requires iOS 26.
 
 ## Home selection and order
 
-Home restores its last published list before networking. It then requests stops within 400 metres of the rider's position and fetches all their departure boards in one batch. The radius is fixed, and there is no way to choose another place. Candidates come from actual departures within 60 minutes of the batch's `fetchedAt`, not the provider's stop-line metadata.
+Home restores its last published list before networking. It then discovers stops within 400 metres of the rider's position and requests the boards for the selected radius in one batch. The batch includes nearby pinned platforms out to 400 metres. Candidates come from actual departures within 60 minutes of the batch's `fetchedAt`, not the provider's stop-line metadata.
 
 Platforms with the same name within 150 metres form one physical stop. Sections follow computed straight-line distance from the centre of the area, which is where the rider was when its stops were loaded. A new fix within 150 metres keeps that centre, so the list and map stay put; a fix farther away starts a new area. The nearest stop for a line contributes all its qualifying destinations. If it has only one, the next qualifying stop may contribute one different destination. A line uses at most two automatic stops, and a mode/line/destination appears once. Rows retain provider order. Walking time never changes selection or ordering.
 
@@ -16,11 +16,42 @@ A stop's name stays at the top while its lines pass under it and leaves together
 
 Pinned directions at stops in the 400 m area come first, in pin order, with their stop name. The "Pinned" name follows the same rule, with "Pinned elsewhere" as its last line when present. Nearby pinned services suppress automatic duplicates. An idle pin stays dimmed with "Nothing soon"; other idle services disappear. "Pinned elsewhere (n)" opens the pins outside the area and within 50 km of its centre, inclusive. The count follows the sheet as the centre changes. With no centre the sheet shows all saved pins. The row is absent when the sheet would be empty. Pin by swipe, long press or the line screen's system pin button.
 
+## Nearby radius
+
+Home uses 200 metres when at least four physical stops are within 200 metres of
+the area centre. For that count, it groups platforms using the list's rule:
+same name and within 150 metres of the first platform in the group. The
+200 m and 400 m boundaries are inclusive. Home decides from the nearby response,
+so a timetable refresh cannot change the radius and a dense area needs no
+second nearby request.
+
+On 27 November 2026, one sample from the [production nearby and departures API](https://api.departs.now/api/stops/nearby?lat=52.5219&lon=13.4132&radius=400)
+gave the counts below. Each cell shows platforms / physical stops / physical
+stops with at least one known departure in the next hour, before the home list
+deduplicates services.
+
+| Place (latitude, longitude) | Within 200 m | Within 400 m |
+| --- | ---: | ---: |
+| Vienna Stephansplatz (48.20849, 16.3721) | 3 / 2 / 2 | 12 / 9 / 8 |
+| Vienna Neubau (48.20134, 16.34941) | 5 / 2 / 2 | 17 / 7 / 7 |
+| London Oxford Circus (51.5152, -0.1419) | 3 / 3 / 3 | 9 / 9 / 9 |
+| Berlin Alexanderplatz (52.5219, 13.4132) | 15 / 7 / 5 | 28 / 11 / 8 |
+| New York City Hall (40.7127, -74.0060) | 26 / 19 / 13 | 49 / 36 / 24 |
+| Vienna Prater (48.1968, 16.4208) | 0 / 0 / 0 | 0 / 0 / 0 |
+
+Four keeps the wider search at Oxford Circus, where 200 m would have dropped
+six physical stops with upcoming departures in this sample. It also keeps
+Neubau at 400 m despite five nearby platforms at just two physical stops.
+Alexanderplatz and City Hall had multiple physical stops with upcoming service
+inside 200 m, and the shorter radius cut their unpinned batches by 13 and 23
+platforms. Provider names and timetables vary, so these samples inform the
+cutoff without guaranteeing a specific number of visible rows.
+
 ## Maps and the line screen
 
 On iPad, each map uses the full width in a stack and the full left half in a wide landscape window. The right pane then contains all rows and line controls. Both maps refit when their panes resize.
 
-Home has no navigation bar. On iPhone its map is a square that starts under the status bar and is always centred on the rider at a fixed 960-metre span. Where the status bar is at least 44 pt tall, with a Dynamic Island or a notch, the map continues above the square to the top of the screen. iOS blurs it under the status bar by itself; the app adds nothing there, and that part takes no touch. MapKit treats the safe area as margin, so the square shows what it showed without it. An iPhone SE, whose status bar is 20 pt, keeps the square alone. The map cannot be panned or zoomed. The app's own fix arrives every 30 to 60 seconds, so between fixes the map follows MapKit's live location, but only while that is accurate to 100 metres and the app holds a usable fix. Otherwise it stands on the app's fix, else on the saved area's centre, else on nothing. A coarse location never moves it. No ring marks the 400-metre radius since 19 November (O23); the location dot stays at the centre. `StopsMapView.showsRing` would draw it again without changing the framing. The list's area still changes only after 150 metres.
+Home has no navigation bar. On iPhone its map is a square that starts under the status bar and is always centred on the rider at a fixed 960-metre span. Where the status bar is at least 44 pt tall, with a Dynamic Island or a notch, the map continues above the square to the top of the screen. iOS blurs it under the status bar by itself; the app adds nothing there, and that part takes no touch. MapKit treats the safe area as margin, so the square shows what it showed without it. An iPhone SE, whose status bar is 20 pt, keeps the square alone. The map cannot be panned or zoomed. The app's own fix arrives every 30 to 60 seconds, so between fixes the map follows MapKit's live location, but only while that is accurate to 100 metres and the app holds a usable fix. Otherwise it stands on the app's fix, else on the saved area's centre, else on nothing. A coarse location never moves it. No ring marks the search radius since 19 November (O23); the location dot stays at the centre. `StopsMapView.showsRing` would draw the 400-metre discovery boundary without changing the framing. The list's area still changes only after 150 metres.
 
 Home's map shows one label per listed physical stop, including nearby pins. A label contains up to three line badges, then a count. Each badge is its line. A line that runs one way from the stop opens at once. A line that runs more than one way offers its directions at the badge, without times, and the one picked opens. "+N" offers the lines that have no badge. VoiceOver activates the label as a whole, which offers every row of the stop. Every tap counts, also on a label that is already selected: MapKit reports a selection only when it changes, so a tap recognizer on the map hears the taps and tells which badge was touched. Everything a label opens is also a row in the list. Map tiles never block departures.
 
