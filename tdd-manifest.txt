@@ -26,7 +26,6 @@ app/lib/api.test.ts | passes lat and lon as query params
 app/lib/api.test.ts | throws on non-ok response
 app/lib/api.test.ts | fetches departures from /api/departures
 app/lib/api.test.ts | passes stopId as query param
-app/lib/api.test.ts | fetches walking directions from /api/directions
 app/lib/api.test.ts | passes from and to as query params
 
 # ── API route: /api/stops/nearby ──
@@ -42,14 +41,6 @@ app/api/departures/route.test.ts | returns 400 when stopId is missing
 app/api/departures/route.test.ts | proxies request to HERE boards API
 app/api/departures/route.test.ts | prevents caching departure responses
 app/api/departures/route.test.ts | returns 500 when HERE API fails
-
-# ── API route: /api/directions ──
-app/api/directions/route.test.ts | returns 400 when from is missing
-app/api/directions/route.test.ts | returns 400 when to is missing
-app/api/directions/route.test.ts | returns 400 when coordinates are invalid
-app/api/directions/route.test.ts | proxies request to Mapbox Directions API
-app/api/directions/route.test.ts | sets cache headers for 1 hour
-app/api/directions/route.test.ts | returns 500 when Mapbox API fails
 
 # ── Hook: useGeolocation ──
 app/hooks/useGeolocation.test.ts | starts in loading state

@@ -7,7 +7,7 @@
     "test": "vitest",
     "test:run": "vitest run",
     "test:coverage": "vitest run --coverage",
-    "build:spacefast": "esbuild spacefast/functions/index.ts spacefast/functions/api/departures.ts spacefast/functions/api/directions.ts spacefast/functions/api/stops/nearby.ts --bundle --format=esm --platform=browser --outbase=spacefast --outdir=.spacefast/worker"
+    "build:spacefast": "rm -rf .spacefast/worker/functions && esbuild spacefast/functions/index.ts spacefast/functions/api/departures.ts spacefast/functions/api/stops/nearby.ts --bundle --format=esm --platform=browser --outbase=spacefast --outdir=.spacefast/worker"
   },
   "devDependencies": {
     "@eslint/js": "^9",
